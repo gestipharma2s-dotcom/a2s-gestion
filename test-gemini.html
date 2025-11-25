@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test API Gemini - A2S Gestion</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 800px;
+      width: 100%;
+      padding: 40px;
+    }
+    h1 {
+      color: #2d3748;
+      font-size: 32px;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+    .subtitle {
+      color: #718096;
+      text-align: center;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+    .input-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      color: #4a5568;
+      font-weight: 600;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: all 0.3s;
+      font-family: monospace;
+    }
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    button {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s;
+      margin-bottom: 20px;
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+    }
+    button:active {
+      transform: translateY(0);
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .result {
+      background: #f7fafc;
+      border-radius: 8px;
+      padding: 20px;
+      margin-top: 20px;
+      border-left: 4px solid #667eea;
+      display: none;
+    }
+    .result.show {
+      display: block;
+      animation: slideIn 0.3s ease-out;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .result h3 {
+      color: #2d3748;
+      margin-bottom: 12px;
+      font-size: 18px;
+    }
+    .success {
+      color: #22c55e;
+      font-weight: 600;
+    }
+    .error {
+      color: #ef4444;
+      font-weight: 600;
+    }
+    .info {
+      color: #3b82f6;
+    }
+    pre {
+      background: #1a202c;
+      color: #a0aec0;
+      padding: 16px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 12px;
+      line-height: 1.6;
+      margin-top: 12px;
+    }
+    .insight-card {
+      background: white;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+      border-left: 4px solid;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .insight-card.positive { border-color: #22c55e; }
+    .insight-card.warning { border-color: #f59e0b; }
+    .insight-card.info { border-color: #3b82f6; }
+    .insight-card.action { border-color: #8b5cf6; }
+    .insight-title {
+      font-weight: 700;
+      font-size: 16px;
+      margin-bottom: 6px;
+      color: #2d3748;
+    }
+    .insight-message {
+      color: #4a5568;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .loader {
+      border: 3px solid #f3f4f6;
+      border-top: 3px solid #667eea;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 20px auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🤖 Test API Gemini</h1>
+    <p class="subtitle">Diagnostiquez votre configuration Google Gemini pour A2S Gestion</p>
+    
+    <div class="input-group">
+      <label for="apiKey">🔑 Clé API Gemini</label>
+      <input 
+        type="text" 
+        id="apiKey" 
+        placeholder="AIzaSy..." 
+        value="AIzaSyDWWtPvq5M42WWRXM5aldUwFNF3BTB5VUQ"
+      >
+    </div>
+    
+    <button onclick="testGemini()" id="testBtn">
+      🚀 Tester l'API Gemini
+    </button>
+    
+    <div id="result" class="result"></div>
+  </div>
+
+  <script>
+    async function testGemini() {
+      const apiKey = document.getElementById('apiKey').value.trim();
+      const resultDiv = document.getElementById('result');
+      const testBtn = document.getElementById('testBtn');
+      
+      if (!apiKey) {
+        resultDiv.innerHTML = '<h3 class="error">❌ Erreur</h3><p>Veuillez entrer une clé API.</p>';
+        resultDiv.classList.add('show');
+        return;
+      }
+      
+      testBtn.disabled = true;
+      testBtn.textContent = '⏳ Test en cours...';
+      resultDiv.innerHTML = '<div class="loader"></div>';
+      resultDiv.classList.add('show');
+      
+      try {
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        
+        console.log('📡 Appel API Gemini...');
+        
+        const prompt = `Tu es un analyste financier expert pour A2S Gestion, société de logiciels pharmaceutiques en Algérie.
+
+Analyse ces données et fournis EXACTEMENT 4 insights en français (max 50 mots chacun).
+
+DONNÉES FINANCIÈRES:
+- Clients actifs: 45
+- Prospects en cours: 12
+- Revenus encaissés: 850,000 DA
+- Reste à payer: 320,000 DA
+- Total installations: 1,170,000 DA
+- Taux de conversion: 78.9%
+- Taux de recouvrement: 72.6%
+
+INSTRUCTIONS:
+Fournis 4 insights avec ces catégories exactes:
+1. POSITIVE - Tendance encourageante
+2. WARNING - Point d'attention urgent
+3. INFO - Métrique clé à surveiller
+4. ACTION - Recommandation actionnable
+
+FORMAT JSON STRICT:
+[
+  {"type": "positive", "title": "Titre court", "message": "Insight concis avec chiffres clés"},
+  {"type": "warning", "title": "Titre court", "message": "Insight concis avec chiffres clés"},
+  {"type": "info", "title": "Titre court", "message": "Insight concis avec chiffres clés"},
+  {"type": "action", "title": "Titre court", "message": "Insight concis avec chiffres clés"}
+]
+
+RÉPONDS UNIQUEMENT EN JSON, RIEN D'AUTRE.`;
+
+        const startTime = Date.now();
+        
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{
+                text: prompt
+              }]
+            }],
+            generationConfig: {
+              temperature: 0.7,
+              maxOutputTokens: 800,
+              topP: 0.95,
+              topK: 40
+            }
+          })
+        });
+        
+        const responseTime = Date.now() - startTime;
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        
+        const data = await response.json();
+        const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        
+        if (!content) {
+          throw new Error('Aucun contenu dans la réponse');
+        }
+        
+        console.log('✅ Contenu reçu:', content);
+        
+        // Nettoyer et parser
+        const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        const insights = JSON.parse(cleanContent);
+        
+        if (!Array.isArray(insights) || insights.length !== 4) {
+          throw new Error('Format invalide: 4 insights attendus');
+        }
+        
+        // Afficher le succès
+        let html = `
+          <h3 class="success">✅ Succès !</h3>
+          <p class="info">Temps de réponse: <strong>${responseTime}ms</strong></p>
+          <p style="margin-top: 12px; color: #4a5568;">
+            L'API Gemini fonctionne parfaitement ! Voici les 4 insights générés :
+          </p>
+          <div style="margin-top: 20px;">
+        `;
+        
+        insights.forEach(insight => {
+          html += `
+            <div class="insight-card ${insight.type}">
+              <div class="insight-title">${insight.title}</div>
+              <div class="insight-message">${insight.message}</div>
+            </div>
+          `;
+        });
+        
+        html += `</div>`;
+        html += `<pre>${JSON.stringify(insights, null, 2)}</pre>`;
+        
+        resultDiv.innerHTML = html;
+        
+      } catch (error) {
+        console.error('❌ Erreur:', error);
+        
+        let errorMessage = error.message;
+        let solution = '';
+        
+        if (errorMessage.includes('HTTP 400')) {
+          solution = `
+            <p style="margin-top: 12px;"><strong>Solutions:</strong></p>
+            <ul style="margin-left: 20px; color: #4a5568; line-height: 1.8;">
+              <li>Vérifiez que votre clé API est correcte</li>
+              <li>Allez sur <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a></li>
+              <li>Créez une nouvelle clé API si nécessaire</li>
+            </ul>
+          `;
+        } else if (errorMessage.includes('HTTP 403')) {
+          solution = `
+            <p style="margin-top: 12px;"><strong>Solutions:</strong></p>
+            <ul style="margin-left: 20px; color: #4a5568; line-height: 1.8;">
+              <li>Vérifiez que l'API Generative Language est activée</li>
+              <li>Allez sur <a href="https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com" target="_blank">Google Cloud Console</a></li>
+              <li>Activez l'API pour votre projet</li>
+            </ul>
+          `;
+        } else if (errorMessage.includes('HTTP 429')) {
+          solution = `
+            <p style="margin-top: 12px;"><strong>Quota dépassé:</strong></p>
+            <ul style="margin-left: 20px; color: #4a5568; line-height: 1.8;">
+              <li>Attendez 1 minute (15 requêtes/min max)</li>
+              <li>Ou créez un nouveau projet sur Google AI Studio</li>
+            </ul>
+          `;
+        }
+        
+        resultDiv.innerHTML = `
+          <h3 class="error">❌ Erreur de test</h3>
+          <p style="color: #ef4444; margin-top: 8px;"><strong>${errorMessage}</strong></p>
+          ${solution}
+          <pre>${error.stack}</pre>
+        `;
+      } finally {
+        testBtn.disabled = false;
+        testBtn.textContent = '🚀 Tester l\'API Gemini';
+      }
+    }
+    
+    // Auto-test au chargement si clé présente
+    window.addEventListener('load', () => {
+      const apiKey = document.getElementById('apiKey').value.trim();
+      if (apiKey && apiKey.startsWith('AIza')) {
+        console.log('🔄 Test automatique au chargement...');
+        setTimeout(() => testGemini(), 500);
+      }
+    });
+  </script>
+</body>
+</html>
