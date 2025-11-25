@@ -363,7 +363,9 @@ export const installationService = {
                   installation_id: installation.id,
                   date_debut: dateDebut.toISOString().split('T')[0],
                   date_fin: dateFin.toISOString().split('T')[0],
-                  statut: 'actif'
+                  statut: 'actif',
+                  source: 'ABONNEMENT (ACQUISITION)',
+                  auto_generated: true
                 }]);
               
               if (insertError) {
