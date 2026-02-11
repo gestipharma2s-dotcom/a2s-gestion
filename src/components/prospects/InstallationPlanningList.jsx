@@ -20,6 +20,35 @@ const InstallationPlanningList = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [allUsers, setAllUsers] = useState([]);
 
+    const getMissionStatusLabel = (item) => {
+        // Support pour l'objet mission directement ou via mission_id
+        let mission = item.mission;
+
+        // Supabase peut parfois retourner un tableau pour les jointures
+        if (Array.isArray(mission)) mission = mission[0];
+
+        if (!mission) {
+            // Fallback si on a un ID mais pas l'objet mission
+            if (item.mission_id && item.mission_id !== "null" && item.mission_id !== 0) {
+                return { label: 'PLANIFIÉE', class: 'bg-blue-100 text-blue-800' };
+            }
+            return { label: '-', class: 'text-gray-400' };
+        }
+
+        switch (mission.statut) {
+            case 'creee':
+            case 'planifiee':
+                return { label: 'À VENIR', class: 'bg-blue-100 text-blue-800' };
+            case 'en_cours':
+                return { label: 'EN COURS', class: 'bg-amber-100 text-amber-800' };
+            case 'cloturee':
+            case 'validee':
+                return { label: 'TERMINÉE', class: 'bg-green-100 text-green-800' };
+            default:
+                return { label: mission.statut?.toUpperCase() || '-', class: 'bg-gray-100 text-gray-800' };
+        }
+    };
+
     const handleToggleCancelInstallation = async (item, e) => {
         if (e && e.stopPropagation) e.stopPropagation();
 
@@ -300,6 +329,9 @@ const InstallationPlanningList = () => {
                                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Chef de Mission
                                 </th>
+                                <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Statut Mission
+                                </th>
                                 <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     Actions
                                 </th>
@@ -374,7 +406,6 @@ const InstallationPlanningList = () => {
                                             {formatDate(item.date_fin)}
                                         </td>
 
-                                        {/* Chef de Mission */}
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center">
                                                 <User size={16} className="text-gray-400 mr-2" />
@@ -382,6 +413,18 @@ const InstallationPlanningList = () => {
                                                     {users[item.chef_mission] || 'Non assigné'}
                                                 </span>
                                             </div>
+                                        </td>
+
+                                        {/* Statut Mission */}
+                                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                                            {(() => {
+                                                const status = getMissionStatusLabel(item);
+                                                return (
+                                                    <span className={`px-2.5 py-1 inline-flex text-[10px] leading-4 font-bold rounded-full border ${status.class}`}>
+                                                        {status.label}
+                                                    </span>
+                                                );
+                                            })()}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right">
                                             {item.mission_id && item.mission_id !== "null" && item.mission_id !== 0 && item.mission_id !== "0" ? (
