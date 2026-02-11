@@ -19,6 +19,10 @@ export const installationPlanningService = {
         wilaya,
         secteur,
         statut
+    ),
+    mission: missions!mission_id(
+        id,
+        statut
     )
         `)
                 .eq('type_action', 'installation')
@@ -77,6 +81,10 @@ export const installationPlanningService = {
             email,
             wilaya,
             secteur,
+            statut
+        ),
+        mission: missions!mission_id(
+            id,
             statut
         )
             `)
