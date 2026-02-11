@@ -49,6 +49,41 @@ const InstallationPlanningList = () => {
         }
     };
 
+    const getEffectiveStatus = (item) => {
+        const now = new Date();
+        now.setHours(0, 0, 0, 0); // Travailler sur des dates sans heure pour la comparaison
+
+        const start = new Date(item.date_debut);
+        start.setHours(0, 0, 0, 0);
+
+        const end = new Date(item.date_fin);
+        end.setHours(0, 0, 0, 0);
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Priorité 1: Statut de la mission si elle existe
+        let mission = item.mission;
+        if (Array.isArray(mission)) mission = mission[0];
+
+        if (mission && mission.statut) {
+            const s = mission.statut.toLowerCase();
+            if (s === 'cloturee' || s === 'validee' || s === 'terminée' || s === 'terminé') return 'completed';
+            if (s === 'en_cours' || s === 'en cours') return 'ongoing';
+            if (s === 'creee' || s === 'planifiee' || s === 'à venir') return 'upcoming';
+        }
+
+        // Priorité 2: Cas de l'installation annulée
+        if (item.is_cancelled) return 'upcoming'; // Ou un statut spécifique si besoin
+
+        // Priorité 3: Dates (fallback si pas de mission ou mission en attente de démarrage)
+        if (end < today) return 'completed';
+        if (start > today) return 'upcoming';
+
+        // Si c'est aujourd'hui mais pas de mission, on considère ça comme "À Venir/Planifié" tant que ce n'est pas "En cours" via une mission
+        return 'ongoing';
+    };
+
     const handleToggleCancelInstallation = async (item, e) => {
         if (e && e.stopPropagation) e.stopPropagation();
 
@@ -195,12 +230,10 @@ const InstallationPlanningList = () => {
             };
 
             data.forEach(inst => {
-                const start = new Date(inst.date_debut);
-                const end = new Date(inst.date_fin);
-
-                if (end < now) statsCalc.terminees++;
-                else if (start > now) statsCalc.aVenir++;
-                else statsCalc.enCours++;
+                const effectiveStatus = getEffectiveStatus(inst);
+                if (effectiveStatus === 'completed') statsCalc.terminees++;
+                else if (effectiveStatus === 'upcoming') statsCalc.aVenir++;
+                else if (effectiveStatus === 'ongoing') statsCalc.enCours++;
             });
 
             setStats(statsCalc);
@@ -212,14 +245,12 @@ const InstallationPlanningList = () => {
     };
 
     const getFilteredInstallations = () => {
-        const now = new Date();
         return installations.filter(inst => {
-            const start = new Date(inst.date_debut);
-            const end = new Date(inst.date_fin);
+            const effectiveStatus = getEffectiveStatus(inst);
 
-            if (filter === 'upcoming') return start > now;
-            if (filter === 'ongoing') return start <= now && end >= now;
-            if (filter === 'completed') return end < now;
+            if (filter === 'upcoming') return effectiveStatus === 'upcoming';
+            if (filter === 'ongoing') return effectiveStatus === 'ongoing';
+            if (filter === 'completed') return effectiveStatus === 'completed';
             return true;
         });
     };
@@ -270,14 +301,14 @@ const InstallationPlanningList = () => {
 
                 <div
                     onClick={() => setFilter('upcoming')}
-                    className={`cursor-pointer p-4 rounded-xl border transition-all ${filter === 'upcoming' ? 'bg-purple-50 border-purple-200 shadow-sm' : 'bg-white border-gray-100 hover:border-purple-100'}`}
+                    className={`cursor-pointer p-4 rounded-xl border transition-all ${filter === 'upcoming' ? 'bg-blue-50 border-blue-200 shadow-sm' : 'bg-white border-gray-100 hover:border-blue-100'}`}
                 >
                     <div className="flex justify-between items-start">
                         <div>
-                            <p className="text-sm font-medium text-purple-600">À Venir</p>
+                            <p className="text-sm font-medium text-blue-600">À Venir</p>
                             <h3 className="text-2xl font-bold text-gray-800">{stats.aVenir}</h3>
                         </div>
-                        <div className={`p-2 rounded-lg ${filter === 'upcoming' ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-400'}`}>
+                        <div className={`p-2 rounded-lg ${filter === 'upcoming' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'}`}>
                             <Calendar size={20} />
                         </div>
                     </div>
