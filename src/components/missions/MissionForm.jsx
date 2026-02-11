@@ -5,7 +5,7 @@ import Select from '../common/Select';
 import { X, MapPin } from 'lucide-react';
 import { getWilayaName } from '../../utils/wilayasConstants';
 
-const MissionForm = ({ mission, onSave, onSubmit, onCancel, missionTypes = [], clients = [], users = [], isSubmitting = false }) => {
+const MissionForm = ({ mission, initialData, onSave, onSubmit, onCancel, missionTypes = [], clients = [], users = [], isSubmitting = false }) => {
   const [formData, setFormData] = useState({
     titre: '',
     description: '',
@@ -21,7 +21,7 @@ const MissionForm = ({ mission, onSave, onSubmit, onCancel, missionTypes = [], c
     accompagnateurIds: [],
     commentaireCreation: ''
   });
-  
+
   const [selectedAccompagnateurs, setSelectedAccompagnateurs] = useState([]);
 
   const [errors, setErrors] = useState({});
@@ -31,11 +31,12 @@ const MissionForm = ({ mission, onSave, onSubmit, onCancel, missionTypes = [], c
   const typesArray = missionTypes && missionTypes.length > 0 ? missionTypes : defaultMissionTypes;
 
   useEffect(() => {
+    // Mode ÉDITION : on charge la mission existante
     if (mission) {
       setFormData({
         titre: mission.titre || '',
         description: mission.description || '',
-        clientId: mission.client?.id || mission.prospect_id || '',
+        clientId: mission.client?.id || mission.prospect_id || mission.clientId || '',
         lieu: mission.lieu || '',
         wilaya: mission.wilaya || mission.lieu || '',
         dateDebut: mission.dateDebut || mission.date_debut || '',
@@ -49,7 +50,23 @@ const MissionForm = ({ mission, onSave, onSubmit, onCancel, missionTypes = [], c
       });
       setSelectedAccompagnateurs(mission.accompagnateurIds || mission.accompagnateurs_ids || []);
     }
-  }, [mission]);
+    // Mode CRÉATION avec PRÉ-REMPLISSAGE
+    else if (initialData) {
+      setFormData(prev => ({
+        ...prev,
+        titre: initialData.titre || '',
+        description: initialData.description || '',
+        clientId: initialData.clientId || '',
+        wilaya: initialData.wilaya || '',
+        lieu: initialData.wilaya || '', // Le lieu est souvent la wilaya par défaut
+        dateDebut: initialData.dateDebut || '',
+        dateFin: initialData.dateFin || '',
+        type: initialData.type || 'Installation',
+        chefMissionId: initialData.chefMissionId || '',
+        // On garde les autres champs par défaut
+      }));
+    }
+  }, [mission, initialData]);
 
   // Mettre à jour la wilaya automatiquement quand le client change
   useEffect(() => {
@@ -318,7 +335,7 @@ const MissionForm = ({ mission, onSave, onSubmit, onCancel, missionTypes = [], c
             </span>
           )}
         </div>
-        
+
         {mission ? (
           // Mode affichage (mission existante - FIGÉ)
           <div className="bg-white p-3 rounded border border-gray-300">
@@ -328,7 +345,7 @@ const MissionForm = ({ mission, onSave, onSubmit, onCancel, missionTypes = [], c
                 const chefName = chef?.full_name || 'Chef inconnu';
                 const chefEmail = chef?.email;
                 const firstInitial = (chef?.full_name || chefEmail || '?').charAt(0).toUpperCase();
-                
+
                 return (
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-full bg-blue-200 flex items-center justify-center text-sm font-semibold text-blue-800">
@@ -358,9 +375,9 @@ const MissionForm = ({ mission, onSave, onSubmit, onCancel, missionTypes = [], c
             error={errors.chefMissionId}
           />
         )}
-        
+
         <p className={`text-xs mt-2 ${mission ? 'text-gray-600' : 'text-blue-700'}`}>
-          {mission 
+          {mission
             ? '✓ Le Chef de Mission ne peut pas être modifié après la création'
             : 'Le Chef de Mission sera responsable de la clôture de la mission'
           }
@@ -377,7 +394,7 @@ const MissionForm = ({ mission, onSave, onSubmit, onCancel, missionTypes = [], c
             </span>
           )}
         </div>
-        
+
         {!mission && accompagnateurOptions.length > 0 && (
           <div className="mb-3">
             <Select

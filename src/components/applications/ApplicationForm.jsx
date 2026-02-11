@@ -7,7 +7,8 @@ const ApplicationForm = ({ application, onSubmit, onCancel }) => {
   const [formData, setFormData] = useState({
     nom: '',
     description: '',
-    prix: ''
+    prix_acquisition: '',
+    prix_abonnement: ''
   });
   const [errors, setErrors] = useState({});
 
@@ -16,7 +17,8 @@ const ApplicationForm = ({ application, onSubmit, onCancel }) => {
       setFormData({
         nom: application.nom || '',
         description: application.description || '',
-        prix: application.prix || ''
+        prix_acquisition: application.prix_acquisition || application.prix || '',
+        prix_abonnement: application.prix_abonnement || application.prix || ''
       });
     }
   }, [application]);
@@ -63,14 +65,25 @@ const ApplicationForm = ({ application, onSubmit, onCancel }) => {
         />
       </div>
 
-      <Input
-        label="Prix (DA)"
-        type="number"
-        value={formData.prix}
-        onChange={(e) => handleChange('prix', e.target.value)}
-        error={errors.prix}
-        required
-      />
+      <div className="grid grid-cols-2 gap-4">
+        <Input
+          label="Prix Acquisition (DA)"
+          type="number"
+          value={formData.prix_acquisition}
+          onChange={(e) => handleChange('prix_acquisition', e.target.value)}
+          error={errors.prix_acquisition}
+          required
+        />
+
+        <Input
+          label="Prix Abonnement (DA)"
+          type="number"
+          value={formData.prix_abonnement}
+          onChange={(e) => handleChange('prix_abonnement', e.target.value)}
+          error={errors.prix_abonnement}
+          required
+        />
+      </div>
 
       <div className="flex justify-end gap-3 pt-4">
         <Button variant="ghost" onClick={onCancel}>

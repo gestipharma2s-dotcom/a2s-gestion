@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import NotificationContainer from '../common/NotificationContainer';
@@ -20,6 +21,35 @@ import { useAuth } from '../../context/AuthContext';
 const Layout = () => {
   const [currentPage, setCurrentPage] = useState(PAGES.DASHBOARD);
   const { hasAccess, profile } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // 🔄 SYNC: URL -> State (Navigation externe)
+  useEffect(() => {
+    const path = location.pathname.substring(1); // Enlever le '/'
+
+    // Si racine, on laisse la logique par défaut gérer ou on met dashboard
+    if (path === '') return;
+
+    // Trouver la page correspondante
+    const foundPage = Object.values(PAGES).find(p => p === path);
+
+    if (foundPage && foundPage !== currentPage) {
+      console.log(`📍 URL détectée : ${path} -> Mise à jour vue : ${foundPage}`);
+      setCurrentPage(foundPage);
+    }
+  }, [location.pathname]);
+
+  // 🔄 SYNC: State -> URL (Navigation Sidebar)
+  useEffect(() => {
+    if (currentPage) {
+      const currentPath = location.pathname.substring(1);
+      if (currentPath !== currentPage) {
+        console.log(`👉 Changement page : ${currentPage} -> Mise à jour URL`);
+        navigate(`/${currentPage}`);
+      }
+    }
+  }, [currentPage]);
 
   // 📍 Initialiser sur la bonne page au chargement
   React.useEffect(() => {
@@ -34,12 +64,12 @@ const Layout = () => {
       // ✅ Autres rôles → première page accessible depuis pages_visibles
       if (profile?.pages_visibles && profile.pages_visibles.length > 0) {
         const firstPage = profile.pages_visibles[0];
-        
+
         // Mapper le nom à la clé PAGES
-        const pageKey = Object.values(PAGES).find(page => 
+        const pageKey = Object.values(PAGES).find(page =>
           page.toLowerCase() === firstPage.toLowerCase()
         );
-        
+
         if (pageKey) {
           console.log(`✅ Redirection vers: ${pageKey}`);
           setCurrentPage(pageKey);
@@ -116,10 +146,10 @@ const Layout = () => {
         <NotificationContainer />
         <div className="flex h-screen bg-gray-50">
           <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} />
-          
+
           <div className="flex-1 flex flex-col overflow-hidden">
             <Header title={config.title} subtitle={config.subtitle} />
-            
+
             <main className="flex-1 overflow-y-auto p-6">
               <PageComponent />
             </main>
@@ -137,10 +167,10 @@ const Layout = () => {
         <NotificationContainer />
         <div className="flex h-screen bg-gray-50">
           <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} />
-          
+
           <div className="flex-1 flex flex-col overflow-hidden">
             <Header title="Accès Refusé" subtitle="Vous n'avez pas accès à cette page" />
-            
+
             <main className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
               <div className="max-w-md w-full text-center bg-white rounded-lg shadow p-8">
                 <div className="text-5xl mb-4">🔒</div>
@@ -153,7 +183,7 @@ const Layout = () => {
                     // Rediriger vers la première page accessible
                     if (profile?.pages_visibles && profile.pages_visibles.length > 0) {
                       const firstPage = profile.pages_visibles[0];
-                      const pageKey = Object.values(PAGES).find(page => 
+                      const pageKey = Object.values(PAGES).find(page =>
                         page.toLowerCase() === firstPage.toLowerCase()
                       );
                       if (pageKey) setCurrentPage(pageKey);
@@ -177,10 +207,10 @@ const Layout = () => {
       <NotificationContainer />
       <div className="flex h-screen bg-gray-50">
         <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} />
-        
+
         <div className="flex-1 flex flex-col overflow-hidden">
           <Header title={config.title} subtitle={config.subtitle} />
-          
+
           <main className="flex-1 overflow-y-auto p-6">
             <PageComponent />
           </main>

@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Target, Calendar, TrendingUp, DollarSign, AlertCircle, TrendingDown, Sparkles } from 'lucide-react';
+import { Users, Target, Calendar, TrendingUp, DollarSign, AlertCircle, TrendingDown, Sparkles, CheckCircle, Clock, Activity, BarChart3, PieChart as PieChartIcon, MapPin } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import MultiSelectDropdown from '../common/MultiSelectDropdown';
 import { prospectService } from '../../services/prospectService';
 import { installationService } from '../../services/installationService';
 import { paiementService } from '../../services/paiementService';
 import { interventionService } from '../../services/interventionService'; // ✅ Ajout
+import { missionService } from '../../services/missionService'; // ✅ Ajout missions
+import { formatWilaya } from '../../constants/wilayas';
 import generateAIAnalysis from '../../services/aiService';
 import { useAuth } from '../../context/AuthContext';
 
@@ -16,17 +19,32 @@ const Dashboard = () => {
     revenus: 0,
     abonnementsActifs: 0,
     resteAPayer: 0,
+    totalPaiements: 0,
     tauxConversion: 0,
     totalInstallations: 0,
     revenusAbonnementsPaiements: 0,     // ✅ Depuis paiements
     revenusAcquisitionsPaiements: 0,    // ✅ Depuis paiements
     revenusAbonnementsInstallations: 0, // ✅ Depuis installations
-    revenusAcquisitionsInstallations: 0 // ✅ Depuis installations
+    revenusAcquisitionsInstallations: 0, // ✅ Depuis installations
+    tauxRecouvrement: 0,                 // ✅ Nouveau
+    totalInterventions: 0,               // ✅ Nouveau
+    nombreAbonnements: 0,                // ✅ Nombre d'abonnements (type = abonnement + auto-générés)
+    nombreAcquisitions: 0                // ✅ Nombre d'acquisitions (type = acquisition)
   });
   const [loading, setLoading] = useState(true);
   const [resteAPayerData, setResteAPayerData] = useState([]);
   const [revenusData, setRevenusData] = useState([]);
   const [interventionsByUserData, setInterventionsByUserData] = useState([]); // ✅ Ajout
+  const [missionsByWilayaData, setMissionsByWilayaData] = useState([]); // ✅ Missions par wilaya
+  const [allMissionsByWilayaData, setAllMissionsByWilayaData] = useState([]); // ✅ Toutes les missions (avant filtrage)
+  const [selectedWilayas, setSelectedWilayas] = useState([]); // ✅ Wilayas sélectionnées
+  const [availableWilayas, setAvailableWilayas] = useState([]); // ✅ Wilayas disponibles
+  const [paymentStats, setPaymentStats] = useState({
+    fullyPaid: 0,
+    partiallyPaid: 0,
+    noPaid: 0,
+    totalInstallations: 0
+  });
   const [aiInsights, setAiInsights] = useState(null);
   const [loadingAI, setLoadingAI] = useState(false);
   const [showGraphs, setShowGraphs] = useState(false);
@@ -93,6 +111,25 @@ const Dashboard = () => {
         .sort((a, b) => b.interventions - a.interventions);
       
       setInterventionsByUserData(interventionsByUserArray);
+
+      // ✅ CHARGER LES MISSIONS ET COMPTER PAR WILAYA
+      const missionsData = await missionService.getAll();
+      const missionsByWilaya = {};
+      
+      missionsData.forEach(mission => {
+        const wilaya = mission.wilaya || 'Non spécifiée';
+        if (!missionsByWilaya[wilaya]) {
+          missionsByWilaya[wilaya] = 0;
+        }
+        missionsByWilaya[wilaya]++;
+      });
+      
+      // Convertir en tableau et trier par nombre de missions
+      const missionsByWilayaArray = Object.entries(missionsByWilaya)
+        .map(([wilaya, count]) => ({ wilaya, count }))
+        .sort((a, b) => b.count - a.count);
+      
+      setMissionsByWilayaData(missionsByWilayaArray);
 
       // ✅ CALCUL CORRECT: Reste à Payer = Total Installations - Total Paiements
       const resteAPayer = Math.max(0, totalInstallations - totalPaiements);
@@ -221,18 +258,55 @@ const Dashboard = () => {
         ? ((clientsActifs / prospectsData.length) * 100).toFixed(1) 
         : 0;
 
+      // ✅ Calculer les stats de paiement (0, 1, 2)
+      const paymentCounts = {
+        fullyPaid: 0,      // code 2
+        partiallyPaid: 0,  // code 1
+        noPaid: 0          // code 0
+      };
+
+      if (installationsData && installationsData.length > 0) {
+        installationsData.forEach(inst => {
+          const montantPaye = paiementsData
+            .filter(p => p.installation_id === inst.id)
+            .reduce((sum, p) => sum + (typeof p.montant === 'number' ? p.montant : 0), 0);
+          
+          const reste = Math.max(0, (inst.montant || 0) - montantPaye);
+          
+          if (reste === inst.montant || inst.montant === 0) {
+            paymentCounts.noPaid++;
+          } else if (reste > 0) {
+            paymentCounts.partiallyPaid++;
+          } else {
+            paymentCounts.fullyPaid++;
+          }
+        });
+      }
+
+      setPaymentStats({
+        fullyPaid: paymentCounts.fullyPaid,
+        partiallyPaid: paymentCounts.partiallyPaid,
+        noPaid: paymentCounts.noPaid,
+        totalInstallations: installationsData?.length || 0
+      });
+
       setStats({
         totalClients: clientsActifs,
         prospects: prospectsEnCours,
         revenus: totalPaiements,
         abonnementsActifs: clientsActifs,
         resteAPayer: resteAPayer,
+        totalPaiements: totalPaiements,
         tauxConversion: parseFloat(tauxConversion),
         totalInstallations: totalInstallations,
         revenusAbonnementsPaiements: revenusAbonnementsPaiements,  // ✅ Depuis paiements
         revenusAcquisitionsPaiements: revenusAcquisitionsPaiements, // ✅ Depuis paiements
         revenusAbonnementsInstallations: revenusAbonnementsInstallations, // ✅ Depuis installations
-        revenusAcquisitionsInstallations: revenusAcquisitionsInstallations // ✅ Depuis installations
+        revenusAcquisitionsInstallations: revenusAcquisitionsInstallations, // ✅ Depuis installations
+        tauxRecouvrement: totalInstallations > 0 ? ((totalPaiements / totalInstallations) * 100).toFixed(1) : 0, // ✅ Nouveau
+        totalInterventions: interventionsData?.length || 0,  // ✅ Nouveau
+        nombreAbonnements: installationsData?.filter(inst => inst.type === 'abonnement' || inst.type?.toLowerCase() === 'abonnement').length || 0, // ✅ Nombre d'abonnements
+        nombreAcquisitions: installationsData?.filter(inst => inst.type === 'acquisition' || inst.type?.toLowerCase() === 'acquisition').length || 0  // ✅ Nombre d'acquisitions
       });
 
     } catch (error) {
@@ -305,90 +379,173 @@ const Dashboard = () => {
 
   // ✅ Afficher le dashboard (pas de vérification WelcomePage)
   return (
-    <div className="space-y-6 p-6 bg-gray-50 min-h-screen">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <p className="text-gray-600 text-sm font-medium mb-1">Total Clients</p>
-              <h3 className="text-3xl font-bold text-gray-800 mb-2">{stats.totalClients}</h3>
-              <p className="text-sm text-green-600">+2.5% ce mois</p>
+    <div className="space-y-6 p-6 bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen">
+      {/* En-tête du Dashboard */}
+      <div className="mb-8">
+        <h1 className="text-4xl font-bold text-gray-800 mb-2">Tableau de Bord A2S Gestion</h1>
+        <p className="text-gray-600">Bienvenue, {profile?.nom || 'utilisateur'}. Voici un aperçu de vos opérations.</p>
+      </div>
+
+      {/* KPI Cards - Première ligne (5 cartes principales) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* Clients Actifs */}
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white hover:shadow-xl transition-all transform hover:scale-105">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <p className="text-blue-100 text-sm font-medium mb-1">Clients Actifs</p>
+              <h3 className="text-4xl font-bold">{stats.totalClients}</h3>
             </div>
-            <div className="w-14 h-14 bg-blue-500 rounded-xl flex items-center justify-center">
-              <Users className="text-white" size={28} />
-            </div>
+            <Users className="w-10 h-10 text-blue-200 opacity-80" />
+          </div>
+          <div className="text-xs text-blue-100">
+            <TrendingUp className="inline w-3 h-3 mr-1" />
+            Croissance stable
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <p className="text-gray-600 text-sm font-medium mb-1">Prospects</p>
-              <h3 className="text-3xl font-bold text-gray-800 mb-2">{stats.prospects}</h3>
-              <p className="text-sm text-gray-500">En conversion</p>
+        {/* Prospects */}
+        <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl shadow-lg p-6 text-white hover:shadow-xl transition-all transform hover:scale-105">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <p className="text-emerald-100 text-sm font-medium mb-1">Prospects</p>
+              <h3 className="text-4xl font-bold">{stats.prospects}</h3>
             </div>
-            <div className="w-14 h-14 bg-green-500 rounded-xl flex items-center justify-center">
-              <Target className="text-white" size={28} />
-            </div>
+            <Target className="w-10 h-10 text-emerald-200 opacity-80" />
+          </div>
+          <div className="text-xs text-emerald-100">
+            Taux: {stats.tauxConversion}%
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <p className="text-gray-600 text-sm font-medium mb-1">Revenus Totaux</p>
-              <h3 className="text-3xl font-bold text-gray-800 mb-2">{formatMontant(stats.revenus)}</h3>
-              <p className="text-sm text-gray-500">Total paiements reçus</p>
+        {/* ✅ Total Vente (Total Installations + Abonnements) */}
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white hover:shadow-xl transition-all transform hover:scale-105">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <p className="text-blue-100 text-sm font-medium mb-1">Total Vente</p>
+              <h3 className="text-3xl font-bold">
+                {profile?.role === 'admin' || profile?.role === 'super_admin' 
+                  ? `${(stats.totalInstallations / 1000).toFixed(0)}K DA` 
+                  : '🔐'}
+              </h3>
             </div>
-            <div className="w-14 h-14 bg-purple-500 rounded-xl flex items-center justify-center">
-              <TrendingUp className="text-white" size={28} />
-            </div>
+            <DollarSign className="w-10 h-10 text-blue-200 opacity-80" />
           </div>
+          <div className="text-xs text-blue-100">Montants installations + abonnements</div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <p className="text-gray-600 text-sm font-medium mb-1">Reste à Payer</p>
-              <h3 className="text-3xl font-bold text-gray-800 mb-2">{formatMontant(stats.resteAPayer)}</h3>
-              <p className="text-sm text-orange-600">Sur {formatMontant(stats.totalInstallations)} total</p>
+        {/* ✅ Montants Versé */}
+        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white hover:shadow-xl transition-all transform hover:scale-105">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <p className="text-green-100 text-sm font-medium mb-1">Montants Versé</p>
+              <h3 className="text-3xl font-bold">
+                {profile?.role === 'admin' || profile?.role === 'super_admin' 
+                  ? `${(stats.totalPaiements / 1000).toFixed(0)}K DA` 
+                  : '🔐'}
+              </h3>
             </div>
-            <div className="w-14 h-14 bg-orange-500 rounded-xl flex items-center justify-center">
-              <DollarSign className="text-white" size={28} />
+            <CheckCircle className="w-10 h-10 text-green-200 opacity-80" />
+          </div>
+          <div className="text-xs text-green-100">Total des paiements enregistrés</div>
+        </div>
+
+        {/* ✅ Reste à Payer */}
+        <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl shadow-lg p-6 text-white hover:shadow-xl transition-all transform hover:scale-105">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <p className="text-red-100 text-sm font-medium mb-1">Reste à Payer</p>
+              <h3 className="text-3xl font-bold">
+                {profile?.role === 'admin' || profile?.role === 'super_admin' 
+                  ? `${(stats.resteAPayer / 1000).toFixed(0)}K DA` 
+                  : '🔐'}
+              </h3>
             </div>
+            <AlertCircle className="w-10 h-10 text-red-200 opacity-80" />
+          </div>
+          <div className="text-xs text-red-100">Montant encore à payer</div>
+        </div>
+      </div>
+
+      {/* Deuxième ligne - Cartes détaillées */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Nombre Abonnements */}
+        <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-indigo-500 hover:shadow-lg transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-bold text-gray-800">Abonnements</h3>
+            <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
+              <TrendingUp className="text-indigo-600 w-6 h-6" />
+            </div>
+          </div>
+          <p className="text-3xl font-bold text-indigo-600 mb-2">{stats.nombreAbonnements}</p>
+          <p className="text-xs text-gray-600">Installations de type abonnement + auto-générés</p>
+        </div>
+
+        {/* Nombre Acquisitions */}
+        <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-teal-500 hover:shadow-lg transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-bold text-gray-800">Acquisitions</h3>
+            <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center">
+              <Target className="text-teal-600 w-6 h-6" />
+            </div>
+          </div>
+          <p className="text-3xl font-bold text-teal-600 mb-2">{stats.nombreAcquisitions}</p>
+          <p className="text-xs text-gray-600">Installations de type acquisition</p>
+        </div>
+
+        {/* Interventions */}
+        <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-cyan-500 hover:shadow-lg transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-bold text-gray-800">Interventions</h3>
+            <div className="w-12 h-12 bg-cyan-100 rounded-lg flex items-center justify-center">
+              <Activity className="text-cyan-600 w-6 h-6" />
+            </div>
+          </div>
+          <p className="text-3xl font-bold text-cyan-600 mb-2">{stats.totalInterventions}</p>
+          <p className="text-xs text-gray-600">
+            Réalisées cette période
+          </p>
+          <div className="mt-3 space-y-1">
+            {interventionsByUserData.slice(0, 2).map((user, idx) => (
+              <div key={idx} className="flex justify-between text-xs">
+                <span className="text-gray-600">{user.nom}</span>
+                <span className="font-semibold text-gray-800">{user.interventions} interventions</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Analyse IA */}
-      <div className="bg-white rounded-xl shadow-lg p-6 border-2 border-purple-200">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
-            <Sparkles size={28} className="text-white" />
+      {/* Analyse IA - Section Améliorée */}
+      <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl shadow-lg p-8 border-2 border-purple-200">
+        <div className="flex items-center gap-4 mb-6">
+          <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg animate-pulse">
+            <Sparkles size={32} className="text-white" />
           </div>
           <div>
-            <h3 className="text-2xl font-bold text-gray-800">Analyse IA - A2S Gestion</h3>
-            <p className="text-sm text-gray-600">
-              {loadingAI ? 'Génération en cours...' : 'Insights et recommandations intelligentes'}
+            <h2 className="text-3xl font-bold text-gray-800">Intelligence Artificielle</h2>
+            <p className="text-gray-600 text-sm mt-1">
+              {loadingAI ? '🔄 Analyse en cours...' : '✨ Recommandations personnalisées basées sur vos données'}
             </p>
           </div>
         </div>
         
         {loadingAI && (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
+          <div className="flex items-center justify-center py-16">
+            <div className="text-center">
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mb-4"></div>
+              <p className="text-gray-600">Génération des insights IA...</p>
+            </div>
           </div>
         )}
 
         {!loadingAI && aiInsights && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {aiInsights.map((insight, idx) => {
               const bgColors = {
-                positive: 'from-green-50 to-emerald-50 border-green-200',
-                warning: 'from-orange-50 to-amber-50 border-orange-200',
-                info: 'from-blue-50 to-indigo-50 border-blue-200',
-                action: 'from-purple-50 to-violet-50 border-purple-200'
+                positive: 'from-green-50 to-emerald-50 border-green-300',
+                warning: 'from-orange-50 to-amber-50 border-orange-300',
+                info: 'from-blue-50 to-indigo-50 border-blue-300',
+                action: 'from-purple-50 to-violet-50 border-purple-300'
               };
               const iconColors = {
                 positive: 'bg-green-500',
@@ -408,14 +565,16 @@ const Dashboard = () => {
                          insight.type === 'info' ? Target : Calendar;
 
               return (
-                <div key={idx} className={`bg-gradient-to-br ${bgColors[insight.type]} border-2 rounded-xl p-5 hover:shadow-md transition-all`}>
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className={`w-10 h-10 ${iconColors[insight.type]} rounded-lg flex items-center justify-center`}>
-                      <Icon size={20} className="text-white" />
+                <div key={idx} className={`bg-gradient-to-br ${bgColors[insight.type]} border-2 rounded-xl p-6 hover:shadow-md transition-all`}>
+                  <div className="flex items-start gap-3">
+                    <div className={`w-12 h-12 ${iconColors[insight.type]} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                      <Icon size={24} className="text-white" />
                     </div>
-                    <h4 className={`font-bold ${textColors[insight.type]} text-lg`}>{insight.title}</h4>
+                    <div className="flex-1">
+                      <h4 className={`font-bold ${textColors[insight.type]} text-lg mb-1`}>{insight.title}</h4>
+                      <p className="text-sm text-gray-800 leading-relaxed">{insight.message}</p>
+                    </div>
                   </div>
-                  <p className="text-sm text-gray-800 leading-relaxed">{insight.message}</p>
                 </div>
               );
             })}
@@ -423,73 +582,69 @@ const Dashboard = () => {
         )}
 
         {!loadingAI && !aiInsights && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-            {/* Analyses par défaut si API IA non configurée */}
-            <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-5 hover:shadow-md transition-all">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
-                  <TrendingUp size={20} className="text-white" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl p-6 hover:shadow-md transition-all">
+              <div className="flex items-start gap-3">
+                <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <TrendingUp size={24} className="text-white" />
                 </div>
-                <h4 className="font-bold text-green-800 text-lg">Revenus Totaux</h4>
+                <div>
+                  <h4 className="font-bold text-green-800 text-lg mb-1">Revenus Solides</h4>
+                  <p className="text-sm text-green-900 leading-relaxed">
+                    Votre chiffre d'affaires s'élève à <strong>{formatMontant(stats.revenus)}</strong> avec {stats.totalClients} clients actifs générant des revenus constants.
+                  </p>
+                </div>
               </div>
-              <p className="text-sm text-green-900 leading-relaxed">
-                Revenus totaux de <strong className="text-green-700">{formatMontant(stats.revenus)}</strong> générés. 
-                {stats.totalClients} clients actifs contribuent au chiffre d'affaires.
-              </p>
             </div>
 
-            <div className="bg-gradient-to-br from-orange-50 to-amber-50 border-2 border-orange-200 rounded-xl p-5 hover:shadow-md transition-all">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
-                  <AlertCircle size={20} className="text-white" />
+            <div className="bg-gradient-to-br from-orange-50 to-amber-50 border-2 border-orange-300 rounded-xl p-6 hover:shadow-md transition-all">
+              <div className="flex items-start gap-3">
+                <div className="w-12 h-12 bg-orange-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <AlertCircle size={24} className="text-white" />
                 </div>
-                <h4 className="font-bold text-orange-800 text-lg">Reste à Payer</h4>
+                <div>
+                  <h4 className="font-bold text-orange-800 text-lg mb-1">Attention Requise</h4>
+                  <p className="text-sm text-orange-900 leading-relaxed">
+                    <strong>{formatMontant(stats.resteAPayer)}</strong> reste à recouvrer. Taux de recouvrement actuel: <strong>{stats.tauxRecouvrement}%</strong>.
+                  </p>
+                </div>
               </div>
-              <p className="text-sm text-orange-900 leading-relaxed">
-                <strong className="text-orange-700">{formatMontant(stats.resteAPayer)}</strong> de reste à payer. 
-                Taux de recouvrement: <strong className="text-orange-700">
-                  {((stats.revenus / stats.totalInstallations) * 100).toFixed(1)}%
-                </strong>
-              </p>
             </div>
 
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-5 hover:shadow-md transition-all">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
-                  <Target size={20} className="text-white" />
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-xl p-6 hover:shadow-md transition-all">
+              <div className="flex items-start gap-3">
+                <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Target size={24} className="text-white" />
                 </div>
-                <h4 className="font-bold text-blue-800 text-lg">Conversion Prospects</h4>
+                <div>
+                  <h4 className="font-bold text-blue-800 text-lg mb-1">Conversion Prospects</h4>
+                  <p className="text-sm text-blue-900 leading-relaxed">
+                    Taux de conversion: <strong>{stats.tauxConversion}%</strong>. Vous avez {stats.prospects} prospects actuellement en cours de négociation.
+                  </p>
+                </div>
               </div>
-              <p className="text-sm text-blue-900 leading-relaxed">
-                Taux de conversion de <strong className="text-blue-700">{stats.tauxConversion}%</strong>. 
-                {stats.prospects} prospects en cours de conversion.
-              </p>
             </div>
 
-            <div className="bg-gradient-to-br from-purple-50 to-violet-50 border-2 border-purple-200 rounded-xl p-5 hover:shadow-md transition-all">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center">
-                  <DollarSign size={20} className="text-white" />
+            <div className="bg-gradient-to-br from-purple-50 to-violet-50 border-2 border-purple-300 rounded-xl p-6 hover:shadow-md transition-all">
+              <div className="flex items-start gap-3">
+                <div className="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Activity size={24} className="text-white" />
                 </div>
-                <h4 className="font-bold text-purple-800 text-lg">Top 5 Dettes</h4>
+                <div>
+                  <h4 className="font-bold text-purple-800 text-lg mb-1">Activité Technique</h4>
+                  <p className="text-sm text-purple-900 leading-relaxed">
+                    {stats.totalInterventions} interventions réalisées. Productivité optimale de votre équipe technique.
+                  </p>
+                </div>
               </div>
-              <p className="text-sm text-purple-900 leading-relaxed">
-                {resteAPayerData.length > 0 ? (
-                  <>Les 5 principaux clients doivent <strong className="text-purple-700">
-                    {formatMontant(resteAPayerData.reduce((sum, c) => sum + c.montant, 0))}
-                  </strong> au total.</>
-                ) : (
-                  'Aucune dette client enregistrée.'
-                )}
-              </p>
             </div>
           </div>
         )}
 
         {!loadingAI && !aiInsights && (
-          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-300 rounded-lg">
             <p className="text-xs text-yellow-800">
-              💡 <strong>Astuce:</strong> Configurez VITE_AI_API_KEY dans votre fichier .env pour activer l'analyse IA automatique avec GPT.
+              💡 <strong>Conseil:</strong> Configurez VITE_AI_API_KEY dans votre fichier .env pour des analyses IA automatisées avec GPT.
             </p>
           </div>
         )}
@@ -498,35 +653,50 @@ const Dashboard = () => {
       {/* Graphiques - Lazy Loading */}
       {showGraphs && (
       <>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Revenus Globaux */}
-        <div className="lg:col-span-2 bg-white rounded-xl shadow-md p-6">
-          <h2 className="text-xl font-bold text-gray-800 mb-6">Évolution des Revenus (Depuis Installations)</h2>
-          <ResponsiveContainer width="100%" height={350}>
-            <LineChart data={revenusData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="mois" stroke="#6b7280" />
-              <YAxis stroke="#6b7280" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#fff',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px'
-                }}
-                formatter={(value) => formatMontant(value)}
-              />
-              <Legend />
-              <Line type="monotone" dataKey="total" stroke="#8b5cf6" strokeWidth={3} name="Total" />
-              <Line type="monotone" dataKey="abonnements" stroke="#2563eb" strokeWidth={2} name="Abonnements" />
-              <Line type="monotone" dataKey="acquisitions" stroke="#10b981" strokeWidth={2} name="Acquisitions" />
-            </LineChart>
-          </ResponsiveContainer>
+      {/* Graphiques */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Interventions par Technicien */}
+        <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-xl font-bold text-gray-800">Interventions par Technicien</h2>
+              <p className="text-sm text-gray-600 mt-1">Performance de l'équipe</p>
+            </div>
+            <Activity className="text-cyan-500 w-6 h-6" />
+          </div>
+          <div className="space-y-3 max-h-80 overflow-y-auto">
+            {interventionsByUserData.slice(0, 8).map((tech, idx) => (
+              <div key={idx} className="p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-cyan-300 transition-colors">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-semibold text-gray-800">{tech.nom}</span>
+                  <span className="bg-cyan-100 text-cyan-800 text-xs font-bold px-2 py-1 rounded-full">
+                    {tech.interventions}
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                  <div 
+                    className="bg-cyan-500 h-full rounded-full transition-all"
+                    style={{ width: Math.min((tech.interventions / Math.max(...interventionsByUserData.map(t => t.interventions), 1)) * 100, 100) + '%' }}
+                  ></div>
+                </div>
+                <div className="text-xs text-gray-600 mt-1">
+                  {tech.tempsTotalHeures.toFixed(1)}h ({(tech.tempsTotalHeures / (tech.interventions || 1)).toFixed(1)}h/intervention)
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* Répartition Revenus */}
-        <div className="bg-white rounded-xl shadow-md p-6">
-          <h2 className="text-xl font-bold text-gray-800 mb-6">Répartition Revenus (Depuis Paiements)</h2>
-          <ResponsiveContainer width="100%" height={350}>
+        {/* Répartition Revenus - Pie Chart */}
+        <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-xl font-bold text-gray-800">Répartition Revenus</h2>
+              <p className="text-sm text-gray-600 mt-1">Par type (Depuis Paiements)</p>
+            </div>
+            <PieChartIcon className="text-purple-500 w-6 h-6" />
+          </div>
+          <ResponsiveContainer width="100%" height={320}>
             <PieChart>
               <Pie
                 data={repartitionDataPaiements}
@@ -547,45 +717,10 @@ const Dashboard = () => {
           </ResponsiveContainer>
           <div className="mt-4 space-y-2">
             {repartitionDataPaiements.map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between">
+              <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded">
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded" style={{ backgroundColor: item.color }}></div>
-                  <span className="text-sm text-gray-600">{item.name}</span>
-                </div>
-                <span className="text-sm font-semibold text-gray-800">{formatMontant(item.value)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ✅ NOUVEAU: Répartition Revenus depuis Installations */}
-        <div className="bg-white rounded-xl shadow-md p-6">
-          <h2 className="text-xl font-bold text-gray-800 mb-6">Répartition Revenus (Depuis Installations)</h2>
-          <ResponsiveContainer width="100%" height={350}>
-            <PieChart>
-              <Pie
-                data={repartitionDataInstallations}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                outerRadius={100}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {repartitionDataInstallations.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value) => formatMontant(value)} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="mt-4 space-y-2">
-            {repartitionDataInstallations.map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded" style={{ backgroundColor: item.color }}></div>
-                  <span className="text-sm text-gray-600">{item.name}</span>
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
+                  <span className="text-sm text-gray-700">{item.name}</span>
                 </div>
                 <span className="text-sm font-semibold text-gray-800">{formatMontant(item.value)}</span>
               </div>
@@ -594,50 +729,51 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Revenus par Type */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl shadow-md p-6">
-          <h2 className="text-xl font-bold text-gray-800 mb-6">Revenus Abonnements vs Acquisitions</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={revenusData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="mois" stroke="#6b7280" />
-              <YAxis stroke="#6b7280" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#fff',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px'
-                }}
-                formatter={(value) => formatMontant(value)}
-              />
-              <Legend />
-              <Bar dataKey="abonnements" fill="#2563eb" name="Abonnements" radius={[8, 8, 0, 0]} />
-              <Bar dataKey="acquisitions" fill="#10b981" name="Acquisitions" radius={[8, 8, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+      {/* Missions par Wilaya */}
+      <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-shadow">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-xl font-bold text-gray-800">Missions par Wilaya</h2>
+            <p className="text-sm text-gray-600 mt-1">Distribution géographique</p>
+          </div>
+          <MapPin className="text-rose-500 w-6 h-6" />
         </div>
-
-        {/* Reste à Payer par Client */}
-        <div className="bg-white rounded-xl shadow-md p-6">
-          <h2 className="text-xl font-bold text-gray-800 mb-6">Top 5 - Reste à Payer</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={resteAPayerData} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis type="number" stroke="#6b7280" />
-              <YAxis dataKey="client" type="category" stroke="#6b7280" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#fff',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px'
-                }}
-                formatter={(value) => formatMontant(value)}
-              />
-              <Bar dataKey="montant" fill="#f59e0b" radius={[0, 8, 8, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        
+        {missionsByWilayaData.length > 0 ? (
+          <div className="space-y-3">
+            {missionsByWilayaData.map((item, idx) => {
+              const maxMissions = Math.max(...missionsByWilayaData.map(d => d.count), 1);
+              const percentage = (item.count / maxMissions) * 100;
+              const colors = ['bg-rose-500', 'bg-pink-500', 'bg-red-500', 'bg-orange-500', 'bg-amber-500'];
+              const color = colors[idx % colors.length];
+              
+              return (
+                <div key={idx} className="p-4 bg-gray-50 rounded-lg border border-gray-200 hover:border-rose-300 transition-colors">
+                  <div className="flex justify-between items-center mb-2">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-rose-500" />
+                      <span className="font-semibold text-gray-800">{item.wilaya}</span>
+                    </div>
+                    <span className={`${color} text-white text-xs font-bold px-3 py-1 rounded-full`}>
+                      {item.count} mission{item.count > 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                    <div 
+                      className={`${color} h-full rounded-full transition-all`}
+                      style={{ width: percentage + '%' }}
+                    ></div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-600">
+            <MapPin className="w-12 h-12 mx-auto mb-2 text-gray-400" />
+            <p>Aucune mission enregistrée</p>
+          </div>
+        )}
       </div>
 
       {/* ✅ TABLEAU: Interventions par Utilisateur */}

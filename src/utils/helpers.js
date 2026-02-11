@@ -32,6 +32,66 @@ export const formatMontant = (montant) => {
   }).format(montant) + ' DA';
 };
 
+// ✅ NOUVEAU: Déterminer le statut de paiement (0, 1, 2)
+export const getStatutPaiementCode = (montantTotal, montantPaye) => {
+  const montantRestant = Math.max(0, montantTotal - montantPaye);
+  
+  if (montantRestant === montantTotal) {
+    // 0 = Aucun paiement effectué
+    return {
+      code: 0,
+      statut: 'AUCUN PAIEMENT',
+      couleur: 'bg-red-100 text-red-700',
+      badge: 'bg-red-500 text-white',
+      icon: '🔴',
+      pourcentage: 0
+    };
+  } else if (montantRestant > 0) {
+    // 1 = Paiement partiel
+    const pourcentage = Math.round((montantPaye / montantTotal) * 100);
+    return {
+      code: 1,
+      statut: 'PARTIELLEMENT PAYÉ',
+      couleur: 'bg-orange-100 text-orange-700',
+      badge: 'bg-orange-500 text-white',
+      icon: '🟠',
+      pourcentage: pourcentage
+    };
+  } else {
+    // 2 = Entièrement payé
+    return {
+      code: 2,
+      statut: 'TOTALEMENT PAYÉ',
+      couleur: 'bg-green-100 text-green-700',
+      badge: 'bg-green-500 text-white',
+      icon: '🟢',
+      pourcentage: 100
+    };
+  }
+};
+
+// ✅ ANCIEN: Déterminer le statut de paiement (AUCUN, PARTIELLEMENT, TOTALEMENT)
+export const getStatutPaiement = (montantTotal, montantPaye) => {
+  return getStatutPaiementCode(montantTotal, montantPaye);
+};
+
+// ✅ NOUVEAU: Déterminer si les prix réels doivent être affichés
+// Affiche les codes 0, 1, 2 pour les administrateurs seulement
+export const shouldShowRealPrices = (userRole) => {
+  return userRole === 'admin' || userRole === 'super_admin';
+};
+
+// ✅ NOUVEAU: Formater l'affichage du prix selon le rôle de l'utilisateur
+export const formatPriceDisplay = (realPrice, userRole, hideLabel = false) => {
+  if (shouldShowRealPrices(userRole)) {
+    // Afficher le code 🔐 pour les administrateurs
+    return hideLabel ? '🔐' : 'Code';
+  } else {
+    // Afficher le prix réel pour les autres utilisateurs
+    return formatMontant(realPrice);
+  }
+};
+
 // Calculer les jours restants
 export const joursRestants = (dateFin) => {
   if (!dateFin) return 0;

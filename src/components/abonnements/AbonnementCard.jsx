@@ -1,8 +1,10 @@
 import React from 'react';
 import { Calendar, AlertCircle, Building, RefreshCw, Trash2, CreditCard } from 'lucide-react';
 import { formatDate, getStatutClass, getStatutLabel, joursRestants } from '../../utils/helpers';
+import { useAuth } from '../../context/AuthContext';
 
 const AbonnementCard = ({ abonnement, onRenouveler, onDelete, onPayment }) => {
+  const { profile } = useAuth();
   const jours = joursRestants(abonnement.date_fin);
   
   const getCardStyle = () => {
@@ -77,7 +79,7 @@ const AbonnementCard = ({ abonnement, onRenouveler, onDelete, onPayment }) => {
 
       {/* Actions */}
       <div className="flex gap-2">
-        {abonnement.statut === 'expire' && onPayment && (
+        {abonnement.statut === 'expire' && onPayment && (profile?.role === 'admin' || profile?.role === 'super_admin') && (
           <button
             onClick={() => onPayment(abonnement)}
             className={`flex-1 btn flex items-center justify-center gap-2 ${getButtonColor()}`}

@@ -12,6 +12,7 @@ import { userService } from '../../services/userService';
 import { supabase } from '../../services/supabaseClient';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
+import { formatMontant, formatPriceDisplay } from '../../utils/helpers';
 
 const AbonnementsList = () => {
   const [abonnements, setAbonnements] = useState([]);
@@ -55,13 +56,30 @@ const AbonnementsList = () => {
           
           const totalPaye = (paiements || []).reduce((sum, p) => sum + (p.montant || 0), 0);
           const montantInstallation = abonnement.installation?.montant || 0;
-          const resteAPayer = Math.max(0, montantInstallation - totalPaye);
+          
+          // ✅ NOUVEAU: Récupérer le prix_abonnement de l'application
+          let prixAbonnement = montantInstallation;
+          try {
+            const { data: appData } = await supabase
+              .from('applications')
+              .select('prix_abonnement, prix_acquisition')
+              .eq('nom', abonnement.installation?.application_installee)
+              .single();
+            
+            if (appData?.prix_abonnement) {
+              prixAbonnement = appData.prix_abonnement;
+            }
+          } catch (appErr) {
+            console.warn('Impossible de récupérer le prix_abonnement');
+          }
+          
+          const resteAPayer = Math.max(0, prixAbonnement - totalPaye);
           
           return {
             ...abonnement,
             totalPaye,
             resteAPayer,
-            montantInstallation
+            montantInstallation: prixAbonnement
           };
         } catch (err) {
           console.error('Erreur chargement paiements:', err);
@@ -92,9 +110,8 @@ const AbonnementsList = () => {
         const canDelete = profile?.role === 'admin' || profile?.role === 'super_admin' || 
                          await userService.hasDeletePermission(user.id, 'abonnements');
         
-        // Permissions pour créer des paiements (modifier le montant payé = création de paiement)
-        const canCreatePaiement = profile?.role === 'admin' || profile?.role === 'super_admin' || 
-                                 await userService.hasCreatePermission(user.id, 'paiements');
+        // ✅ Permissions pour créer des paiements - SEULEMENT pour les admins
+        const canCreatePaiement = profile?.role === 'admin' || profile?.role === 'super_admin';
         
         setHasDeletePermission(canDelete);
         setHasCreatePaiementPermission(canCreatePaiement);
@@ -425,30 +442,56 @@ const AbonnementsList = () => {
               )
             },
             {
-              key: 'montantInstallation',
+              key: 'montant',
               label: 'Montant',
               width: '120px',
-              render: (row) => <span>{(row.montantInstallation || 0).toLocaleString('fr-DZ')} DA</span>
-            },
-            {
-              key: 'totalPaye',
-              label: 'Payé',
-              width: '120px',
               render: (row) => (
-                <span className="text-green-700 font-semibold">{(row.totalPaye || 0).toLocaleString('fr-DZ')} DA</span>
-              )
-            },
-            {
-              key: 'resteAPayer',
-              label: 'Reste à Payer',
-              width: '130px',
-              render: (row) => (
-                <span className={`font-semibold ${
-                  (row.resteAPayer || 0) > 0 ? 'text-red-700' : 'text-green-700'
-                }`}>
-                  {(row.resteAPayer || 0).toLocaleString('fr-DZ')} DA
+                <span className="font-semibold">
+                  {profile?.role === 'admin' || profile?.role === 'super_admin' ? (
+                    <span className="text-blue-600">{formatMontant(row.montantInstallation || 0)}</span>
+                  ) : (
+                    <span className="text-gray-400">🔐</span>
+                  )}
                 </span>
               )
+            },
+            {
+              key: 'statut_paiement',
+              label: 'Statut de Paiement',
+              width: '140px',
+              render: (row) => {
+                const montantTotal = row.montantInstallation || 0;
+                const montantPaye = row.totalPaye || 0;
+                const reste = Math.max(0, montantTotal - montantPaye);
+                
+                let statut, couleur, code;
+                if (reste === montantTotal || montantTotal === 0) {
+                  // 0 = Aucun paiement
+                  statut = 'Aucun paiement';
+                  couleur = 'bg-red-100 text-red-700';
+                  code = 0;
+                } else if (reste > 0) {
+                  // 1 = Partiellement payé
+                  statut = 'Partiellement payé';
+                  couleur = 'bg-orange-100 text-orange-700';
+                  code = 1;
+                } else {
+                  // 2 = Totalement payé
+                  statut = 'Totalement payé';
+                  couleur = 'bg-green-100 text-green-700';
+                  code = 2;
+                }
+                
+                return (
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${couleur}`}>
+                    {profile?.role === 'admin' || profile?.role === 'super_admin' ? (
+                      <>{code}</>
+                    ) : (
+                      <>{code} ({statut})</>
+                    )}
+                  </span>
+                );
+              }
             },
             {
               key: 'statut',

@@ -9,10 +9,14 @@ import ProspectForm from './ProspectForm';
 import ProspectCard from './ProspectCard';
 import ProspectHistory from './ProspectHistory';
 import ProspectActionForm from './ProspectActionForm';
+import InstallationPlanningList from './InstallationPlanningList';
 import { prospectService } from '../../services/prospectService';
 import { userService } from '../../services/userService';
+import { formatDate, formatMontant } from '../../utils/helpers';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
+
+
 
 const ProspectsList = () => {
   const [prospects, setProspects] = useState([]);
@@ -36,6 +40,7 @@ const ProspectsList = () => {
   const [hasEditPermission, setHasEditPermission] = useState(false);
   const [hasDeletePermission, setHasDeletePermission] = useState(false);
   const [loadingPermissions, setLoadingPermissions] = useState(false);
+  const [currentPage, setCurrentPage] = useState('prospects'); // 'prospects' ou 'installations'
   const { addNotification } = useApp();
   const { user, profile } = useAuth();
 
@@ -72,13 +77,13 @@ const ProspectsList = () => {
       if (user?.id && profile) {
         // Vérifier que l'utilisateur a accès à la page (sera fait par le composant parent)
         // Ici, on vérifie les permissions granulaires
-        const canCreate = profile?.role === 'admin' || profile?.role === 'super_admin' || 
-                         await userService.hasCreatePermission(user.id, 'prospects');
-        const canEdit = profile?.role === 'admin' || profile?.role === 'super_admin' || 
-                       await userService.hasEditPermission(user.id, 'prospects');
-        const canDelete = profile?.role === 'admin' || profile?.role === 'super_admin' || 
-                         await userService.hasDeletePermission(user.id, 'prospects');
-        
+        const canCreate = profile?.role === 'admin' || profile?.role === 'super_admin' ||
+          await userService.hasCreatePermission(user.id, 'prospects');
+        const canEdit = profile?.role === 'admin' || profile?.role === 'super_admin' ||
+          await userService.hasEditPermission(user.id, 'prospects');
+        const canDelete = profile?.role === 'admin' || profile?.role === 'super_admin' ||
+          await userService.hasDeletePermission(user.id, 'prospects');
+
         setHasCreatePermission(canCreate);
         setHasEditPermission(canEdit);
         setHasDeletePermission(canDelete);
@@ -155,12 +160,12 @@ const ProspectsList = () => {
   const handleDelete = async (prospect) => {
     // ✅ Extraire l'ID si c'est un objet (du DataTable)
     const prospectId = prospect?.id || prospect;
-    
+
     // ✅ Vérifier la permission AVANT de supprimer (silencieusement, sans message)
     if (!hasDeletePermission) {
       return;
     }
-    
+
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce prospect ?')) {
       return;
     }
@@ -175,7 +180,7 @@ const ProspectsList = () => {
     } catch (error) {
       // ✅ Gérer les erreurs spécifiques
       console.error('Erreur suppression prospect:', error);
-      
+
       // 409 Conflict = contrainte de clé étrangère (prospect a des enregistrements liés)
       if (error.status === 409 || error.message?.includes('foreign key')) {
         addNotification({
@@ -255,16 +260,41 @@ const ProspectsList = () => {
 
   const handleActionSubmit = async (formData) => {
     try {
-      // ✅ CORRIGÉ: Utiliser les bons paramètres avec metadata
+      // ✅ NOUVEAU: Vérifier si c'est un client actif
+      // Après conversion, seules les installations sont autorisées
+      if (selectedProspect.statut === 'actif' && formData.type_action !== 'installation') {
+        addNotification({
+          type: 'warning',
+          message: 'Ce client est actif. Seules les installations peuvent être enregistrées après la conversion.'
+        });
+        setShowActionModal(false);
+        return;
+      }
+
+      // Préparer les métadonnées pour l'historique
+      const metadata = {
+        date_action: formData.date_action,
+        details_supplementaires: formData.details
+      };
+
+      // Ajouter les champs spécifiques à l'installation
+      if (formData.type_action === 'installation') {
+        metadata.application = formData.application;
+        metadata.chef_mission = formData.chef_mission;
+        metadata.date_debut = formData.date_debut;
+        metadata.date_fin = formData.date_fin;
+        metadata.conversion = formData.conversion;
+        metadata.anciens_logiciels = formData.anciens_logiciels;
+      }
+
+      // ✅ Enregistrer dans l'historique
       await prospectService.addHistorique(
         selectedProspect.id,
         formData.type_action,
         formData.description,
-        {
-          date_action: formData.date_action,
-          details_supplementaires: formData.details
-        }
+        metadata
       );
+
       addNotification({
         type: 'success',
         message: 'Action enregistrée avec succès'
@@ -282,7 +312,7 @@ const ProspectsList = () => {
   const handleAnalyzeProspects = async () => {
     try {
       setAnalysisLoading(true);
-      
+
       if (filteredProspects.length === 0) {
         addNotification({
           type: 'warning',
@@ -293,7 +323,7 @@ const ProspectsList = () => {
 
       // Juste ouvrir le modal, l'analyse est directement dans le JSX
       setShowAnalysisModal(true);
-      
+
       addNotification({
         type: 'success',
         message: 'Analyse complétée!'
@@ -313,7 +343,7 @@ const ProspectsList = () => {
     prospects: prospects.filter(p => p.statut === 'prospect').length,
     actifs: prospects.filter(p => p.statut === 'actif').length,
     inactifs: prospects.filter(p => p.statut === 'inactif').length,
-    tauxConversion: prospects.length > 0 
+    tauxConversion: prospects.length > 0
       ? ((prospects.filter(p => p.statut === 'actif').length / prospects.length) * 100).toFixed(0)
       : 0
   };
@@ -328,231 +358,255 @@ const ProspectsList = () => {
 
   return (
     <div className="space-y-6">
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-          <p className="text-sm opacity-90 mb-1">Total Prospects</p>
-          <h3 className="text-3xl font-bold">{stats.total}</h3>
-        </div>
-        <div className="card bg-gradient-to-br from-green-500 to-green-600 text-white">
-          <p className="text-sm opacity-90 mb-1">Convertis</p>
-          <h3 className="text-3xl font-bold">{stats.actifs}</h3>
-        </div>
-        <div className="card bg-gradient-to-br from-purple-500 to-purple-600 text-white">
-          <p className="text-sm opacity-90 mb-1">En attente</p>
-          <h3 className="text-3xl font-bold">{stats.prospects}</h3>
-        </div>
-        <div className="card bg-gradient-to-br from-orange-500 to-orange-600 text-white">
-          <p className="text-sm opacity-90 mb-1">Taux Conversion</p>
-          <h3 className="text-3xl font-bold">{stats.tauxConversion}%</h3>
-        </div>
-        <div className="card">
-          <Button
-            variant="primary"
-            icon={Plus}
-            onClick={handleCreate}
-            disabled={!hasCreatePermission}
-            className="w-full h-full"
-            title={!hasCreatePermission ? 'Permission refusée: Créer un prospect' : 'Créer un nouveau prospect'}
+      {/* Onglets Principal */}
+      <div className="flex gap-2 border-b border-gray-200 items-center justify-between pb-0">
+        <div className="flex gap-2">
+          <button
+            onClick={() => setCurrentPage('prospects')}
+            className={`px-4 py-2 font-medium transition-colors ${currentPage === 'prospects'
+              ? 'text-primary border-b-2 border-primary -mb-0.5'
+              : 'text-gray-600 hover:text-gray-800'
+              }`}
           >
-            Nouveau Prospect
-          </Button>
+            👥 Gestion des Prospects
+          </button>
+          <button
+            onClick={() => setCurrentPage('installations')}
+            className={`px-4 py-2 font-medium transition-colors ${currentPage === 'installations'
+              ? 'text-primary border-b-2 border-primary -mb-0.5'
+              : 'text-gray-600 hover:text-gray-800'
+              }`}
+          >
+            🏢 Planification des Installations
+          </button>
         </div>
       </div>
 
-      {/* Filtres */}
-      <div className="space-y-4">
-        {/* Filtre avancé avec date et utilisateur */}
-        <FilterBar
-          onSearchChange={setSearchTerm}
-          onDateStartChange={setDateStart}
-          onDateEndChange={setDateEnd}
-          onCreatorChange={setCreatorId}
-          searchValue={searchTerm}
-          dateStart={dateStart}
-          dateEnd={dateEnd}
-          creatorId={creatorId}
-        />
-
-        <div className="card">
-          <div className="flex flex-col md:flex-row gap-4 items-center">
-            <div className="flex-1">
-              <SearchBar
-                value={searchTerm}
-                onChange={setSearchTerm}
-                placeholder="Rechercher par nom, contact, téléphone..."
-              />
+      {/* Contenu: Gestion Prospects */}
+      {currentPage === 'prospects' && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+            <div className="card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+              <p className="text-sm opacity-90 mb-1">Total Prospects</p>
+              <h3 className="text-3xl font-bold">{stats.total}</h3>
             </div>
-            <button
-              onClick={handleAnalyzeProspects}
-              disabled={analysisLoading || filteredProspects.length === 0}
-              className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-gray-400 disabled:to-gray-400 text-white rounded-lg font-medium transition-all flex items-center gap-2"
-            >
-              <Zap size={18} />
-              {analysisLoading ? 'Analyse...' : 'ANALYSE GLOBALE'}
-            </button>
+            <div className="card bg-gradient-to-br from-green-500 to-green-600 text-white">
+              <p className="text-sm opacity-90 mb-1">Convertis</p>
+              <h3 className="text-3xl font-bold">{stats.actifs}</h3>
+            </div>
+            <div className="card bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+              <p className="text-sm opacity-90 mb-1">En attente</p>
+              <h3 className="text-3xl font-bold">{stats.prospects}</h3>
+            </div>
+            <div className="card bg-gradient-to-br from-orange-500 to-orange-600 text-white">
+              <p className="text-sm opacity-90 mb-1">Taux Conversion</p>
+              <h3 className="text-3xl font-bold">{stats.tauxConversion}%</h3>
+            </div>
+            <div className="card">
+              <Button
+                variant="primary"
+                icon={Plus}
+                onClick={handleCreate}
+                disabled={!hasCreatePermission}
+                className="w-full h-full"
+                title={!hasCreatePermission ? 'Permission refusée: Créer un prospect' : 'Créer un nouveau prospect'}
+              >
+                Nouveau Prospect
+              </Button>
+            </div>
           </div>
 
-          {/* Filtres par statut */}
-          <div className="flex gap-2 flex-wrap mt-4">
-            <button
-              onClick={() => setFilterStatus('all')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                filterStatus === 'all'
-                  ? 'bg-primary text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              Tous
-            </button>
-            <button
-              onClick={() => setFilterStatus('prospect')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                filterStatus === 'prospect'
-                  ? 'bg-primary text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              Prospects
-            </button>
-            <button
-              onClick={() => setFilterStatus('actif')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                filterStatus === 'actif'
-                  ? 'bg-success text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              Actifs
-            </button>
-            <button
-              onClick={() => setFilterStatus('inactif')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                filterStatus === 'inactif'
-                  ? 'bg-danger text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              Inactifs
-            </button>
+          {/* Filtres */}
+          <div className="space-y-4">
+            {/* Filtre avancé avec date et utilisateur */}
+            <FilterBar
+              onSearchChange={setSearchTerm}
+              onDateStartChange={setDateStart}
+              onDateEndChange={setDateEnd}
+              onCreatorChange={setCreatorId}
+              searchValue={searchTerm}
+              dateStart={dateStart}
+              dateEnd={dateEnd}
+              creatorId={creatorId}
+            />
+
+            <div className="card">
+              <div className="flex flex-col md:flex-row gap-2 items-center justify-end">
+                <button
+                  onClick={handleAnalyzeProspects}
+                  disabled={analysisLoading || filteredProspects.length === 0}
+                  className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-gray-400 disabled:to-gray-400 text-white rounded-lg font-medium transition-all flex items-center gap-2 whitespace-nowrap text-sm"
+                >
+                  <Zap size={18} />
+                  ANALYSE
+                </button>
+              </div>
+
+              {/* Filtres par statut */}
+              <div className="flex gap-2 flex-wrap mt-4">
+                <button
+                  onClick={() => setFilterStatus('all')}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${filterStatus === 'all'
+                    ? 'bg-primary text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                >
+                  Tous
+                </button>
+                <button
+                  onClick={() => setFilterStatus('prospect')}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${filterStatus === 'prospect'
+                    ? 'bg-primary text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                >
+                  Prospects
+                </button>
+                <button
+                  onClick={() => setFilterStatus('actif')}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${filterStatus === 'actif'
+                    ? 'bg-success text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                >
+                  Actifs
+                </button>
+                <button
+                  onClick={() => setFilterStatus('inactif')}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${filterStatus === 'inactif'
+                    ? 'bg-danger text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                >
+                  Inactifs
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-      {filteredProspects.length === 0 ? (
-        <div className="card text-center py-12">
-          <p className="text-gray-500 text-lg">Aucun prospect trouvé</p>
-        </div>
-      ) : (
-        <DataTable
-          data={filteredProspects}
-          columns={[
-            {
-              key: 'raison_sociale',
-              label: 'Prospect',
-              width: '200px',
-              render: (row) => (
-                <div>
-                  <p className="font-semibold text-gray-900">{row.raison_sociale}</p>
-                  <p className="text-xs text-gray-500">{row.email || 'N/A'}</p>
-                </div>
-              )
-            },
-            {
-              key: 'contact',
-              label: 'Contact',
-              width: '150px',
-              render: (row) => (
-                <div>
-                  <p className="text-sm text-gray-900">{row.contact || 'N/A'}</p>
-                  <p className="text-xs text-gray-500">{row.telephone || 'N/A'}</p>
-                </div>
-              )
-            },
-            {
-              key: 'secteur',
-              label: 'Secteur',
-              width: '120px',
-              render: (row) => <span>{row.secteur || 'N/A'}</span>
-            },
-            {
-              key: 'statut',
-              label: 'Statut',
-              width: '100px',
-              render: (row) => (
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                  row.statut === 'actif' 
-                    ? 'bg-green-100 text-green-800' 
-                    : row.statut === 'prospect'
-                    ? 'bg-blue-100 text-blue-800'
-                    : 'bg-red-100 text-red-800'
-                }`}>
-                  {row.statut?.toUpperCase() || 'N/A'}
-                </span>
-              )
-            },
-            {
-              key: 'wilaya',
-              label: 'Wilaya',
-              width: '120px',
-              render: (row) => <span>{row.wilaya || 'N/A'}</span>
-            }
-          ]}
-          actions={[
-            {
-              key: 'view',
-              label: 'Détails',
-              icon: <Eye size={18} />,
-              onClick: (row) => {
-                setSelectedProspect(row);
-                setShowHistoryModal(true);
-              },
-              className: 'bg-blue-600 hover:bg-blue-700 text-white px-3 py-1'
-            },
-            {
-              key: 'action',
-              label: 'Afficher',
-              icon: <Zap size={18} />,
-              onClick: (row) => {
-                // ✅ Vérifier la permission et le statut AVANT d'ouvrir le modal (silencieusement)
-                if (!hasEditPermission || row.statut === 'actif') {
-                  return;
+
+          {filteredProspects.length === 0 ? (
+            <div className="card text-center py-12">
+              <p className="text-gray-500 text-lg">Aucun prospect trouvé</p>
+            </div>
+          ) : (
+            <DataTable
+              data={filteredProspects}
+              columns={[
+                {
+                  key: 'raison_sociale',
+                  label: 'Prospect',
+                  width: '200px',
+                  render: (row) => (
+                    <div>
+                      <p className="font-semibold text-gray-900">{row.raison_sociale}</p>
+                      <p className="text-xs text-gray-500">{row.email || 'N/A'}</p>
+                    </div>
+                  )
+                },
+                {
+                  key: 'contact',
+                  label: 'Contact',
+                  width: '150px',
+                  render: (row) => (
+                    <div>
+                      <p className="text-sm text-gray-900">{row.contact || 'N/A'}</p>
+                      <p className="text-xs text-gray-500">{row.telephone || 'N/A'}</p>
+                    </div>
+                  )
+                },
+                {
+                  key: 'secteur',
+                  label: 'Secteur',
+                  width: '120px',
+                  render: (row) => <span>{row.secteur || 'N/A'}</span>
+                },
+                {
+                  key: 'statut',
+                  label: 'Statut',
+                  width: '100px',
+                  render: (row) => (
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${row.statut === 'actif'
+                      ? 'bg-green-100 text-green-800'
+                      : row.statut === 'prospect'
+                        ? 'bg-blue-100 text-blue-800'
+                        : 'bg-red-100 text-red-800'
+                      }`}>
+                      {row.statut?.toUpperCase() || 'N/A'}
+                    </span>
+                  )
+                },
+                {
+                  key: 'wilaya',
+                  label: 'Wilaya',
+                  width: '120px',
+                  render: (row) => <span>{row.wilaya || 'N/A'}</span>
                 }
-                setSelectedProspect(row);
-                setShowActionModal(true);
-              },
-              disabled: (row) => !hasEditPermission || row.statut === 'actif',
-              title: (row) => row.statut === 'actif' 
-                ? 'Actions désactivées: Ce prospect est devenu client actif'
-                : !hasEditPermission 
-                  ? 'Permission refusée: Ajouter une action' 
-                  : 'Ajouter une action',
-              className: (row) => (!hasEditPermission || row.statut === 'actif') 
-                ? 'bg-gray-400 cursor-not-allowed text-white px-3 py-1' 
-                : 'bg-purple-600 hover:bg-purple-700 text-white px-3 py-1'
-            },
-            {
-              key: 'edit',
-              label: 'Modifier',
-              icon: <Edit2 size={18} />,
-              onClick: handleEdit,
-              disabled: !hasEditPermission,
-              title: !hasEditPermission ? 'Permission refusée: Modifier' : 'Modifier ce prospect',
-              className: hasEditPermission ? 'bg-amber-600 hover:bg-amber-700 text-white px-3 py-1' : 'bg-gray-400 cursor-not-allowed text-white px-3 py-1'
-            },
-            {
-              key: 'delete',
-              label: 'Supprimer',
-              icon: <Trash2 size={18} />,
-              onClick: handleDelete,
-              disabled: !hasDeletePermission,
-              title: !hasDeletePermission ? 'Permission refusée: Supprimer' : 'Supprimer ce prospect',
-              className: hasDeletePermission ? 'bg-red-600 hover:bg-red-700 text-white px-3 py-1' : 'bg-gray-400 cursor-not-allowed text-white px-3 py-1'
-            }
-          ]}
-          loading={loading}
-          emptyMessage="Aucun prospect trouvé"
-        />
+              ]}
+              actions={[
+                {
+                  key: 'view',
+                  label: 'Détails',
+                  icon: <Eye size={18} />,
+                  onClick: (row) => {
+                    setSelectedProspect(row);
+                    setShowHistoryModal(true);
+                  },
+                  className: 'bg-blue-600 hover:bg-blue-700 text-white px-3 py-1'
+                },
+                {
+                  key: 'action',
+                  label: 'Afficher',
+                  icon: <Zap size={18} />,
+                  onClick: (row) => {
+                    // ✅ Vérifier la permission et le statut AVANT d'ouvrir le modal (silencieusement)
+                    if (!hasEditPermission || row.statut === 'actif') {
+                      return;
+                    }
+                    setSelectedProspect(row);
+                    setShowActionModal(true);
+                  },
+                  disabled: (row) => !hasEditPermission || row.statut === 'actif',
+                  title: (row) => row.statut === 'actif'
+                    ? 'Actions désactivées: Ce prospect est devenu client actif'
+                    : !hasEditPermission
+                      ? 'Permission refusée: Ajouter une action'
+                      : 'Ajouter une action',
+                  className: (row) => (!hasEditPermission || row.statut === 'actif')
+                    ? 'bg-gray-400 cursor-not-allowed text-white px-3 py-1'
+                    : 'bg-purple-600 hover:bg-purple-700 text-white px-3 py-1'
+                },
+                {
+                  key: 'edit',
+                  label: 'Modifier',
+                  icon: <Edit2 size={18} />,
+                  onClick: handleEdit,
+                  disabled: !hasEditPermission,
+                  title: !hasEditPermission ? 'Permission refusée: Modifier' : 'Modifier ce prospect',
+                  className: hasEditPermission ? 'bg-amber-600 hover:bg-amber-700 text-white px-3 py-1' : 'bg-gray-400 cursor-not-allowed text-white px-3 py-1'
+                },
+                {
+                  key: 'delete',
+                  label: 'Supprimer',
+                  icon: <Trash2 size={18} />,
+                  onClick: handleDelete,
+                  disabled: !hasDeletePermission,
+                  title: !hasDeletePermission ? 'Permission refusée: Supprimer' : 'Supprimer ce prospect',
+                  className: hasDeletePermission ? 'bg-red-600 hover:bg-red-700 text-white px-3 py-1' : 'bg-gray-400 cursor-not-allowed text-white px-3 py-1'
+                }
+              ]}
+              loading={loading}
+              emptyMessage="Aucun prospect trouvé"
+            />
+          )}
+        </>
       )}
+      {/* Fin contenu Gestion Prospects */}
+
+      {/* Contenu: Journal des Installations */}
+      {currentPage === 'installations' && (
+        <InstallationPlanningList />
+      )}
+      {/* Fin contenu Journal Installations */}
 
       {/* Modal Formulaire Prospect */}
       <Modal
@@ -574,7 +628,7 @@ const ProspectsList = () => {
         title="Historique des Actions"
         size="lg"
       >
-        <ProspectHistory prospectId={selectedProspect?.id} />
+        <ProspectHistory prospectId={selectedProspect?.id} prospect={selectedProspect} />
       </Modal>
 
       {/* Modal Actions de Suivi */}
@@ -607,21 +661,19 @@ const ProspectsList = () => {
                 setAnalysisTab('global');
                 setSelectedProspectAnalysis(0);
               }}
-              className={`px-4 py-2 font-medium transition-colors ${
-                analysisTab === 'global'
-                  ? 'text-primary border-b-2 border-primary'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
+              className={`px-4 py-2 font-medium transition-colors ${analysisTab === 'global'
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-gray-600 hover:text-gray-800'
+                }`}
             >
               📊 Analyse Globale
             </button>
             <button
               onClick={() => setAnalysisTab('prospects')}
-              className={`px-4 py-2 font-medium transition-colors ${
-                analysisTab === 'prospects'
-                  ? 'text-primary border-b-2 border-primary'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
+              className={`px-4 py-2 font-medium transition-colors ${analysisTab === 'prospects'
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-gray-600 hover:text-gray-800'
+                }`}
             >
               👥 Par Prospect ({filteredProspects.length})
             </button>
@@ -661,7 +713,7 @@ const ProspectsList = () => {
                         <span className="text-sm font-bold text-gray-900">{item.count}</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
+                        <div
                           className={`${item.color} h-2 rounded-full`}
                           style={{ width: `${(item.count / filteredProspects.length) * 100}%` }}
                         ></div>
@@ -745,7 +797,7 @@ const ProspectsList = () => {
               {(() => {
                 const p = filteredProspects[selectedProspectAnalysis];
                 const scoreConversion = p.statut === 'actif' ? 100 : p.statut === 'prospect' ? 50 : 25;
-                
+
                 return (
                   <div className="space-y-4">
                     {/* Header avec Score */}
@@ -778,12 +830,11 @@ const ProspectsList = () => {
                     <div className="bg-pink-50 rounded-lg p-4 border border-pink-200">
                       <p className="text-xs text-pink-600 font-semibold mb-1">👤 Statut</p>
                       <p className="text-sm font-bold">
-                        Prospect: 
-                        <span className={`ml-2 px-2 py-1 rounded font-bold text-white ${
-                          p.statut === 'actif' ? 'bg-green-500' : 
-                          p.statut === 'prospect' ? 'bg-blue-500' : 
-                          'bg-red-500'
-                        }`}>
+                        Prospect:
+                        <span className={`ml-2 px-2 py-1 rounded font-bold text-white ${p.statut === 'actif' ? 'bg-green-500' :
+                          p.statut === 'prospect' ? 'bg-blue-500' :
+                            'bg-red-500'
+                          }`}>
                           {p.statut.toUpperCase()}
                         </span>
                       </p>

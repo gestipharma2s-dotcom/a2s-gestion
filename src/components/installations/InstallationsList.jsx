@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Calendar, Eye, RefreshCw } from 'lucide-react';
+import { Plus, Edit2, Trash2, Calendar, Eye, RefreshCw, MapPin } from 'lucide-react';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
 import SearchBar from '../common/SearchBar';
 import FilterBar from '../common/FilterBar';
 import Input from '../common/Input';
 import DataTable from '../common/DataTable';
+import MultiSelectDropdown from '../common/MultiSelectDropdown';
 import InstallationForm from './InstallationForm';
 import InstallationCard from './InstallationCard';
 import { installationService } from '../../services/installationService';
 import { userService } from '../../services/userService';
 import { paiementService } from '../../services/paiementService';
+import { formatWilaya } from '../../constants/wilayas';
 import PaymentQuickForm from './PaymentQuickForm';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
@@ -36,6 +38,8 @@ const InstallationsList = () => {
   const [hasDeletePermission, setHasDeletePermission] = useState(false);
   const [loadingPermissions, setLoadingPermissions] = useState(false);
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+  const [selectedWilayas, setSelectedWilayas] = useState([]);
+  const [availableWilayas, setAvailableWilayas] = useState([]);
   const { addNotification } = useApp();
   const { user, profile } = useAuth();
 
@@ -50,12 +54,22 @@ const InstallationsList = () => {
   }, [installations]);
 
   useEffect(() => {
+    // Extraire les wilayas uniques et les trier
+    const wilayas = [...new Set(installations
+      .map(inst => inst.wilaya)
+      .filter(w => w && w.trim() !== '')
+      .map(w => w.trim())
+    )].sort();
+    setAvailableWilayas(wilayas);
+  }, [installations]);
+
+  useEffect(() => {
     loadPermissions();
   }, [user?.id, profile?.role]);
 
   useEffect(() => {
     filterInstallations();
-  }, [installations, searchTerm, filterStatus, dateDebut, dateFin, creatorId]);
+  }, [installations, searchTerm, filterStatus, dateDebut, dateFin, creatorId, selectedWilayas]);
 
   const loadInstallations = async () => {
     try {
@@ -139,6 +153,11 @@ const InstallationsList = () => {
     // Filtre par créateur (pour tous les utilisateurs)
     if (creatorId) {
       filtered = filtered.filter(i => i.created_by === creatorId);
+    }
+
+    // ✅ Filtre par wilaya (multiple selection)
+    if (selectedWilayas.length > 0) {
+      filtered = filtered.filter(i => selectedWilayas.includes(i.wilaya));
     }
 
     setFilteredInstallations(filtered);
@@ -383,6 +402,23 @@ Cette action est IRRÉVERSIBLE !
           dateEnd={dateFin}
           creatorId={creatorId}
         />
+
+        {/* Filtre Wilaya avec dropdown multi-select */}
+        <div className="card">
+          <MultiSelectDropdown
+            options={availableWilayas.map(wilaya => ({
+              value: wilaya,
+              label: formatWilaya(wilaya),
+              count: installations.filter(i => i.wilaya === wilaya).length
+            }))}
+            selectedValues={selectedWilayas}
+            onChange={setSelectedWilayas}
+            placeholder="Filtrer par Wilaya"
+            label="Filtrer par Wilaya"
+            icon={MapPin}
+            displayFormat={(count, total) => `Tous les Wilayas (${total})`}
+          />
+        </div>
       </div>
 
       {/* Liste */}
@@ -442,30 +478,34 @@ Cette action est IRRÉVERSIBLE !
               )
             },
             {
-              key: 'montant',
-              label: 'Montant',
-              width: '120px',
-              render: (row) => <span>{(row.montant || 0).toLocaleString('fr-DZ')} DA</span>
-            },
-            {
-              key: 'montant_paye',
-              label: 'Montant Payé',
-              width: '140px',
-              render: (row) => (
-                <span className="font-semibold text-green-700">
-                  {calculateMontantPaye(row.id).toLocaleString('fr-DZ')} DA
-                </span>
-              )
-            },
-            {
-              key: 'reste_a_payer',
-              label: 'Reste à Payer',
+              key: 'statut_paiement',
+              label: 'Statut de Paiement',
               width: '140px',
               render: (row) => {
+                const montantPaye = calculateMontantPaye(row.id);
                 const reste = calculateResteAPayer(row);
+                
+                let statut, couleur, code;
+                if (reste === row.montant) {
+                  // 0 = Aucun paiement
+                  statut = 'Aucun paiement';
+                  couleur = 'bg-red-100 text-red-700';
+                  code = 0;
+                } else if (reste > 0) {
+                  // 1 = Partiellement payé
+                  statut = 'Partiellement payé';
+                  couleur = 'bg-orange-100 text-orange-700';
+                  code = 1;
+                } else {
+                  // 2 = Totalement payé
+                  statut = 'Totalement payé';
+                  couleur = 'bg-green-100 text-green-700';
+                  code = 2;
+                }
+                
                 return (
-                  <span className={`font-semibold ${reste > 0 ? 'text-orange-700' : 'text-green-700'}`}>
-                    {reste.toLocaleString('fr-DZ')} DA
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${couleur}`}>
+                    {code} ({statut})
                   </span>
                 );
               }

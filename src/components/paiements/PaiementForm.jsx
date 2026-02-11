@@ -4,9 +4,13 @@ import Select from '../common/Select';
 import Button from '../common/Button';
 import { prospectService } from '../../services/prospectService';
 import { installationService } from '../../services/installationService';
+import { paiementService } from '../../services/paiementService';
 import { validators } from '../../utils/validators';
+import { formatMontant, getStatutPaiement, formatPriceDisplay } from '../../utils/helpers';
+import { useAuth } from '../../context/AuthContext';
 
 const PaiementForm = ({ paiement, onSubmit, onCancel, isAbonnement = false, isSubmitting = false }) => {
+  const { profile } = useAuth();
   const [formData, setFormData] = useState({
     client_id: '',
     installation_id: '',
@@ -19,6 +23,11 @@ const PaiementForm = ({ paiement, onSubmit, onCancel, isAbonnement = false, isSu
   const [clients, setClients] = useState([]);
   const [installations, setInstallations] = useState([]);
   const [abonnementMontant, setAbonnementMontant] = useState(0);
+  const [abonnementResteAPayer, setAbonnementResteAPayer] = useState(0);
+  const [montantInstallation, setMontantInstallation] = useState(0);
+  const [restAPayer, setRestAPayer] = useState(0);
+  const [paiementsExistants, setPaiementsExistants] = useState(0);
+  const [montantInstallationCalcule, setMontantInstallationCalcule] = useState(false);
 
   useEffect(() => {
     loadClients();
@@ -31,9 +40,29 @@ const PaiementForm = ({ paiement, onSubmit, onCancel, isAbonnement = false, isSu
         mode_paiement: paiement.mode_paiement || 'especes',
         date_paiement: paiement.date_paiement?.split('T')[0] || ''
       });
-      // Si c'est un paiement d'abonnement, récupérer le montant
+      
+      // Si c'est un paiement d'abonnement, récupérer le montant et calculer le reste
       if (isAbonnement && paiement.abonnement_montant) {
         setAbonnementMontant(paiement.abonnement_montant);
+        
+        // ✅ Calculer le reste à payer pour l'abonnement
+        const calculerResteAbonnement = async () => {
+          try {
+            if (paiement.installation_id) {
+              const paiements = await paiementService.getByInstallation(paiement.installation_id);
+              const totalPaye = paiements.reduce((sum, p) => sum + (p.montant || 0), 0);
+              const reste = Math.max(0, paiement.abonnement_montant - totalPaye);
+              setAbonnementResteAPayer(reste);
+              console.log(`✅ Abonnement - Montant: ${paiement.abonnement_montant}, Payé: ${totalPaye}, Reste: ${reste}`);
+            } else {
+              setAbonnementResteAPayer(paiement.abonnement_montant);
+            }
+          } catch (error) {
+            console.error('Erreur calcul reste abonnement:', error);
+            setAbonnementResteAPayer(paiement.abonnement_montant);
+          }
+        };
+        calculerResteAbonnement();
       }
     }
   }, [paiement, isAbonnement]);
@@ -67,11 +96,38 @@ const PaiementForm = ({ paiement, onSubmit, onCancel, isAbonnement = false, isSu
     if (field === 'client_id' && value) {
       loadInstallations(value);
     }
-    // Si une installation est choisie, pré-remplir et figer le type depuis l'installation
+    
+    // Si une installation est choisie, pré-remplir le type et calculer le reste à payer
     if (field === 'installation_id' && value) {
       const inst = installations.find(i => String(i.id) === String(value));
-      if (inst && inst.type) {
-        setFormData(prev => ({ ...prev, type: inst.type }));
+      if (inst) {
+        setFormData(prev => ({ 
+          ...prev, 
+          type: inst.type || 'acquisition'
+        }));
+        
+        // ✅ Récupérer les paiements existants pour cette installation
+        const calculerRestAPayer = async () => {
+          try {
+            const paiements = await paiementService.getByInstallation(value);
+            const totalPaye = paiements.reduce((sum, p) => sum + (p.montant || 0), 0);
+            setPaiementsExistants(totalPaye);
+            
+            setMontantInstallation(inst.montant || 0);
+            const reste = Math.max(0, (inst.montant || 0) - totalPaye);
+            setRestAPayer(reste);
+            setMontantInstallationCalcule(true);
+            
+            console.log(`✅ Installation: ${inst.application_installee}, Montant: ${inst.montant}, Payé: ${totalPaye}, Reste: ${reste}`);
+          } catch (error) {
+            console.error('Erreur calcul reste à payer:', error);
+            // Fallback: calculer sans paiements
+            setMontantInstallation(inst.montant || 0);
+            setRestAPayer(inst.montant || 0);
+            setMontantInstallationCalcule(true);
+          }
+        };
+        calculerRestAPayer();
       }
     }
   };
@@ -80,14 +136,6 @@ const PaiementForm = ({ paiement, onSubmit, onCancel, isAbonnement = false, isSu
     e.preventDefault();
     
     let validationErrors = {};
-    
-    // Validation si c'est un paiement d'abonnement
-    if (isAbonnement && abonnementMontant > 0) {
-      const montantSaisi = parseFloat(formData.montant) || 0;
-      if (montantSaisi > abonnementMontant) {
-        validationErrors.montant = `Le montant du paiement ne peut pas dépasser ${abonnementMontant.toLocaleString('fr-DZ')} DA`;
-      }
-    }
     
     const validation = validators.validatePaiement(formData);
     if (!validation.isValid) {
@@ -131,6 +179,36 @@ const PaiementForm = ({ paiement, onSubmit, onCancel, isAbonnement = false, isSu
         />
       )}
 
+      {/* ✅ NOUVEAU: Afficher le statut et le code de l'installation */}
+      {formData.installation_id && !isAbonnement && (montantInstallation > 0 || montantInstallationCalcule) && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <p className="text-xs text-blue-600 uppercase font-semibold">Statut</p>
+              <p className={`text-3xl font-bold ${getStatutPaiement(montantInstallation, montantInstallation - restAPayer).couleur}`}>
+                {getStatutPaiement(montantInstallation, montantInstallation - restAPayer).code}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-blue-600 uppercase font-semibold">Montant</p>
+              <p className="text-lg font-bold text-gray-600">
+                {profile?.role === 'admin' || profile?.role === 'super_admin' ? (
+                  formatMontant(montantInstallation)
+                ) : (
+                  '🔐'
+                )}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-blue-600 uppercase font-semibold">Pourcentage</p>
+              <p className="text-lg font-bold text-blue-600">
+                {((montantInstallation - restAPayer) / montantInstallation * 100).toFixed(0)}%
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Select
         label="Type de Paiement"
         value={formData.type}
@@ -146,19 +224,42 @@ const PaiementForm = ({ paiement, onSubmit, onCancel, isAbonnement = false, isSu
       />
 
       {isAbonnement && abonnementMontant > 0 && (
-        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-sm font-semibold text-blue-900">
-            Montant de l'abonnement: <span className="text-lg text-blue-700">{abonnementMontant.toLocaleString('fr-DZ')} DA</span>
-          </p>
-          <p className="text-xs text-blue-600 mt-1">Le montant du paiement ne peut pas dépasser ce montant</p>
+        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <p className="text-xs text-blue-600 uppercase font-semibold">Statut</p>
+              <p className={`text-3xl font-bold ${getStatutPaiement(abonnementMontant, abonnementMontant - abonnementResteAPayer).couleur}`}>
+                {getStatutPaiement(abonnementMontant, abonnementMontant - abonnementResteAPayer).code}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-blue-600 uppercase font-semibold">Montant</p>
+              <p className="text-lg font-bold text-gray-600">
+                {profile?.role === 'admin' || profile?.role === 'super_admin' ? (
+                  formatMontant(abonnementMontant)
+                ) : (
+                  '🔐'
+                )}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-blue-600 uppercase font-semibold">Pourcentage</p>
+              <p className="text-lg font-bold text-blue-600">
+                {((abonnementMontant - abonnementResteAPayer) / abonnementMontant * 100).toFixed(0)}%
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
+      {/* ✅ NOUVEAU: Champ Montant Versé (montant réel au lieu de codes 0, 1, 2) */}
       <Input
-        label="Montant (DA)"
+        label="Montant Versé (DA)"
         type="number"
+        step="0.01"
         value={formData.montant}
         onChange={(e) => handleChange('montant', e.target.value)}
+        placeholder="Entrer le montant versé"
         error={errors.montant}
         required
       />

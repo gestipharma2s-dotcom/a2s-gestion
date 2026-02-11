@@ -1,8 +1,10 @@
 import React from 'react';
 import { Edit2, Trash2, Package, Lock } from 'lucide-react';
-import { formatMontant } from '../../utils/helpers';
+import { formatMontant, formatPriceDisplay } from '../../utils/helpers';
+import { useAuth } from '../../context/AuthContext';
 
 const ApplicationCard = ({ application, onEdit, onDelete, hasEditPermission = true, hasDeletePermission = true }) => {
+  const { profile } = useAuth();
   return (
     <div className="card hover:shadow-xl transition-shadow duration-200">
       {/* Header */}
@@ -50,12 +52,31 @@ const ApplicationCard = ({ application, onEdit, onDelete, hasEditPermission = tr
         </p>
       )}
 
-      {/* Prix */}
-      <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4 mt-auto">
-        <p className="text-sm text-purple-600 mb-1">Prix</p>
-        <p className="text-2xl font-bold text-purple-700">
-          {formatMontant(application.prix)}
-        </p>
+      {/* Prix - Admins voient prix réels, autres voient codes */}
+      <div className="grid grid-cols-2 gap-3 mt-auto">
+        {/* Prix Acquisition */}
+        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4">
+          <p className="text-xs text-green-600 mb-1 font-semibold">PRIX ACQUISITION</p>
+          <p className="text-xl font-bold text-green-700">
+            {profile?.role === 'admin' || profile?.role === 'super_admin' ? (
+              formatMontant(application.prix_acquisition || application.prix || 0)
+            ) : (
+              '🔐'
+            )}
+          </p>
+        </div>
+        
+        {/* Prix Abonnement */}
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
+          <p className="text-xs text-blue-600 mb-1 font-semibold">PRIX ABONNEMENT</p>
+          <p className="text-xl font-bold text-blue-700">
+            {profile?.role === 'admin' || profile?.role === 'super_admin' ? (
+              formatMontant(application.prix_abonnement || application.prix || 0)
+            ) : (
+              '🔐'
+            )}
+          </p>
+        </div>
       </div>
     </div>
   );

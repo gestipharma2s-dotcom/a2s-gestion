@@ -1,8 +1,8 @@
 import React from 'react';
-import { Edit, Trash2, Eye, AlertCircle, CheckCircle, Clock, DollarSign, Lock } from 'lucide-react';
+import { Edit, Trash2, Eye, AlertCircle, CheckCircle, Clock, DollarSign, Lock, Check, XCircle } from 'lucide-react';
 import Button from '../common/Button';
 
-const MissionCard = ({ mission, onEdit, onDelete, onDetails, getStatusColor, getStatusLabel, hasEditPermission, hasDeletePermission, isAdmin }) => {
+const MissionCard = ({ mission, onEdit, onDelete, onDetails, onValidate, onClosure, onRemove, getStatusColor, getStatusLabel, hasEditPermission, hasDeletePermission, isAdmin }) => {
   const getDaysUntilDue = () => {
     const today = new Date();
     const dueDate = new Date(mission.dateFin);
@@ -168,7 +168,46 @@ const MissionCard = ({ mission, onEdit, onDelete, onDetails, getStatusColor, get
               </Button>
             )}
             
-            {hasDeletePermission && (
+            {/* ✅ NOUVEAU: Boutons ADMIN - Valider, Clôturer, Supprimer */}
+            {isAdmin && onRemove && (
+              <>
+                {mission.statut !== 'validee' && onValidate && (
+                  <Button
+                    onClick={() => onValidate(mission)}
+                    className="w-full flex items-center justify-center gap-2 py-2 rounded bg-green-50 text-green-600 hover:bg-green-100"
+                    size="sm"
+                    title="Valider cette mission (Admin)"
+                  >
+                    <Check size={16} />
+                    Valider
+                  </Button>
+                )}
+                
+                {mission.statut !== 'cloturee' && onClosure && (
+                  <Button
+                    onClick={() => onClosure(mission)}
+                    className="w-full flex items-center justify-center gap-2 py-2 rounded bg-orange-50 text-orange-600 hover:bg-orange-100"
+                    size="sm"
+                    title="Clôturer cette mission (Admin)"
+                  >
+                    <XCircle size={16} />
+                    Clôturer
+                  </Button>
+                )}
+                
+                <Button
+                  onClick={() => onRemove(mission)}
+                  className="w-full flex items-center justify-center gap-2 py-2 rounded bg-red-50 text-red-600 hover:bg-red-100"
+                  size="sm"
+                  title="Supprimer cette mission (Admin - Irréversible)"
+                >
+                  <Trash2 size={16} />
+                  Supprimer
+                </Button>
+              </>
+            )}
+            
+            {!isAdmin && hasDeletePermission && (
               <Button
                 onClick={() => onDelete(mission)}
                 className={`w-full flex items-center justify-center gap-2 py-2 rounded ${

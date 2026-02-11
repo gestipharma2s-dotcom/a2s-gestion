@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { TABLES } from './supabaseClient';
+import { prospectService } from './prospectService';
 
 export const abonnementService = {
   // Récupérer tous les abonnements
@@ -83,7 +84,7 @@ export const abonnementService = {
   },
 
   // Créer un abonnement depuis une installation
-  async createFromInstallation(installationId) {
+  async createFromInstallation(installationId, montantAbonnement = null) {
     try {
       // 1. Vérifier s'il existe déjà un abonnement actif ou en alerte
       const { data: existing, error: checkError } = await supabase
@@ -98,10 +99,10 @@ export const abonnementService = {
         throw new Error('Un abonnement actif ou en alerte existe déjà pour cette installation.');
       }
       
-      // 2. Récupérer l'installation avec la date d'installation
+      // 2. Récupérer l'installation avec la date d'installation et le montant_abonnement
       const { data: installation, error: fetchError } = await supabase
         .from(TABLES.INSTALLATIONS)
-        .select('date_installation')
+        .select('date_installation, montant_abonnement')
         .eq('id', installationId)
         .single();
       
@@ -125,17 +126,76 @@ export const abonnementService = {
         statut = 'en_alerte';
       }
       
-      // 5. Créer l'abonnement (sans montant)
+      // 5. Créer l'abonnement avec montant (si fourni)
+      const abonnementData = {
+        installation_id: installationId,
+        date_debut: dateDebut.toISOString().split('T')[0],
+        date_fin: dateFin.toISOString().split('T')[0],
+        statut: statut
+      };
+      
+      // ✅ NOUVEAU: Ajouter le montant s'il est fourni en paramètre ou dans l'installation
+      if (montantAbonnement) {
+        abonnementData.montant = parseFloat(montantAbonnement);
+      } else if (installation.montant_abonnement) {
+        abonnementData.montant = parseFloat(installation.montant_abonnement);
+      }
+      
       const { error } = await supabase
         .from(TABLES.ABONNEMENTS)
-        .insert([{
-          installation_id: installationId,
-          date_debut: dateDebut.toISOString().split('T')[0],
-          date_fin: dateFin.toISOString().split('T')[0],
-          statut: statut
-        }]);
+        .insert([abonnementData]);
       
       if (error) throw error;
+
+      // ✅ NOUVEAU: Enregistrer la création d'abonnement dans l'historique du prospect/client
+      try {
+        // Récupérer les infos de l'installation pour le client_id et l'application
+        const { data: installFullData } = await supabase
+          .from(TABLES.INSTALLATIONS)
+          .select('client_id, application_installee, montant, type')
+          .eq('id', installationId)
+          .single();
+        
+        if (installFullData) {
+          // ✅ NOUVEAU: Si type='acquisition', récupérer le prix_abonnement de l'application
+          let montantAbonnement = installFullData.montant;
+          
+          if (installFullData.type && installFullData.type.toLowerCase() === 'acquisition') {
+            try {
+              const { data: appData } = await supabase
+                .from('applications')
+                .select('prix_abonnement, prix')
+                .eq('nom', installFullData.application_installee)
+                .single();
+              
+              if (appData && appData.prix_abonnement) {
+                montantAbonnement = appData.prix_abonnement;
+                console.log(`✅ Montant abonnement: ${montantAbonnement} DA (prix_abonnement de l'application)`);
+              }
+            } catch (appErr) {
+              console.warn('⚠️ Impossible de récupérer le prix abonnement de l\'application');
+            }
+          }
+          
+          await prospectService.addHistorique(
+            installFullData.client_id,
+            'abonnement_acquisition',
+            `Abonnement créé pour ${installFullData.application_installee} (Type: ${installFullData.type || 'standard'})`,
+            {
+              installation_id: installationId,
+              application: installFullData.application_installee,
+              date_debut: dateDebut.toISOString().split('T')[0],
+              date_fin: dateFin.toISOString().split('T')[0],
+              montant: montantAbonnement,
+              type: installFullData.type,
+              statut: statut
+            }
+          );
+          console.log(`✅ Abonnement enregistré dans l'historique du prospect/client ${installFullData.client_id}`);
+        }
+      } catch (histErr) {
+        console.warn(`⚠️ Impossible d'enregistrer l'abonnement dans l'historique:`, histErr);
+      }
 
       console.log(`✅ Abonnement créé: Installation ${installationId}, Statut: ${statut}, Fin: ${dateFin.toISOString().split('T')[0]}`);
       return { success: true, installationId, statut };

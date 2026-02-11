@@ -166,32 +166,38 @@ const ClientsList = () => {
               render: (row) => <span>{row.secteur || 'N/A'}</span>
             },
             {
-              key: 'montant_paye',
-              label: 'Montant Payé',
+              key: 'statut_paiement',
+              label: 'Statut de Paiement',
               width: '140px',
-              render: (row) => (
-                <span className="font-semibold text-green-600">
-                  {new Intl.NumberFormat('fr-DZ', { 
-                    style: 'decimal',
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 0
-                  }).format(row.montant_paye || 0)} DA
-                </span>
-              )
-            },
-            {
-              key: 'reste_a_payer',
-              label: 'Reste à Payer',
-              width: '140px',
-              render: (row) => (
-                <span className={`font-semibold ${(row.reste_a_payer || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                  {new Intl.NumberFormat('fr-DZ', { 
-                    style: 'decimal',
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 0
-                  }).format(row.reste_a_payer || 0)} DA
-                </span>
-              )
+              render: (row) => {
+                const montantTotal = row.montant_total || 0;
+                const montantPaye = row.montant_paye || 0;
+                const reste = Math.max(0, montantTotal - montantPaye);
+                
+                let statut, couleur, code;
+                if (reste === montantTotal || montantTotal === 0) {
+                  // 0 = Aucun paiement
+                  statut = 'Aucun paiement';
+                  couleur = 'bg-red-100 text-red-700';
+                  code = 0;
+                } else if (reste > 0) {
+                  // 1 = Partiellement payé
+                  statut = 'Partiellement payé';
+                  couleur = 'bg-orange-100 text-orange-700';
+                  code = 1;
+                } else {
+                  // 2 = Totalement payé
+                  statut = 'Totalement payé';
+                  couleur = 'bg-green-100 text-green-700';
+                  code = 2;
+                }
+                
+                return (
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${couleur}`}>
+                    {code} ({statut})
+                  </span>
+                );
+              }
             },
             {
               key: 'wilaya',
