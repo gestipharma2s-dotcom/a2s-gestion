@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import Input from '../common/Input';
 import Select from '../common/Select';
 import Button from '../common/Button';
-import { formatMontant } from '../../utils/helpers';
+import { formatMontant, getStatutPaiement, formatPriceDisplay } from '../../utils/helpers';
 import { paiementService } from '../../services/paiementService';
+import { useAuth } from '../../context/AuthContext';
 
 const PaymentQuickForm = ({ installation, onSubmit, onCancel, isSubmitting = false }) => {
+  const { profile } = useAuth();
   const [formData, setFormData] = useState({
     montant: '',
     mode_paiement: 'virement',
@@ -99,15 +101,6 @@ const PaymentQuickForm = ({ installation, onSubmit, onCancel, isSubmitting = fal
     
     const newErrors = {};
     
-    if (!formData.montant || parseFloat(formData.montant) <= 0) {
-      newErrors.montant = 'Montant requis et > 0';
-    }
-    
-    // Vérifier que le montant ne dépasse pas le reste à payer
-    if (parseFloat(formData.montant) > resteAPayer) {
-      newErrors.montant = `Le montant ne peut pas dépasser le reste à payer (${formatMontant(resteAPayer)})`;
-    }
-    
     if (!formData.mode_paiement) {
       newErrors.mode_paiement = 'Mode de paiement requis';
     }
@@ -152,17 +145,26 @@ const PaymentQuickForm = ({ installation, onSubmit, onCancel, isSubmitting = fal
         </div>
         <div className="border-t border-blue-200 pt-3 grid grid-cols-3 gap-4">
           <div>
-            <p className="text-xs text-blue-600 uppercase font-semibold">Montant Total</p>
-            <p className="text-lg font-bold text-primary">{formatMontant(installation.montant)}</p>
+            <p className="text-xs text-blue-600 uppercase font-semibold">Statut</p>
+            {/* ✅ Afficher le code de statut (0, 1, 2) - même pour non-admins */}
+            <p className={`text-3xl font-bold ${getStatutPaiement(installation.montant, totalPaye).couleur}`}>
+              {getStatutPaiement(installation.montant, totalPaye).code}
+            </p>
           </div>
           <div>
-            <p className="text-xs text-blue-600 uppercase font-semibold">Déjà Payé</p>
-            <p className="text-lg font-bold text-green-600">{formatMontant(totalPaye)}</p>
+            <p className="text-xs text-blue-600 uppercase font-semibold">Montant</p>
+            <p className="text-lg font-bold text-gray-600">
+              {profile?.role === 'admin' || profile?.role === 'super_admin' ? (
+                formatMontant(installation.montant || 0)
+              ) : (
+                '🔐'
+              )}
+            </p>
           </div>
           <div>
-            <p className="text-xs text-blue-600 uppercase font-semibold">Reste à Payer</p>
-            <p className={`text-lg font-bold ${resteAPayer > 0 ? 'text-red-600' : 'text-green-600'}`}>
-              {formatMontant(resteAPayer)}
+            <p className="text-xs text-blue-600 uppercase font-semibold">Pourcentage</p>
+            <p className="text-lg font-bold text-blue-600">
+              {((totalPaye / installation.montant) * 100).toFixed(0)}%
             </p>
           </div>
         </div>
@@ -177,14 +179,14 @@ const PaymentQuickForm = ({ installation, onSubmit, onCancel, isSubmitting = fal
         </div>
       )}
 
-      {/* Montant Paiement */}
+      {/* ✅ Montant Versé (vrai montant au lieu de codes 0, 1, 2) */}
       <Input
-        label="Montant à Payer (DA)"
+        label="Montant Versé (DA)"
         type="number"
         step="0.01"
         value={formData.montant}
         onChange={(e) => handleChange('montant', e.target.value)}
-        placeholder="0.00"
+        placeholder="Entrer le montant versé"
         error={errors.montant}
         required
       />

@@ -9,6 +9,12 @@ const generateAIAnalysis = async (stats, resteAPayerData) => {
     console.log('Provider:', provider);
     console.log('API Key présente:', apiKey ? 'Oui ✅' : 'Non ❌');
     
+    // ⚠️ Désactiver temporairement Gemini (clé API compromise)
+    if (provider === 'gemini') {
+      console.warn('⚠️ API Gemini temporairement désactivée (clé compromise). Utilisation des analyses par défaut.');
+      return null;
+    }
+    
     if (!apiKey) {
       console.warn('⚠️ API IA non configurée. Utilisation des analyses par défaut.');
       return null;

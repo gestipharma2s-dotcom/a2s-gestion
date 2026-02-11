@@ -66,8 +66,11 @@ export const validators = {
       errors.type = 'Le type de paiement est obligatoire';
     }
     
-    if (!data.montant || data.montant <= 0) {
-      errors.montant = 'Le montant doit être supérieur à 0';
+    // ✅ MODIFIÉ: Le champ 'montant' contient maintenant le montant réel (pas de codes 0, 1, 2)
+    // Accepter les nombres positifs
+    const montantValue = parseFloat(data.montant);
+    if (!data.montant || isNaN(montantValue) || montantValue <= 0) {
+      errors.montant = 'Le montant doit être un nombre positif';
     }
     
     if (!data.mode_paiement) {
@@ -122,8 +125,12 @@ export const validators = {
       errors.nom = 'Le nom de l\'application est obligatoire';
     }
     
-    if (!data.prix || data.prix <= 0) {
-      errors.prix = 'Le prix doit être supérieur à 0';
+    if (!data.prix_acquisition || data.prix_acquisition <= 0) {
+      errors.prix_acquisition = 'Le prix d\'acquisition doit être supérieur à 0';
+    }
+    
+    if (!data.prix_abonnement || data.prix_abonnement <= 0) {
+      errors.prix_abonnement = 'Le prix d\'abonnement doit être supérieur à 0';
     }
     
     return {

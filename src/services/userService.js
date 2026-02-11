@@ -530,6 +530,26 @@ export const userService = {
     }
   },
 
+  // ✅ Vérifier si l'utilisateur a la permission de clôturer un type de pièce
+  async hasClosePermission(userId, pieceType) {
+    try {
+      const user = await this.getById(userId);
+      if (!user) return false;
+
+      // Les admins et super_admins ont toujours les permissions
+      if (user.role === 'admin' || user.role === 'super_admin') {
+        return true;
+      }
+
+      // Vérifier la permission basée sur le type de pièce
+      const permissionField = `can_close_${pieceType}`;
+      return user[permissionField] === true;
+    } catch (error) {
+      console.error(`Erreur vérification permission close ${pieceType}:`, error);
+      return false;
+    }
+  },
+
   // ✅ Vérifier les pièces créées par un utilisateur (prospects, installations, paiements, interventions)
   async getUserCreatedPieces(userId) {
     try {

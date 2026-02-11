@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { Download, Edit, ChevronDown, ChevronUp, Plus, Trash2, DollarSign } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Download, Edit, ChevronDown, ChevronUp, Plus, Trash2, DollarSign, Check, XCircle } from 'lucide-react';
 import Button from '../common/Button';
 import Input from '../common/Input';
 
-const MissionDetailsModal = ({ mission, tab = 'technique', onClose }) => {
+const MissionDetailsModal = ({ mission, tab = 'technique', onClose, onValidate, onClosure, onRemove, isAdmin }) => {
   const [activeTab, setActiveTab] = useState(tab);
   const [commentaire, setCommentaire] = useState('');
   const [expenses, setExpenses] = useState([]);
@@ -17,6 +17,11 @@ const MissionDetailsModal = ({ mission, tab = 'technique', onClose }) => {
     technique: true,
     financier: activeTab === 'financier'
   });
+
+  // 🔍 Debug: Vérifier les props reçus
+  useEffect(() => {
+    console.log('MissionDetailsModal props:', { isAdmin, onRemove: !!onRemove, onValidate: !!onValidate, onClosure: !!onClosure, missionStatut: mission?.statut });
+  }, [isAdmin, onRemove, onValidate, onClosure, mission?.statut]);
 
   const expenseTypes = [
     { value: 'transport', label: '🚗 Transport / Fuel' },
@@ -444,6 +449,52 @@ const MissionDetailsModal = ({ mission, tab = 'technique', onClose }) => {
         >
           Fermer
         </Button>
+        
+        {/* ✅ Bouton VALIDER - Admin uniquement, si statut !== 'validee' */}
+        {isAdmin && onValidate && mission.statut !== 'validee' && (
+          <Button
+            onClick={() => {
+              onValidate(mission);
+              onClose();
+            }}
+            className="flex-1 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg py-2 font-medium flex items-center justify-center gap-2"
+            title="Valider cette mission"
+          >
+            <Check size={18} />
+            Valider
+          </Button>
+        )}
+        
+        {/* ✅ Bouton CLÔTURER - Admin uniquement, si statut !== 'cloturee' */}
+        {isAdmin && onClosure && mission.statut !== 'cloturee' && (
+          <Button
+            onClick={() => {
+              onClosure(mission);
+              onClose();
+            }}
+            className="flex-1 bg-orange-50 text-orange-600 hover:bg-orange-100 rounded-lg py-2 font-medium flex items-center justify-center gap-2"
+            title="Clôturer cette mission"
+          >
+            <XCircle size={18} />
+            Clôturer
+          </Button>
+        )}
+        
+        {/* ✅ Bouton SUPPRIMER - Admin uniquement, TOUJOURS visible */}
+        {isAdmin && onRemove && (
+          <Button
+            onClick={() => {
+              onRemove(mission);
+              onClose();
+            }}
+            className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg py-2 font-medium flex items-center justify-center gap-2"
+            title="Supprimer cette mission (Admin - Irréversible)"
+          >
+            <Trash2 size={18} />
+            Supprimer
+          </Button>
+        )}
+        
         <Button
           className="flex-1 bg-gradient-to-r from-primary to-primary-dark text-white hover:opacity-90 rounded-lg py-2 font-medium flex items-center justify-center gap-2"
         >

@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Edit2, Trash2, Building, Calendar, DollarSign, CreditCard, Lock } from 'lucide-react';
-import { formatDate, formatMontant, getStatutClass, getStatutLabel } from '../../utils/helpers';
+import { Edit2, Trash2, Building, Calendar, CreditCard, Lock } from 'lucide-react';
+import { formatDate, formatMontant, getStatutClass, getStatutLabel, getStatutPaiement, formatPriceDisplay } from '../../utils/helpers';
 import { paiementService } from '../../services/paiementService';
 import { useAuth } from '../../context/AuthContext';
 import { userService } from '../../services/userService';
 
 const InstallationCard = ({ installation, onEdit, onDelete, onPayment, refreshTrigger }) => {
   const [resteAPayer, setResteAPayer] = useState(0);
+  const [montantPaye, setMontantPaye] = useState(0);
   const [paiementsInstallation, setPaiementsInstallation] = useState([]);
   const [loading, setLoading] = useState(true);
   const { profile, user } = useAuth();
@@ -68,6 +69,7 @@ const InstallationCard = ({ installation, onEdit, onDelete, onPayment, refreshTr
       
       // Calculer le total payé pour CETTE installation uniquement
       const totalPaye = paiementsInst.reduce((sum, p) => sum + (p.montant || 0), 0);
+      setMontantPaye(totalPaye);
       
       // Calculer le reste pour CETTE installation uniquement
       const reste = Math.max(0, installation.montant - totalPaye);
@@ -75,6 +77,7 @@ const InstallationCard = ({ installation, onEdit, onDelete, onPayment, refreshTr
     } catch (error) {
       console.error('Erreur calcul reste à payer:', error);
       setResteAPayer(installation.montant);
+      setMontantPaye(0);
     } finally {
       setLoading(false);
     }
@@ -146,29 +149,46 @@ const InstallationCard = ({ installation, onEdit, onDelete, onPayment, refreshTr
           <span>Installé le {formatDate(installation.date_installation)}</span>
         </div>
         
-        <div className="flex items-center gap-2 text-primary text-lg font-bold">
-          <DollarSign size={20} />
-          <span>{formatMontant(installation.montant)}</span>
+        {/* ✅ Afficher Montant Installation réel pour admins, codes pour autres */}
+        <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+          <p className="text-xs text-blue-600 font-semibold">MONTANT</p>
+          <p className="text-2xl font-bold text-blue-700">
+            {profile?.role === 'admin' || profile?.role === 'super_admin' ? (
+              formatMontant(installation.montant || 0)
+            ) : (
+              '🔐'
+            )}
+          </p>
         </div>
-
-        {/* Reste à Payer */}
-        {!loading && resteAPayer > 0 && (
-          <div className="bg-red-50 rounded-lg p-3 border border-red-200">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-red-700 font-medium">Reste à payer:</span>
-              <span className="text-lg font-bold text-red-600">{formatMontant(resteAPayer)}</span>
+        
+        {/* ✅ Montant Payé et Reste à Payer - Vrai montant au lieu de codes */}
+        {!loading && (
+          <div className="space-y-2">
+            <div className="bg-green-50 rounded-lg p-3 border border-green-200">
+              <p className="text-xs text-green-600 font-semibold">MONTANT PAYÉ</p>
+              <p className="text-xl font-bold text-green-700">
+                {profile?.role === 'admin' || profile?.role === 'super_admin' ? (
+                  formatMontant(montantPaye)
+                ) : (
+                  '🔐'
+                )}
+              </p>
+            </div>
+            <div className={`rounded-lg p-3 border ${resteAPayer > 0 ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+              <p className={`text-xs font-semibold ${resteAPayer > 0 ? 'text-red-600' : 'text-green-600'}`}>RESTE À PAYER</p>
+              <p className={`text-xl font-bold ${resteAPayer > 0 ? 'text-red-700' : 'text-green-700'}`}>
+                {profile?.role === 'admin' || profile?.role === 'super_admin' ? (
+                  formatMontant(resteAPayer)
+                ) : (
+                  '🔐'
+                )}
+              </p>
             </div>
           </div>
         )}
 
-        {!loading && resteAPayer === 0 && (
-          <div className="bg-green-50 rounded-lg p-3 border border-green-200">
-            <span className="text-sm text-green-700 font-medium">✓ Entièrement payé</span>
-          </div>
-        )}
-
-        {/* Paiements enregistrés */}
-        {!loading && paiementsInstallation.length > 0 && (
+        {/* Paiements enregistrés - Visible seulement pour les admins */}
+        {!loading && paiementsInstallation.length > 0 && (profile?.role === 'admin' || profile?.role === 'super_admin') && (
           <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
             <div className="text-sm text-blue-700 font-medium mb-2">
               Paiements enregistrés ({paiementsInstallation.length}):
@@ -203,8 +223,8 @@ const InstallationCard = ({ installation, onEdit, onDelete, onPayment, refreshTr
           </div>
         )}
 
-        {/* Bouton Payer */}
-        {resteAPayer > 0 && (
+        {/* Bouton Payer - Seulement pour les admins */}
+        {resteAPayer > 0 && (profile?.role === 'admin' || profile?.role === 'super_admin') && (
           <button
             onClick={handlePayment}
             className="w-full bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"

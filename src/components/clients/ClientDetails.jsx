@@ -3,8 +3,8 @@ import { installationService } from '../../services/installationService';
 import { paiementService } from '../../services/paiementService';
 import { interventionService } from '../../services/interventionService';
 import { prospectService } from '../../services/prospectService';
-import { formatDate, formatMontant } from '../../utils/helpers';
-import { Building, Calendar, CreditCard, Settings, ChevronDown, ChevronUp, History } from 'lucide-react';
+import { formatDate, formatMontant, getStatutPaiement } from '../../utils/helpers';
+import { Building, Calendar, CreditCard, Settings, ChevronDown, ChevronUp, History, RefreshCw } from 'lucide-react';
 import PaiementHistory from '../paiements/PaiementHistory';
 import ProspectHistory from '../prospects/ProspectHistory';
 
@@ -12,6 +12,7 @@ const ClientDetails = ({ client }) => {
   const [installations, setInstallations] = useState([]);
   const [paiements, setPaiements] = useState([]);
   const [interventions, setInterventions] = useState([]);
+  const [renouvellements, setRenouvellements] = useState([]);
   const [resteTotal, setResteTotal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showFullPaiements, setShowFullPaiements] = useState(false);
@@ -33,6 +34,34 @@ const ClientDetails = ({ client }) => {
       
       setInstallations(installData || []);
       setPaiements(paiementData || []);
+      
+      // Récupérer les abonnements renouvelés à partir de l'historique
+      try {
+        const historyData = await prospectService.getHistorique(client.id);
+        const renouvellementsList = (historyData || [])
+          .filter(action => action.action === 'abonnement_auto_renew')
+          .map((action, idx) => {
+            // Extraire le nom de l'application depuis la description
+            // Format: "Abonnement auto-renouvelé pour [APPLICATION_NAME]"
+            let applicationName = 'Application inconnue';
+            if (action.description) {
+              const match = action.description.match(/pour\s+(.+?)(?:\n|$)/);
+              applicationName = match ? match[1].trim() : 'Application inconnue';
+            }
+
+            return {
+              id: `renew-${action.id}-${idx}`,
+              application: applicationName,
+              date: action.date || action.created_at,
+              montant: action.details?.montant,
+              description: action.description
+            };
+          });
+        setRenouvellements(renouvellementsList);
+      } catch (error) {
+        console.warn('Renouvellements non disponibles:', error);
+        setRenouvellements([]);
+      }
       
       // ✅ CORRIGÉ: Calculer le reste au lieu d'appeler une méthode qui n'existe pas
       const totalInstallations = (installData || []).reduce((sum, i) => sum + (i.montant || 0), 0);
@@ -58,6 +87,7 @@ const ClientDetails = ({ client }) => {
       setInstallations([]);
       setPaiements([]);
       setInterventions([]);
+      setRenouvellements([]);
       setResteTotal({
         totalInstallations: 0,
         totalPaye: 0,
@@ -124,12 +154,12 @@ const ClientDetails = ({ client }) => {
         </div>
       </div>
 
-      {/* ✅ NOUVEAU: Historique Phase Prospect - CONSERVÉ APRÈS CONVERSION */}
+      {/* ✅ NOUVEAU: Historique Complet - Phase Prospect + Phase Client */}
       <div className="card border-l-4 border-blue-500 bg-blue-50">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
             <History size={20} className="text-blue-600" />
-            📜 Historique Phase Prospect (Conservé)
+            📜 Historique Complet du Client
           </h3>
           <button
             onClick={() => setShowProspectHistory(!showProspectHistory)}
@@ -156,9 +186,14 @@ const ClientDetails = ({ client }) => {
         ) : (
           <div className="text-sm text-gray-700">
             <p className="mb-2">
-              ℹ️ Cet historique contient toutes les actions effectuées pendant la phase <strong>prospect</strong> 
-              (avant la conversion en client actif).
+              ℹ️ Cet historique contient:
             </p>
+            <ul className="list-disc list-inside space-y-1 ml-2 mb-3">
+              <li><strong>Actions de suivi</strong> (appels, emails, RDV, etc.)</li>
+              <li><strong>Conversion en client actif</strong></li>
+              <li><strong>Installations</strong> (ACQUISITION et ABONNEMENT)</li>
+              <li><strong>Abonnements</strong> (création et renouvellements auto)</li>
+            </ul>
             <p className="text-xs text-gray-600">
               Il est conservé pour traçabilité et analyse du parcours commercial.
             </p>
@@ -166,7 +201,8 @@ const ClientDetails = ({ client }) => {
         )}
       </div>
 
-      {/* Résumé Financier */}
+      {/* Résumé Financier - CACHÉ */}
+      {/*
       {resteTotal && (
         <div className="card border-l-4 border-primary">
           <h3 className="text-lg font-bold text-gray-800 mb-4">Résumé Financier</h3>
@@ -188,6 +224,7 @@ const ClientDetails = ({ client }) => {
           </div>
         </div>
       )}
+      */}
 
       {/* Installations */}
       <div className="card">
@@ -208,25 +245,36 @@ const ClientDetails = ({ client }) => {
                 .filter(p => p.installation_id === inst.id)
                 .reduce((sum, p) => sum + (p.montant || 0), 0);
               const resteInstallation = Math.max(0, inst.montant - totalPayeInstallation);
+              
+              // Déterminer le type et sa couleur
+              const typeInstallation = inst.type && inst.type.toLowerCase() === 'abonnement' ? 'ABONNEMENT' : 'ACQUISITION';
+              const typeColor = typeInstallation === 'ABONNEMENT' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700';
 
               return (
-                <div key={inst.id} className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors">
+                <div key={`inst-${inst.id}`} className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors">
                   <div className="flex items-center justify-between mb-2">
                     <div>
-                      <h4 className="font-semibold text-gray-800">{inst.application_installee}</h4>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-semibold text-gray-800">{inst.application_installee}</h4>
+                        <span className={`text-xs font-bold px-2 py-1 rounded ${typeColor}`}>
+                          {typeInstallation}
+                        </span>
+                      </div>
                       <p className="text-sm text-gray-600">
                         Installé le {formatDate(inst.date_installation)}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-primary">{formatMontant(inst.montant)}</p>
-                      <span className={inst.statut === 'terminee' ? 'badge-success' : 'badge-warning'}>
-                        {inst.statut === 'terminee' ? 'Terminée' : 'En cours'}
-                      </span>
+                      {/* ✅ Afficher le code de statut de paiement (0, 1, 2) */}
+                      <div className={`rounded-lg p-2 text-center font-bold text-2xl ${getStatutPaiement(inst.montant, totalPayeInstallation).couleur}`}>
+                        {getStatutPaiement(inst.montant, totalPayeInstallation).code}
+                        <div className="text-lg">{getStatutPaiement(inst.montant, totalPayeInstallation).icon}</div>
+                      </div>
                     </div>
                   </div>
                   
-                  {/* Détail Paiement */}
+                  {/* Détail Paiement - CACHÉ */}
+                  {/* 
                   <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-200 text-xs">
                     <div>
                       <p className="text-gray-600">Payé</p>
@@ -245,12 +293,43 @@ const ClientDetails = ({ client }) => {
                       </p>
                     </div>
                   </div>
+                  */}
                 </div>
               );
             })}
           </div>
         )}
       </div>
+
+      {/* Abonnements Renouvelés */}
+      {renouvellements.length > 0 && (
+        <div className="card">
+          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <RefreshCw size={20} className="text-blue-600" />
+            🔄 Abonnements Renouvelés
+          </h3>
+          <div className="space-y-3">
+            {renouvellements.map((renew) => (
+              <div key={renew.id} className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-semibold text-gray-800">{renew.application}</h4>
+                    <p className="text-sm text-gray-600">
+                      Renouvelé le {formatDate(renew.date)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    {renew.montant && (
+                      <p className="font-bold text-blue-600">{formatMontant(renew.montant)}</p>
+                    )}
+                    <p className="text-xs text-gray-500">Auto-renouvellement</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Historique Paiements - Version Complète ou Résumé */}
       <div className="card">
@@ -285,26 +364,76 @@ const ClientDetails = ({ client }) => {
             <p className="text-gray-500 text-sm">Aucun paiement</p>
           </div>
         ) : showFullPaiements ? (
-          <PaiementHistory clientId={client.id} />
+          <div className="space-y-3">
+            {paiements.map((paiement, idx) => {
+              // Déterminer le type de paiement avec gestion "Abonnement via Acquisition"
+              let typePaiement = paiement.type ? paiement.type.charAt(0).toUpperCase() + paiement.type.slice(1) : 'Paiement';
+              
+              // Si c'est un abonnement créé via une installation ACQUISITION
+              if (paiement.type === 'abonnement' && paiement.installation?.type === 'acquisition') {
+                typePaiement = 'Abonnement via Acquisition';
+              }
+              
+              const typeColor = paiement.type === 'abonnement' ? 'bg-blue-50 border-blue-200' : 
+                                paiement.type === 'acquisition' ? 'bg-green-50 border-green-200' : 
+                                'bg-gray-50 border-gray-200';
+              const typeIcon = paiement.type === 'abonnement' ? '📋' : 
+                               paiement.type === 'acquisition' ? '📦' : '💳';
+              
+              return (
+                <div key={paiement.id} className={`rounded-lg p-3 border ${typeColor}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span>{typeIcon}</span>
+                        <p className="font-semibold text-gray-800">{typePaiement}</p>
+                      </div>
+                      <p className="text-sm text-gray-600 font-medium">{paiement.installation?.application_installee || 'Application inconnue'}</p>
+                      <p className="text-sm text-gray-600">{formatDate(paiement.date_paiement)}</p>
+                      {paiement.mode_paiement && (
+                        <p className="text-xs text-gray-500 capitalize">{paiement.mode_paiement}</p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-green-600">{formatMontant(paiement.montant)}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         ) : (
           <div className="space-y-2">
-            {paiements.slice(0, 5).map((paiement) => (
-              <div key={paiement.id} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
-                <div className="flex-1">
-                  <p className="font-medium text-gray-800 capitalize">{paiement.type}</p>
-                  <p className="text-sm text-gray-600">{formatDate(paiement.date_paiement)}</p>
+            {paiements.slice(0, 5).map((paiement, idx) => {
+              // Déterminer le type pour le résumé avec gestion "Abonnement via Acquisition"
+              let typePaiement = paiement.type ? paiement.type.charAt(0).toUpperCase() + paiement.type.slice(1) : 'Paiement';
+              
+              // Si c'est un abonnement créé via une installation ACQUISITION
+              if (paiement.type === 'abonnement' && paiement.installation?.type === 'acquisition') {
+                typePaiement = 'Abonnement via Acquisition';
+              }
+              
+              const typeIcon = paiement.type === 'abonnement' ? '📋' : 
+                               paiement.type === 'acquisition' ? '📦' : '💳';
+              
+              return (
+                <div key={paiement.id} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span>{typeIcon}</span>
+                      <p className="font-medium text-gray-800">{typePaiement}</p>
+                    </div>
+                    <p className="text-sm text-gray-600">{formatDate(paiement.date_paiement)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-green-600">{formatMontant(paiement.montant)}</p>
+                    {paiement.mode_paiement && (
+                      <p className="text-xs text-gray-500 capitalize">{paiement.mode_paiement}</p>
+                    )}
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-bold text-green-600">{formatMontant(paiement.montant)}</p>
-                  <p className="text-xs text-gray-500 capitalize">{paiement.mode_paiement}</p>
-                  {paiement.resteAPayer && paiement.resteAPayer > 0 && (
-                    <p className="text-xs text-red-600 font-semibold">
-                      Reste: {formatMontant(paiement.resteAPayer)}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
             {paiements.length > 5 && (
               <button
                 onClick={() => setShowFullPaiements(true)}

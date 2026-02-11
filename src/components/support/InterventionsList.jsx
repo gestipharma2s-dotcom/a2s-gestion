@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, FileText, Brain, Eye, Edit2, Trash2 } from 'lucide-react';
+import { Plus, FileText, Brain, Eye, Edit2, Trash2, MapPin } from 'lucide-react';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
 import SearchBar from '../common/SearchBar';
 import FilterBar from '../common/FilterBar';
 import DataTable from '../common/DataTable';
+import MultiSelectDropdown from '../common/MultiSelectDropdown';
 import InterventionForm from './InterventionForm';
 import InterventionCard from './InterventionCard';
 import InterventionDetails from './InterventionDetails';
@@ -12,6 +13,7 @@ import InterventionJournal from './InterventionJournal';
 import InterventionAnalyse from './InterventionAnalyse';
 import { interventionService } from '../../services/interventionService';
 import { userService } from '../../services/userService';
+import { formatWilaya } from '../../constants/wilayas';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 
@@ -23,6 +25,9 @@ const InterventionsList = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [filterType, setFilterType] = useState('all');
+  const [selectedWilayas, setSelectedWilayas] = useState([]);
+  const [availableWilayas, setAvailableWilayas] = useState([]);
   const [dateStart, setDateStart] = useState('');
   const [dateEnd, setDateEnd] = useState('');
   const [creatorId, setCreatorId] = useState('');
@@ -36,6 +41,7 @@ const InterventionsList = () => {
   const [hasCreatePermission, setHasCreatePermission] = useState(false);
   const [hasEditPermission, setHasEditPermission] = useState(false);
   const [hasDeletePermission, setHasDeletePermission] = useState(false);
+  const [hasClosePermission, setHasClosePermission] = useState(false);
   const { addNotification } = useApp();
   const { user, profile } = useAuth();
 
@@ -51,7 +57,17 @@ const InterventionsList = () => {
     // Appeler filterInterventions quand les données ou filtres changent
     filterInterventions();
     setCurrentPage(1); // Réinitialiser à la page 1 quand on filtre
-  }, [interventions, filterStatus, searchTerm, dateStart, dateEnd, creatorId, profile]);
+  }, [interventions, filterStatus, filterType, searchTerm, dateStart, dateEnd, creatorId, selectedWilayas, profile]);
+
+  useEffect(() => {
+    // Extraire les wilayas uniques depuis les clients des interventions
+    const wilayas = [...new Set(interventions
+      .map(int => int.client?.wilaya)
+      .filter(w => w && w.trim() !== '')
+      .map(w => w.trim())
+    )].sort();
+    setAvailableWilayas(wilayas);
+  }, [interventions]);
 
   useEffect(() => {
     // Vérifier les permissions
@@ -64,9 +80,12 @@ const InterventionsList = () => {
                          await userService.hasEditPermission(user.id, 'support');
           const canDelete = profile?.role === 'admin' || profile?.role === 'super_admin' || 
                            await userService.hasDeletePermission(user.id, 'support');
+          const canClose = profile?.role === 'admin' || profile?.role === 'super_admin' || 
+                          await userService.hasClosePermission(user.id, 'support');
           setHasCreatePermission(canCreate);
           setHasEditPermission(canEdit);
           setHasDeletePermission(canDelete);
+          setHasClosePermission(canClose);
         } catch (err) {
           console.error('Erreur vérification permissions:', err);
         }
@@ -98,6 +117,16 @@ const InterventionsList = () => {
       filtered = filtered.filter(i => i.statut === filterStatus);
     }
 
+    // ✅ Filtre par type d'intervention
+    if (filterType !== 'all') {
+      filtered = filtered.filter(i => i.type === filterType);
+    }
+
+    // ✅ Filtre par wilaya (multiple selection)
+    if (selectedWilayas.length > 0) {
+      filtered = filtered.filter(i => selectedWilayas.includes(i.client?.wilaya));
+    }
+
     if (searchTerm) {
       filtered = filtered.filter(i =>
         i.client?.raison_sociale?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -124,10 +153,15 @@ const InterventionsList = () => {
       });
     }
 
-    // Filtre par créateur (seulement si admin)
+    // Filtre par créateur
+    // ✅ TOUS LES UTILISATEURS voient TOUTES les interventions (consultation)
+    // SANS filtrage par créateur - chacun peut consulter le travail de tous
+    // Les permissions Créer/Modifier/Supprimer restent contrôlées individuellement
     if (creatorId && (profile?.role === 'admin' || profile?.role === 'super_admin')) {
+      // Admins/Super_admin peuvent OPTIONNELLEMENT filtrer par créateur
       filtered = filtered.filter(i => i.created_by === creatorId);
     }
+    // Les autres utilisateurs (Support, Technicien, Commercial) voient TOUTES les interventions
 
     setFilteredInterventions(filtered);
   };
@@ -158,6 +192,10 @@ const InterventionsList = () => {
   };
 
   const handleCloturer = (intervention) => {
+    // ✅ Vérifier la permission AVANT d'ouvrir le modal (silencieusement, sans message)
+    if (!hasClosePermission) {
+      return;
+    }
     setSelectedIntervention(intervention);
     setShowCloseModal(true);
   };
@@ -278,6 +316,20 @@ const InterventionsList = () => {
 
   return (
     <div className="space-y-6">
+      {/* Note informative - Tous les utilisateurs peuvent voir toutes les interventions */}
+      <div className="card bg-blue-50 border-l-4 border-blue-500">
+        <div className="flex items-start gap-3">
+          <Eye size={20} className="text-blue-600 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="font-medium text-blue-900">Consultation de toutes les interventions</p>
+            <p className="text-sm text-blue-700 mt-1">
+              Vous pouvez consulter <strong>toutes les interventions</strong> indépendamment de leur créateur.
+              Vos permissions pour Créer, Modifier ou Supprimer sont définies individuellement par les administrateurs.
+            </p>
+          </div>
+        </div>
+      </div>
+      
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
@@ -349,49 +401,21 @@ const InterventionsList = () => {
             creatorId={creatorId}
           />
 
-          {/* Filtres */}
+          {/* Filtre Wilaya avec dropdown multi-select */}
           <div className="card">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1">
-                <SearchBar
-                  value={searchTerm}
-                  onChange={setSearchTerm}
-                  placeholder="Rechercher une intervention..."
-                />
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setFilterStatus('all')}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    filterStatus === 'all'
-                      ? 'bg-primary text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  Tous
-                </button>
-                <button
-                  onClick={() => setFilterStatus('en_cours')}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    filterStatus === 'en_cours'
-                      ? 'bg-orange-500 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  En Cours
-                </button>
-                <button
-                  onClick={() => setFilterStatus('cloturee')}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    filterStatus === 'cloturee'
-                      ? 'bg-success text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  Clôturées
-                </button>
-              </div>
-            </div>
+            <MultiSelectDropdown
+              options={availableWilayas.map(wilaya => ({
+                value: wilaya,
+                label: formatWilaya(wilaya),
+                count: interventions.filter(i => i.client?.wilaya === wilaya).length
+              }))}
+              selectedValues={selectedWilayas}
+              onChange={setSelectedWilayas}
+              placeholder="Filtrer par Wilaya"
+              label="Filtrer par Wilaya"
+              icon={MapPin}
+              displayFormat={(count, total) => `Tous les Wilayas (${total})`}
+            />
           </div>
 
           {/* Tableau Journal */}
@@ -612,6 +636,7 @@ const InterventionsList = () => {
             onEdit={handleEdit}
             onDelete={handleDelete}
             onCloturer={handleCloturer}
+            hasClosePermission={hasClosePermission}
           />
         )}
       </Modal>

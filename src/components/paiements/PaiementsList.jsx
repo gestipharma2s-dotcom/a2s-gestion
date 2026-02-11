@@ -10,7 +10,7 @@ import { paiementService } from '../../services/paiementService';
 import { installationService } from '../../services/installationService';
 import { abonnementService } from '../../services/abonnementService';
 import { supabase } from '../../services/supabaseClient';
-import { formatDate, formatMontant } from '../../utils/helpers';
+import { formatDate, formatMontant, getStatutPaiement, formatPriceDisplay } from '../../utils/helpers';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { userService } from '../../services/userService';
@@ -33,6 +33,11 @@ const PaiementsList = ({ refreshTrigger, onRefreshTrigger }) => {
   const [hasEditPermission, setHasEditPermission] = useState(false);
   const [hasDeletePermission, setHasDeletePermission] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [globalPaymentStatusCounts, setGlobalPaymentStatusCounts] = useState({
+    fullyPaid: 0,
+    partiallyPaid: 0,
+    noPaid: 0
+  });
   const { addNotification } = useApp();
   const { user, profile } = useAuth();
 
@@ -66,6 +71,36 @@ const PaiementsList = ({ refreshTrigger, onRefreshTrigger }) => {
   useEffect(() => {
     filterPaiements();
   }, [paiements, searchTerm, filterType, dateDebut, dateFin, creatorId]);
+
+  // ✅ Recalculer les stats globales quand paiements ou installations changent
+  useEffect(() => {
+    const stats = {
+      fullyPaid: 0,
+      partiallyPaid: 0,
+      noPaid: 0
+    };
+
+    if (installations && installations.length > 0) {
+      installations.forEach(inst => {
+        const montantPaye = paiements
+          .filter(p => p.installation_id === inst.id)
+          .reduce((sum, p) => sum + (typeof p.montant === 'number' ? p.montant : 0), 0);
+        
+        const reste = Math.max(0, (inst.montant || 0) - montantPaye);
+        
+        if (reste === inst.montant || inst.montant === 0) {
+          stats.noPaid++;
+        } else if (reste > 0) {
+          stats.partiallyPaid++;
+        } else {
+          stats.fullyPaid++;
+        }
+      });
+    }
+
+    setGlobalPaymentStatusCounts(stats);
+    console.log('✅ Stats mises à jour:', stats);
+  }, [installations, paiements]);
 
   const loadData = async () => {
     try {
@@ -332,27 +367,31 @@ Cette action est IRRÉVERSIBLE et affectera:
 
   return (
     <div className="space-y-6">
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      {/* Stats - Cartes principales: Total des paiements et Reste à payer */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="card bg-gradient-to-br from-green-500 to-green-600 text-white">
-          <p className="text-sm opacity-90 mb-1">Revenus Totaux</p>
-          <h3 className="text-2xl font-bold">{formatMontant(stats.revenuTotal)}</h3>
+          <p className="text-sm opacity-90 mb-1">Total des Paiements</p>
+          <h3 className="text-3xl font-bold">
+            {profile?.role === 'admin' || profile?.role === 'super_admin' ? (
+              formatMontant(stats.revenuTotal)
+            ) : (
+              '🔐'
+            )}
+          </h3>
         </div>
         <div className="card bg-gradient-to-br from-red-500 to-red-600 text-white">
           <p className="text-sm opacity-90 mb-1">Reste à Payer</p>
-          <h3 className="text-2xl font-bold">{formatMontant(stats.resteTotal)}</h3>
+          <h3 className="text-3xl font-bold">
+            {profile?.role === 'admin' || profile?.role === 'super_admin' ? (
+              formatMontant(stats.resteTotal)
+            ) : (
+              '🔐'
+            )}
+          </h3>
         </div>
         <div className="card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-          <p className="text-sm opacity-90 mb-1">Acquisitions</p>
-          <h3 className="text-3xl font-bold">{stats.acquisitions}</h3>
-        </div>
-        <div className="card bg-gradient-to-br from-purple-500 to-purple-600 text-white">
-          <p className="text-sm opacity-90 mb-1">Abonnements</p>
-          <h3 className="text-3xl font-bold">{stats.abonnements}</h3>
-        </div>
-        <div className="card">
-          <p className="text-sm text-gray-600 mb-2">Journal des Paiements</p>
-          <p className="text-xs text-gray-500">Modifier ou supprimer via la table</p>
+          <p className="text-sm opacity-90 mb-1">Nombre de Paiements</p>
+          <h3 className="text-3xl font-bold">{stats.total}</h3>
         </div>
       </div>
 
@@ -454,7 +493,7 @@ Cette action est IRRÉVERSIBLE et affectera:
                 Type
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Montant
+                Montant Versé
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Mode
@@ -493,10 +532,13 @@ Cette action est IRRÉVERSIBLE et affectera:
                       {paiement.installation?.type === 'acquisition' ? 'Acquisition' : 'Abonnement'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-lg font-bold text-green-600">
-                      {formatMontant(paiement.montant)}
-                    </span>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold">
+                    {/* ✅ Afficher le montant versé (montant réel) */}
+                    {profile?.role === 'admin' || profile?.role === 'super_admin' ? (
+                      <span className="text-blue-600">{formatMontant(paiement.montant || 0)}</span>
+                    ) : (
+                      <span className="text-gray-400">🔐</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 capitalize">
                     {paiement.mode_paiement}

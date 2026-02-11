@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Briefcase, TrendingUp, AlertTriangle, CheckCircle, Clock, DollarSign,
   BarChart3, PieChart, TrendingDown, Users, CalendarDays, Zap, Plus,
@@ -13,6 +14,8 @@ import AiAnalysisDisplay from './AiAnalysisDisplay';
 import { prospectService } from '../../services/prospectService';
 import { userService } from '../../services/userService';
 import { missionService } from '../../services/missionService';
+import { installationService } from '../../services/installationService';
+import { installationPlanningService } from '../../services/installationPlanningService';
 import generateMissionAnalysis from '../../services/missionAnalysisService';
 import generateCompleteInsights from '../../services/enhancedAiAnalysisService';
 import { useApp } from '../../context/AppContext';
@@ -40,6 +43,54 @@ const MissionsDashboard = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { addNotification } = useApp();
   const { user, profile } = useAuth();
+  const location = useLocation();
+  const [initialFormData, setInitialFormData] = useState(null);
+
+  // 🔄 RECEPTION DONNÉES DEPUIS PLANNING (Correction navigation)
+  useEffect(() => {
+    let data = location.state?.createMission;
+
+    // Fallback localStorage
+    if (!data) {
+      const stored = localStorage.getItem('temp_mission_create');
+      if (stored) {
+        try {
+          data = JSON.parse(stored);
+          console.log('📥 Dashboard: Données récupérées du localStorage !');
+        } catch (e) {
+          console.error('Erreur lecture localStorage', e);
+        }
+      }
+    }
+
+    if (data) {
+      console.log('🚀 Dashboard: DÉCLENCHEMENT MODAL AVEC DONNÉES:', data);
+
+      // Injection du prospect si manquant
+      if (data.prospectData) {
+        const pData = data.prospectData;
+        setClients(prev => {
+          const exists = prev.find(c => c.id === pData.id);
+          if (!exists) {
+            console.log("➕ Dashboard: Injection prospect manquant:", pData);
+            const newClient = { ...pData, raison_sociale: pData.raison_sociale || pData.nom || 'Prospect', statut: 'actif' };
+            return [...prev, newClient];
+          }
+          return prev;
+        });
+      }
+
+      setSelectedMission(null); // Mode création
+      setInitialFormData(data);
+      setShowModal(true);
+
+      // Nettoyage après un court délai
+      setTimeout(() => localStorage.removeItem('temp_mission_create'), 2000);
+    }
+  }, [location.state]);
+
+  // ✅ Calculer isAdmin une fois
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
 
   // Données mockées
   const mockMissions = [
@@ -149,15 +200,15 @@ const MissionsDashboard = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      
+
       // Test table access first
       const tableTest = await missionService.testTableAccess();
       console.log('Missions table access test:', tableTest);
-      
+
       const clientsData = await prospectService.getAll();
       const activeClients = clientsData.filter(p => p.statut === 'actif');
       setClients(activeClients);
-      
+
       // Charger les utilisateurs
       try {
         const usersData = await userService.getAll();
@@ -167,7 +218,7 @@ const MissionsDashboard = () => {
         console.error('Erreur chargement utilisateurs:', userError);
         setUsers([]);
       }
-      
+
       // Charger les missions depuis la base de données
       try {
         const missionsData = await missionService.getAll();
@@ -177,7 +228,7 @@ const MissionsDashboard = () => {
           const clientId = mission.prospect_id || mission.clientId;
           const clientInfo = clientId ? activeClients.find(c => c.id === clientId) : null;
           const clientDisplay = mission.client || clientInfo || { id: clientId, raison_sociale: 'Client' };
-          
+
           return {
             ...mission,
             // Map database field names to component field names
@@ -214,11 +265,11 @@ const MissionsDashboard = () => {
     // - Accompagnateurs: voient SEULEMENT les missions où ils sont accompagnateurs
     // - Autres utilisateurs: ne voient RIEN (array vide)
     const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
-    
+
     filtered = filtered.filter(m => {
       const isChefMission = m.chefMissionId === user?.id || m.chef_mission_id === user?.id;
       const isAccompagnateur = m.accompagnateurs_ids?.includes(user?.id);
-      
+
       // Retourner true SEULEMENT si l'utilisateur a accès
       const hasAccess = isChefMission || isAdmin || isAccompagnateur;
       return hasAccess;
@@ -254,7 +305,7 @@ const MissionsDashboard = () => {
 
     // Filtre par utilisateur (chef de mission)
     if (filterUserId !== 'all') {
-      filtered = filtered.filter(m => 
+      filtered = filtered.filter(m =>
         m.chefMissionId === filterUserId || m.chef_mission_id === filterUserId
       );
     }
@@ -310,7 +361,7 @@ const MissionsDashboard = () => {
       if (!showAnalysisView) {
         // Basculer vers la vue analyse
         setAiLoading(true);
-        
+
         if (filteredMissions.length === 0) {
           addNotification({
             type: 'warning',
@@ -324,10 +375,10 @@ const MissionsDashboard = () => {
         const analysis = generateCompleteInsights(filteredMissions, stats);
         setCompleteAnalysis(analysis);
       }
-      
+
       // Basculer l'affichage
       setShowAnalysisView(!showAnalysisView);
-      
+
       if (!showAnalysisView) {
         addNotification({
           type: 'success',
@@ -370,7 +421,7 @@ const MissionsDashboard = () => {
     };
     return colors[statut] || 'bg-gray-100 text-gray-800';
   };
-  
+
   const getStatusLabel = (statut) => {
     const labels = {
       creee: 'Planifiée', // Alias pour creee
@@ -380,7 +431,98 @@ const MissionsDashboard = () => {
       validee: 'Validée'
     };
     return labels[statut] || statut;
-  };  const handleAddMission = () => {
+  };
+
+  // ✅ NOUVEAU: Valider une mission (ADMIN uniquement)
+  const handleValidateMission = async (mission) => {
+    if (!isAdmin) {
+      addNotification({
+        type: 'error',
+        message: 'Seuls les administrateurs peuvent valider une mission'
+      });
+      return;
+    }
+
+    if (window.confirm(`Êtes-vous sûr de vouloir valider la mission "${mission.titre}"?`)) {
+      try {
+        setMissions(missions.map(m =>
+          m.id === mission.id
+            ? { ...m, statut: 'validee' }
+            : m
+        ));
+        setSelectedMission({ ...mission, statut: 'validee' });
+        addNotification({
+          type: 'success',
+          message: `✓ Mission "${mission.titre}" validée`
+        });
+      } catch (error) {
+        addNotification({
+          type: 'error',
+          message: 'Erreur lors de la validation'
+        });
+      }
+    }
+  };
+
+  // ✅ NOUVEAU: Clôturer une mission (ADMIN uniquement)
+  const handleCloseMission = async (mission) => {
+    if (!isAdmin) {
+      addNotification({
+        type: 'error',
+        message: 'Seuls les administrateurs peuvent clôturer une mission'
+      });
+      return;
+    }
+
+    if (window.confirm(`Êtes-vous sûr de vouloir clôturer la mission "${mission.titre}"?`)) {
+      try {
+        setMissions(missions.map(m =>
+          m.id === mission.id
+            ? { ...m, statut: 'cloturee', cloturee_definitive: true }
+            : m
+        ));
+        setSelectedMission({ ...mission, statut: 'cloturee', cloturee_definitive: true });
+        addNotification({
+          type: 'success',
+          message: `✓ Mission "${mission.titre}" clôturée`
+        });
+      } catch (error) {
+        addNotification({
+          type: 'error',
+          message: 'Erreur lors de la clôture'
+        });
+      }
+    }
+  };
+
+  // ✅ NOUVEAU: Supprimer une mission (ADMIN uniquement)
+  const handleRemoveMission = async (mission) => {
+    if (!isAdmin) {
+      addNotification({
+        type: 'error',
+        message: 'Seuls les administrateurs peuvent supprimer une mission'
+      });
+      return;
+    }
+
+    if (window.confirm(`Êtes-vous sûr de vouloir supprimer définitivement la mission "${mission.titre}"? Cette action est irréversible.`)) {
+      try {
+        setMissions(missions.filter(m => m.id !== mission.id));
+        setShowDetailsModal(false);
+        addNotification({
+          type: 'success',
+          message: `✓ Mission "${mission.titre}" supprimée`
+        });
+      } catch (error) {
+        addNotification({
+          type: 'error',
+          message: 'Erreur lors de la suppression'
+        });
+      }
+    }
+  };
+
+  const handleAddMission = () => {
     // Vérifier que l'utilisateur est admin
     const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
     if (!isAdmin) {
@@ -390,7 +532,7 @@ const MissionsDashboard = () => {
       });
       return;
     }
-    
+
     setSelectedMission(null);
     setShowModal(true);
   };
@@ -400,7 +542,7 @@ const MissionsDashboard = () => {
     const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
     const isCreator = mission?.created_by === user?.id;
     const isChefMission = mission?.chefMissionId === user?.id;
-    
+
     // Admin peut toujours modifier
     // Créateur peut modifier
     // Chef de mission peut modifier tant que pas clôturée
@@ -411,7 +553,7 @@ const MissionsDashboard = () => {
   const canDeleteMission = (mission) => {
     const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
     const isCreator = mission?.created_by === user?.id;
-    
+
     // Seulement Admin ou créateur peut supprimer
     // Et seulement si pas clôturée/validée
     return (isAdmin || isCreator) && mission?.statut !== 'cloturee' && mission?.statut !== 'validee';
@@ -462,7 +604,7 @@ const MissionsDashboard = () => {
       // Support both string (legacy) and object (new)
       const closureType = typeof closureData === 'string' ? closureData : closureData?.type;
       const totalExpenses = typeof closureData === 'object' ? closureData?.totalExpenses : 0;
-      
+
       // Vérifier les permissions
       const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
       const isChefMission = selectedMission?.chefMissionId === user?.id || selectedMission?.chef_mission_id === user?.id;
@@ -482,7 +624,7 @@ const MissionsDashboard = () => {
           statut: 'en_cours',
           dateDebut: new Date().toISOString()
         };
-        
+
         // Appeler le service pour mettre à jour
         try {
           await missionService.updateStatus(selectedMission.id, 'en_cours');
@@ -521,7 +663,7 @@ const MissionsDashboard = () => {
             budget_depense: totalExpenses,
             clotureeParAdmin: user?.id
           };
-          
+
           // Appeler le service pour mettre à jour
           try {
             await missionService.validateClosureByAdmin(selectedMission.id, {
@@ -529,16 +671,16 @@ const MissionsDashboard = () => {
               commentaireAdmin: 'Clôture définitive',
               totalExpenses: totalExpenses
             });
-            
+
             // Mettre à jour la liste des missions
             setMissions(missions.map(m => m.id === selectedMission.id ? updatedMission : m));
             setSelectedMission(updatedMission);
-            
+
             addNotification({
               type: 'success',
               message: '✅ Mission clôturée définitivement par Admin'
             });
-            
+
             setTimeout(() => setShowDetailsModal(false), 1000);
           } catch (error) {
             console.error('Erreur lors de la clôture:', error);
@@ -567,7 +709,7 @@ const MissionsDashboard = () => {
             budget_depense: totalExpenses,
             clotureeParAdmin: user?.id
           };
-          
+
           // Appeler le service pour mettre à jour
           try {
             await missionService.closeMissionByChef(selectedMission.id, {
@@ -576,16 +718,16 @@ const MissionsDashboard = () => {
               dateClotureReelle: new Date().toISOString(),
               totalExpenses: totalExpenses
             });
-            
+
             // Mettre à jour la liste des missions
             setMissions(missions.map(m => m.id === selectedMission.id ? updatedMission : m));
             setSelectedMission(updatedMission);
-            
+
             addNotification({
               type: 'success',
               message: '✅ Mission clôturée par Chef - En attente de validation Admin'
             });
-            
+
             setTimeout(() => setShowDetailsModal(false), 1000);
           } catch (error) {
             console.error('Erreur lors de la clôture par chef:', error);
@@ -612,7 +754,7 @@ const MissionsDashboard = () => {
           budget_depense: totalExpenses,
           clotureeParChef: user?.id
         };
-        
+
         try {
           await missionService.closeMissionByChef(selectedMission.id, {
             commentaireChef: 'Clôture par chef de mission',
@@ -620,7 +762,7 @@ const MissionsDashboard = () => {
             dateClotureReelle: new Date().toISOString(),
             totalExpenses: totalExpenses
           });
-          
+
           setMissions(missions.map(m => m.id === selectedMission.id ? updatedMission : m));
           setSelectedMission(updatedMission);
           addNotification({
@@ -647,11 +789,11 @@ const MissionsDashboard = () => {
   const handleFormSubmit = async (formData) => {
     // Prevent double submission
     if (isSubmitting) return;
-    
+
     try {
       setIsSubmitting(true);
       let savedMission;
-      
+
       if (selectedMission) {
         // Mise à jour d'une mission existante
         savedMission = await missionService.update(selectedMission.id, formData);
@@ -663,13 +805,29 @@ const MissionsDashboard = () => {
       } else {
         // Création d'une nouvelle mission
         savedMission = await missionService.create(formData);
+
+        // Liaison avec l'installation originaire (dans le planning / prospect_history)
+        if (initialFormData && initialFormData.installationId) {
+          try {
+            console.log("🔗 Liaison Mission <-> Planning", initialFormData.installationId);
+            await installationPlanningService.update(initialFormData.installationId, {
+              mission_id: savedMission.id
+            });
+          } catch (linkError) {
+            console.error("Erreur liaison planning:", linkError);
+            addNotification({
+              type: 'warning',
+              message: 'Mission créée mais échec du lien au planning (vérifiez la table prospect_history)'
+            });
+          }
+        }
         setMissions([savedMission, ...missions]);
         addNotification({
           type: 'success',
           message: '✅ Mission créée avec succès'
         });
       }
-      
+
       setShowModal(false);
       setSelectedMission(null);
     } catch (error) {
@@ -715,11 +873,10 @@ const MissionsDashboard = () => {
             </div>
             <Button
               onClick={handleAddMission}
-              className={`flex items-center gap-2 ${
-                (profile?.role === 'admin' || profile?.role === 'super_admin')
-                  ? 'bg-primary hover:bg-primary-dark text-white'
-                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-              }`}
+              className={`flex items-center gap-2 ${(profile?.role === 'admin' || profile?.role === 'super_admin')
+                ? 'bg-primary hover:bg-primary-dark text-white'
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }`}
               disabled={!(profile?.role === 'admin' || profile?.role === 'super_admin')}
             >
               <Plus size={20} />
@@ -746,7 +903,7 @@ const MissionsDashboard = () => {
               <option value="validee">Validées</option>
               <option value="cloturee">Clôturées</option>
             </select>
-            
+
             {/* Filtre Date Du */}
             <div>
               <label className="block text-xs text-gray-600 font-semibold mb-1">Du</label>
@@ -757,7 +914,7 @@ const MissionsDashboard = () => {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
-            
+
             {/* Filtre Date Au */}
             <div>
               <label className="block text-xs text-gray-600 font-semibold mb-1">Au</label>
@@ -790,16 +947,15 @@ const MissionsDashboard = () => {
             <Button
               onClick={toggleAnalysisView}
               disabled={aiLoading}
-              className={`flex items-center gap-2 ${
-                showAnalysisView
-                  ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white'
-                  : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white'
-              }`}
+              className={`flex items-center gap-2 ${showAnalysisView
+                ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white'
+                : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white'
+                }`}
             >
               <TrendingUp size={18} />
               {aiLoading ? 'Chargement...' : showAnalysisView ? '📋 Voir Missions' : '📊 Voir Analyse'}
             </Button>
-            
+
             {/* Bouton réinitialiser filtres */}
             {(filterDateFrom || filterDateTo || filterUserId !== 'all' || filterStatus !== 'all' || searchTerm) && (
               <Button
@@ -1079,7 +1235,7 @@ const MissionsDashboard = () => {
                             if (!chefId) {
                               return <span className="text-red-600 font-medium">❌ Non assigné</span>;
                             }
-                            
+
                             const chef = users.find(u => u.id === chefId);
                             if (chef) {
                               return (
@@ -1091,7 +1247,7 @@ const MissionsDashboard = () => {
                                 </div>
                               );
                             }
-                            
+
                             // If user not found
                             console.warn('Chef not found in users array:', { chefId, usersCount: users.length });
                             return <span className="text-amber-600 font-medium">⚠️ ID invalide</span>;
@@ -1109,11 +1265,11 @@ const MissionsDashboard = () => {
                                 return user?.full_name || user?.email || null;
                               })
                               .filter(Boolean);
-                            
+
                             if (accomps.length === 0) {
                               return <span className="text-red-600 font-medium">❌ Aucun</span>;
                             }
-                            
+
                             return (
                               <div className="flex items-center gap-1 flex-wrap">
                                 {accomps.map((name, idx) => (
@@ -1190,6 +1346,7 @@ const MissionsDashboard = () => {
       >
         <MissionForm
           mission={selectedMission}
+          initialData={initialFormData}
           clients={clients}
           users={users}
           onSubmit={handleFormSubmit}
@@ -1224,6 +1381,10 @@ const MissionsDashboard = () => {
                   onClosureAdmin={handleClosureAdmin}
                   currentUser={user}
                   userProfile={profile}
+                  onValidate={handleValidateMission}
+                  onClosure={handleCloseMission}
+                  onRemove={handleRemoveMission}
+                  isAdmin={isAdmin}
                 />
               </div>
             </div>

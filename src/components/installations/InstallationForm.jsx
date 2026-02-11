@@ -10,10 +10,12 @@ const InstallationForm = ({ installation, onSubmit, onCancel }) => {
     client_id: '',
     application_installee: '',
     montant: '',
+    montant_abonnement: '',
     date_installation: '',
     type: 'acquisition',
     statut: 'en_cours'
   });
+  const [selectedApplicationId, setSelectedApplicationId] = useState(''); // ✅ NOUVEAU: Tracker l'ID de l'application sélectionnée
   const [errors, setErrors] = useState({});
   const [clients, setClients] = useState([]);
   const [applications, setApplications] = useState([]);
@@ -22,15 +24,27 @@ const InstallationForm = ({ installation, onSubmit, onCancel }) => {
   useEffect(() => {
     loadClients();
     loadApplications();
+  }, []);
+
+  // ✅ Charger les données initiales de l'installation SEULEMENT au montage ou si installation change
+  useEffect(() => {
     if (installation) {
       setFormData({
         client_id: installation.client_id || '',
         application_installee: installation.application_installee || '',
         montant: installation.montant || '',
+        montant_abonnement: installation.montant_abonnement || '',
         date_installation: installation.date_installation?.split('T')[0] || '',
         type: installation.type || 'acquisition',
         statut: installation.statut || 'en_cours'
       });
+      // ✅ Trouver et pré-sélectionner l'application
+      if (installation.application_installee && applications.length > 0) {
+        const app = applications.find(a => a.nom === installation.application_installee);
+        if (app) {
+          setSelectedApplicationId(app.id);
+        }
+      }
     }
   }, [installation]);
 
@@ -62,12 +76,48 @@ const InstallationForm = ({ installation, onSubmit, onCancel }) => {
   const handleApplicationSelect = (appId) => {
     const app = applications.find(a => a.id === appId);
     if (app) {
+      // ✅ NOUVEAU: Utiliser le bon prix selon le type d'installation COURANT
+      // Si type='abonnement' -> prix_abonnement
+      // Si type='acquisition' -> prix_acquisition
+      const prixApplicable = formData.type === 'abonnement' 
+        ? (app.prix_abonnement || app.prix_acquisition || app.prix || 0)
+        : (app.prix_acquisition || app.prix_abonnement || app.prix || 0);
+      
       setFormData(prev => ({
         ...prev,
         application_installee: app.nom,
-        montant: app.prix
+        montant: prixApplicable
       }));
+      
+      console.log(`✅ Application sélectionnée: ${app.nom}, Type: ${formData.type}, Prix: ${prixApplicable}`);
     }
+  };
+
+  const handleTypeChange = (type) => {
+    // ✅ NOUVEAU: Quand on change le type, recalculer automatiquement le montant
+    const appName = formData.application_installee;
+    
+    if (appName) {
+      const app = applications.find(a => a.nom === appName);
+      if (app) {
+        // Utiliser le bon prix selon le nouveau type
+        const prixApplicable = type === 'abonnement'
+          ? (app.prix_abonnement || app.prix_acquisition || app.prix || 0)
+          : (app.prix_acquisition || app.prix_abonnement || app.prix || 0);
+        
+        setFormData(prev => ({
+          ...prev,
+          type: type,
+          montant: prixApplicable
+        }));
+        
+        console.log(`✅ Type changé: ${type}, Montant recalculé: ${prixApplicable}`);
+        return;
+      }
+    }
+    
+    // Si pas d'application sélectionnée, just changer le type
+    handleChange('type', type);
   };
 
   const handleSubmit = async (e) => {
@@ -88,6 +138,9 @@ const InstallationForm = ({ installation, onSubmit, onCancel }) => {
     }
     if (!formData.montant) {
       newErrors.montant = 'Montant requis';
+    }
+    if (!formData.montant_abonnement) {
+      newErrors.montant_abonnement = 'Montant d\'abonnement requis';
     }
     if (!formData.date_installation) {
       newErrors.date_installation = 'Date requise';
@@ -113,6 +166,7 @@ const InstallationForm = ({ installation, onSubmit, onCancel }) => {
         client_id: formData.client_id,
         application_installee: formData.application_installee,
         montant: parseFloat(formData.montant),
+        montant_abonnement: parseFloat(formData.montant_abonnement),
         date_installation: dateFormatted,
         type: formData.type,
         statut: formData.statut
@@ -144,14 +198,21 @@ const InstallationForm = ({ installation, onSubmit, onCancel }) => {
 
       <Select
         label="Application"
-        value=""
-        onChange={(e) => handleApplicationSelect(e.target.value)}
+        value={selectedApplicationId}
+        onChange={(e) => {
+          setSelectedApplicationId(e.target.value);
+          handleApplicationSelect(e.target.value);
+        }}
         options={[
           { value: '', label: 'Sélectionner une application...' },
-          ...applications.map(a => ({ 
-            value: a.id, 
-            label: `${a.nom} - ${a.prix} DA` 
-          }))
+          ...applications.map(a => { 
+            const acq = a.prix_acquisition || a.prix;
+            const abo = a.prix_abonnement || a.prix;
+            return {
+              value: a.id, 
+              label: `${a.nom} - ACQ: ${acq} DA / ABO: ${abo} DA`
+            };
+          })
         ]}
         disabled={isSubmitting}
       />
@@ -179,6 +240,18 @@ const InstallationForm = ({ installation, onSubmit, onCancel }) => {
       />
 
       <Input
+        label="Montant d'Abonnement (DA)"
+        type="number"
+        step="0.01"
+        value={formData.montant_abonnement}
+        onChange={(e) => handleChange('montant_abonnement', e.target.value)}
+        placeholder="0.00"
+        error={errors.montant_abonnement}
+        required
+        disabled={isSubmitting}
+      />
+
+      <Input
         label="Date d'Installation"
         type="date"
         value={formData.date_installation}
@@ -191,7 +264,7 @@ const InstallationForm = ({ installation, onSubmit, onCancel }) => {
       <Select
         label="Type"
         value={formData.type}
-        onChange={(e) => handleChange('type', e.target.value)}
+        onChange={(e) => handleTypeChange(e.target.value)}
         options={[
           { value: 'acquisition', label: 'Acquisition' },
           { value: 'abonnement', label: 'Abonnement' }

@@ -37,9 +37,19 @@ export const applicationService = {
   // Créer une nouvelle application
   create: async (applicationData) => {
     try {
+      // ✅ NOUVEAU: Normaliser les données pour supporter les 2 prix
+      const normalizedData = {
+        nom: applicationData.nom,
+        description: applicationData.description || '',
+        prix_acquisition: parseFloat(applicationData.prix_acquisition) || parseFloat(applicationData.prix) || 0,
+        prix_abonnement: parseFloat(applicationData.prix_abonnement) || parseFloat(applicationData.prix) || 0,
+        // Garder aussi le champ 'prix' pour compatibilité
+        prix: parseFloat(applicationData.prix_acquisition) || parseFloat(applicationData.prix) || 0
+      };
+
       const { data, error } = await supabase
         .from('applications')
-        .insert([applicationData])
+        .insert([normalizedData])
         .select()
         .single();
 
@@ -54,9 +64,27 @@ export const applicationService = {
   // Mettre à jour une application
   update: async (id, applicationData) => {
     try {
+      // ✅ NOUVEAU: Normaliser les données pour supporter les 2 prix
+      const normalizedData = {
+        nom: applicationData.nom || undefined,
+        description: applicationData.description || undefined,
+        prix_acquisition: applicationData.prix_acquisition ? parseFloat(applicationData.prix_acquisition) : undefined,
+        prix_abonnement: applicationData.prix_abonnement ? parseFloat(applicationData.prix_abonnement) : undefined
+      };
+
+      // Supprimer les undefined
+      Object.keys(normalizedData).forEach(key => 
+        normalizedData[key] === undefined && delete normalizedData[key]
+      );
+
+      // Mettre aussi à jour le champ 'prix' pour compatibilité (utiliser prix_acquisition)
+      if (normalizedData.prix_acquisition) {
+        normalizedData.prix = normalizedData.prix_acquisition;
+      }
+
       const { data, error } = await supabase
         .from('applications')
-        .update(applicationData)
+        .update(normalizedData)
         .eq('id', id)
         .select()
         .single();

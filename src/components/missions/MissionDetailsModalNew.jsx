@@ -5,7 +5,7 @@ import Input from '../common/Input';
 import { missionService } from '../../services/missionService';
 import { useApp } from '../../context/AppContext';
 
-const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin, currentUser, userProfile }) => {
+const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin, currentUser, userProfile, onValidate, onClosure, onRemove, isAdmin }) => {
   const { addNotification } = useApp();
   const [activeTab, setActiveTab] = useState(tab);
   const [commentaireTechnique, setCommentaireTechnique] = useState('');
@@ -262,24 +262,25 @@ const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin
   };
 
   // Vérifications des permissions
-  const isAdmin = userProfile?.role === 'admin' || userProfile?.role === 'super_admin';
+  // ✅ Utiliser le prop isAdmin si disponible, sinon calculer à partir de userProfile
+  const isAdminUser = isAdmin !== undefined ? isAdmin : (userProfile?.role === 'admin' || userProfile?.role === 'super_admin');
   const isChefMission = mission?.chefMissionId === currentUser?.id || mission?.chef_mission_id === currentUser?.id;
   const isAccompagnateur = mission?.accompagnateurs_ids?.includes(currentUser?.id);
   
   // EXCEPTION: Chef de mission qui est aussi admin/super_admin peut tout faire
-  const isChefAndAdmin = isChefMission && isAdmin;
+  const isChefAndAdmin = isChefMission && isAdminUser;
   
   // Vérification d'accès à la mission
-  const hasAccessToMission = isChefMission || isAccompagnateur || isAdmin;
+  const hasAccessToMission = isChefMission || isAccompagnateur || isAdminUser;
   
   // Avant clôture: uniquement chef de mission
   // Après clôture: uniquement admin OU (chef de mission qui est aussi admin/super_admin)
   const isMissionClosed = mission?.cloturee_par_chef || mission?.cloturee_definitive;
-  const canEditMission = !isMissionClosed ? isChefMission : (isAdmin || isChefAndAdmin);
+  const canEditMission = !isMissionClosed ? isChefMission : (isAdminUser || isChefAndAdmin);
   
   // Actions spécifiques
-  const canCloseMission = isChefMission || isAdmin;
-  const canCloseAdmin = isAdmin; // Seulement admin/super_admin (ou chef qui est admin)
+  const canCloseMission = isChefMission || isAdminUser;
+  const canCloseAdmin = isAdminUser; // Seulement admin/super_admin (ou chef qui est admin)
   const canStartMission = isChefMission && (mission?.statut === 'creee' || mission?.statut === 'planifiee') && !isMissionClosed;
 
   // Calculs budgétaires avec vérifications - support database et form field names
@@ -345,13 +346,13 @@ const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin
         <>
       {/* ALERTE SI MISSION CLÔTURÉE */}
       {isMissionClosed && (
-        <div className={`p-4 rounded-lg border-l-4 ${isChefAndAdmin ? 'bg-blue-50 border-blue-400 text-blue-800' : isAdmin ? 'bg-yellow-50 border-yellow-400 text-yellow-800' : 'bg-red-50 border-red-400 text-red-800'}`}>
+        <div className={`p-4 rounded-lg border-l-4 ${isChefAndAdmin ? 'bg-blue-50 border-blue-400 text-blue-800' : isAdminUser ? 'bg-yellow-50 border-yellow-400 text-yellow-800' : 'bg-red-50 border-red-400 text-red-800'}`}>
           <div className="flex items-center gap-2">
             <Lock size={20} />
             <div>
               <p className="font-bold">🔒 Mission Clôturée</p>
               <p className="text-sm">
-                {isChefAndAdmin ? '✅ Vous êtes Chef de Mission avec rôle Admin - Édition complète autorisée' : isAdmin ? '⚠️ Seul un administrateur peut modifier cette mission.' : 'Cette mission est clôturée et ne peut plus être modifiée.'}
+                {isChefAndAdmin ? '✅ Vous êtes Chef de Mission avec rôle Admin - Édition complète autorisée' : isAdminUser ? '⚠️ Seul un administrateur peut modifier cette mission.' : 'Cette mission est clôturée et ne peut plus être modifiée.'}
               </p>
             </div>
           </div>
@@ -846,7 +847,7 @@ const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin
                 <p className="font-semibold text-green-900">✅ Mission Clôturée</p>
                 <p className="text-sm text-green-800 mt-1">
                   Cette mission a été clôturée {mission.date_cloture_reelle ? `le ${new Date(mission.date_cloture_reelle).toLocaleDateString('fr-FR')}` : ''}.
-                  {!isAdmin && ' Seul un administrateur peut la modifier.'}
+                  {!isAdminUser && ' Seul un administrateur peut la modifier.'}
                 </p>
               </div>
             </div>
@@ -908,6 +909,53 @@ const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin
                 <p className="font-semibold text-green-900">✅ Mission Clôturée</p>
                 <p className="text-sm text-green-800 mt-1">Cette mission a été clôturée et validée.</p>
               </div>
+            </div>
+          )}
+
+          {/* ✅ Boutons ADMIN - Valider, Clôturer, Supprimer */}
+          {isAdminUser && (
+            <div className="flex gap-3 mt-6 flex-wrap">
+              {mission.statut !== 'validee' && onValidate && (
+                <Button
+                  onClick={() => {
+                    onValidate(mission);
+                    onClose();
+                  }}
+                  className="flex-1 min-w-[120px] bg-green-50 text-green-600 hover:bg-green-100 rounded-lg py-2 font-medium flex items-center justify-center gap-2"
+                  title="Valider cette mission"
+                >
+                  <CheckCircle size={16} />
+                  Valider
+                </Button>
+              )}
+              
+              {mission.statut !== 'cloturee' && onClosure && (
+                <Button
+                  onClick={() => {
+                    onClosure(mission);
+                    onClose();
+                  }}
+                  className="flex-1 min-w-[120px] bg-orange-50 text-orange-600 hover:bg-orange-100 rounded-lg py-2 font-medium flex items-center justify-center gap-2"
+                  title="Clôturer cette mission"
+                >
+                  <AlertCircle size={16} />
+                  Clôturer
+                </Button>
+              )}
+              
+              {onRemove && (
+                <Button
+                  onClick={() => {
+                    onRemove(mission);
+                    onClose();
+                  }}
+                  className="flex-1 min-w-[120px] bg-red-50 text-red-600 hover:bg-red-100 rounded-lg py-2 font-medium flex items-center justify-center gap-2"
+                  title="Supprimer cette mission (Admin - Irréversible)"
+                >
+                  <Trash2 size={16} />
+                  Supprimer
+                </Button>
+              )}
             </div>
           )}
         </div>

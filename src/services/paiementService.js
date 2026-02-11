@@ -54,7 +54,7 @@ export const paiementService = {
           type,
           date_paiement,
           created_by,
-          installation:installations(montant, type, created_by)
+          installation:installations(montant, type, created_by, application_installee)
         `)
         .eq('client_id', clientId)
         .order('date_paiement', { ascending: false });
@@ -81,6 +81,23 @@ export const paiementService = {
     } catch (error) {
       console.error('Erreur récupération paiements client:', error);
       throw error;
+    }
+  },
+
+  // Récupérer les paiements d'une installation spécifique
+  async getByInstallation(installationId) {
+    try {
+      const { data, error } = await supabase
+        .from(TABLES.PAIEMENTS)
+        .select('id, montant, type, date_paiement, mode_paiement')
+        .eq('installation_id', installationId)
+        .order('date_paiement', { ascending: true });
+      
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Erreur récupération paiements installation:', error);
+      return [];
     }
   },
 

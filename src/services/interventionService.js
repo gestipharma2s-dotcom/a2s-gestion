@@ -53,7 +53,7 @@ export const interventionService = {
         .from(TABLES.INTERVENTIONS)
         .select(`
           *,
-          client:prospects!client_id(raison_sociale, contact, telephone),
+          client:prospects!client_id(raison_sociale, contact, telephone, wilaya),
           technicien:users!technicien_id(id, nom, email)
         `)
         .order('date_intervention', { ascending: false });
@@ -93,7 +93,7 @@ export const interventionService = {
         .from(TABLES.INTERVENTIONS)
         .select(`
           *,
-          client:prospects!client_id(raison_sociale, contact, telephone),
+          client:prospects!client_id(raison_sociale, contact, telephone, wilaya),
           technicien:users!technicien_id(id, nom, email)
         `)
         .eq('technicien_id', technicienId)
@@ -127,7 +127,7 @@ export const interventionService = {
         }])
         .select(`
           *,
-          client:prospects!client_id(raison_sociale, contact, telephone),
+          client:prospects!client_id(raison_sociale, contact, telephone, wilaya),
           technicien:users!technicien_id(id, nom, email)
         `)
         .single();
@@ -150,7 +150,7 @@ export const interventionService = {
         .eq('id', id)
         .select(`
           *,
-          client:prospects!client_id(raison_sociale, contact, telephone),
+          client:prospects!client_id(raison_sociale, contact, telephone, wilaya),
           technicien:users!technicien_id(id, nom, email)
         `)
         .single();
@@ -258,7 +258,7 @@ export const interventionService = {
         .eq('id', id)
         .select(`
           *,
-          client:prospects!client_id(raison_sociale, contact, telephone),
+          client:prospects!client_id(raison_sociale, contact, telephone, wilaya),
           technicien:users!technicien_id(id, nom, email)
         `)
         .single();

@@ -1,3 +1,22 @@
+/**
+ * SYSTEM DE PERMISSIONS GRANULAIRES
+ * 
+ * CONSULTATION (Lecture):
+ * - Tous les utilisateurs ayant accès à la page 'support' peuvent VOIR TOUTES les interventions
+ * - Aucun filtrage par créateur - chacun peut consulter le travail de tous
+ * - Cela permet le suivi en cas d'absence du créateur
+ * 
+ * ACTIONS (Créer, Modifier, Supprimer):
+ * - Les permissions granulaires sont assignées individuellement par l'admin
+ * - Contrôlent les actions spécifiques que chaque utilisateur peut effectuer
+ * 
+ * Exemple User quelconque (Technicien, Commercial, Support):
+ * - Peut VOIR toutes les interventions (pas filtrage par créateur)
+ * - Peut CRÉER une intervention SEULEMENT si 'create' lui est attribué
+ * - Peut MODIFIER une intervention SEULEMENT si 'edit' lui est attribué
+ * - Peut SUPPRIMER une intervention SEULEMENT si 'delete' lui est attribué
+ */
+
 export const ROLES = {
   SUPER_ADMIN: 'super_admin',
   ADMIN: 'admin',
@@ -190,7 +209,7 @@ export const PAGE_PERMISSIONS = {
   support: {
     label: '🎧 Support',
     icon: '🎧',
-    permissions: ['create', 'edit', 'delete']
+    permissions: ['view', 'create', 'edit', 'delete']
   },
   missions: {
     label: '🎯 Missions',
@@ -210,6 +229,7 @@ export const PAGE_PERMISSIONS = {
 };
 
 export const PERMISSION_LABELS = {
+  view: '👁️ Consulter',
   create: '➕ Créer',
   edit: '✏️ Modifier',
   delete: '🗑️ Supprimer',

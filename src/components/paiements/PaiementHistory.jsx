@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { paiementService } from '../../services/paiementService';
-import { formatDate, formatMontant, getStatutLabel } from '../../utils/helpers';
+import { formatDate, formatMontant, getStatutLabel, getStatutPaiement, formatPriceDisplay } from '../../utils/helpers';
+import { useAuth } from '../../context/AuthContext';
 import { CreditCard, Calendar, Filter, Download } from 'lucide-react';
 
 const PaiementHistory = ({ clientId, installationId }) => {
+  const { profile } = useAuth();
   const [paiements, setPaiements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState('all');
@@ -164,9 +166,14 @@ const PaiementHistory = ({ clientId, installationId }) => {
                   </div>
 
                   <div className="text-right">
-                    <p className="text-xl font-bold text-green-600">
-                      {formatMontant(paiement.montant)}
-                    </p>
+                    {/* ✅ Afficher le code de statut (0, 1, 2) */}
+                    {paiement.installation?.montant ? (
+                      <div className={`rounded-lg p-3 text-center font-bold text-2xl ${getStatutPaiement(paiement.installation.montant, paiement.montant).couleur}`}>
+                        {getStatutPaiement(paiement.installation.montant, paiement.montant).code}
+                      </div>
+                    ) : (
+                      <p className="text-xl font-bold text-gray-500">N/A</p>
+                    )}
                     <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
                       <Calendar size={12} />
                       <span>{formatDate(paiement.date_paiement)}</span>
