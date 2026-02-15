@@ -118,14 +118,24 @@ const ProspectHistory = ({ prospectId, prospect }) => {
     setIsSaving(true);
     try {
       const { id, ...updateData } = selectedAction;
-      await installationPlanningService.update(id, {
-        description: updateData.description,
-        application: updateData.application,
-        date_debut: updateData.date_debut,
-        date_fin: updateData.date_fin,
-        chef_mission: updateData.chef_mission,
-        conversion: updateData.conversion
-      });
+
+      const payload = {
+        description: updateData.description
+      };
+
+      // Ajouter les champs spécifiques si c'est une installation
+      if (selectedAction.action === 'installation' || selectedAction.type_action === 'installation') {
+        payload.application = updateData.application;
+        payload.date_debut = updateData.date_debut;
+        payload.date_fin = updateData.date_fin;
+        payload.chef_mission = updateData.chef_mission;
+        payload.conversion = updateData.conversion;
+      } else {
+        // Pour les actions classiques, on peut vouloir changer la date de l'action
+        payload.created_at = updateData.created_at;
+      }
+
+      await installationPlanningService.update(id, payload);
       setShowEditModal(false);
       loadHistory();
     } catch (error) {
@@ -211,39 +221,37 @@ const ProspectHistory = ({ prospectId, prospect }) => {
                       {/* ✅ CORRIGÉ: Affiche la description qui contient plus d'infos que 'details' */}
                       <p className="text-gray-600 text-sm mb-2">{item.description || item.details}</p>
 
-                      {/* BOUTONS D'ACTION SPECIFIQUES AUX INSTALLATIONS */}
-                      {item.action === 'installation' && (
-                        <div className="flex gap-2 mt-3 border-t border-blue-200 pt-3">
-                          <button
-                            onClick={() => openEditModal(item)}
-                            disabled={item.mission_id && item.mission_id !== "null" && item.mission_id !== 0 && item.mission_id !== "0"}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold transition-colors ${item.mission_id && item.mission_id !== "null" && item.mission_id !== 0 && item.mission_id !== "0"
-                              ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                              : 'bg-blue-600 text-white hover:bg-blue-700'
-                              }`}
-                          >
-                            <Edit2 size={12} />
-                            Modifier Action
-                          </button>
-                          <button
-                            onClick={() => handleDeleteAction(item)}
-                            disabled={item.mission_id && item.mission_id !== "null" && item.mission_id !== 0 && item.mission_id !== "0"}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold transition-colors ${item.mission_id && item.mission_id !== "null" && item.mission_id !== 0 && item.mission_id !== "0"
-                              ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                              : 'bg-red-600 text-white hover:bg-red-700'
-                              }`}
-                          >
-                            <Trash2 size={12} />
-                            Supprimer Planning
-                          </button>
+                      {/* BOUTONS D'ACTION (MODIFIER / SUPPRIMER) */}
+                      <div className="flex gap-2 mt-3 border-t border-blue-200 pt-3">
+                        <button
+                          onClick={() => openEditModal(item)}
+                          disabled={item.mission_id && item.mission_id !== "null" && item.mission_id !== 0 && item.mission_id !== "0"}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold transition-colors ${item.mission_id && item.mission_id !== "null" && item.mission_id !== 0 && item.mission_id !== "0"
+                            ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                            }`}
+                        >
+                          <Edit2 size={12} />
+                          Modifier
+                        </button>
+                        <button
+                          onClick={() => handleDeleteAction(item)}
+                          disabled={item.mission_id && item.mission_id !== "null" && item.mission_id !== 0 && item.mission_id !== "0"}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold transition-colors ${item.mission_id && item.mission_id !== "null" && item.mission_id !== 0 && item.mission_id !== "0"
+                            ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                            : 'bg-red-600 text-white hover:bg-red-700'
+                            }`}
+                        >
+                          <Trash2 size={12} />
+                          Supprimer
+                        </button>
 
-                          {item.mission_id && item.mission_id !== "null" && item.mission_id !== 0 && item.mission_id !== "0" && (
-                            <span className="text-[10px] text-blue-600 font-bold bg-blue-100 px-2 py-1 rounded border border-blue-200 uppercase">
-                              🔗 Mission liée
-                            </span>
-                          )}
-                        </div>
-                      )}
+                        {item.mission_id && item.mission_id !== "null" && item.mission_id !== 0 && item.mission_id !== "0" && (
+                          <span className="text-[10px] text-blue-600 font-bold bg-blue-100 px-2 py-1 rounded border border-blue-200 uppercase">
+                            🔗 Mission liée
+                          </span>
+                        )}
+                      </div>
 
                       {/* ✅ AFFICHE aussi le montant et la date si disponibles */}
                       {item.action === 'abonnement_auto_renew' && item.details && (
@@ -364,7 +372,7 @@ const ProspectHistory = ({ prospectId, prospect }) => {
             <div className="bg-primary p-4 text-white flex justify-between items-center">
               <h3 className="font-bold flex items-center gap-2">
                 <Edit2 size={18} />
-                Modifier la Planification
+                {selectedAction.action === 'installation' ? 'Modifier la Planification' : `Modifier l'action : ${selectedAction.action.toUpperCase()}`}
               </h3>
               <button
                 onClick={() => setShowEditModal(false)}
@@ -377,78 +385,94 @@ const ProspectHistory = ({ prospectId, prospect }) => {
 
             <form onSubmit={handleUpdateAction} className="p-6 space-y-4">
               <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-500 uppercase">Application</label>
-                <input
-                  type="text"
-                  required
-                  value={selectedAction.application || ''}
-                  onChange={(e) => setSelectedAction({ ...selectedAction, application: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 outline-none"
-                  placeholder="ex: Gestipharm"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-500 uppercase">Date Début</label>
-                  <input
-                    type="date"
-                    required
-                    value={selectedAction.date_debut ? selectedAction.date_debut.split('T')[0] : ''}
-                    onChange={(e) => setSelectedAction({ ...selectedAction, date_debut: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 outline-none"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-500 uppercase">Date Fin</label>
-                  <input
-                    type="date"
-                    required
-                    value={selectedAction.date_fin ? selectedAction.date_fin.split('T')[0] : ''}
-                    onChange={(e) => setSelectedAction({ ...selectedAction, date_fin: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-500 uppercase">Chef de Mission</label>
-                <select
-                  required
-                  value={selectedAction.chef_mission || ''}
-                  onChange={(e) => setSelectedAction({ ...selectedAction, chef_mission: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 outline-none"
-                >
-                  <option value="">Sélectionner un utilisateur</option>
-                  {users.map(u => (
-                    <option key={u.id} value={u.id}>{u.nom}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-500 uppercase">Commentaires</label>
+                <label className="text-xs font-bold text-gray-500 uppercase">Résumé / Détail</label>
                 <textarea
-                  value={selectedAction.description || ''}
+                  value={selectedAction.description || selectedAction.details || ''}
                   onChange={(e) => setSelectedAction({ ...selectedAction, description: e.target.value })}
                   rows="3"
+                  required
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 outline-none"
-                  placeholder="Détails de l'installation..."
+                  placeholder="Détails de l'action..."
                 />
               </div>
 
-              <div className="flex items-center gap-2 pt-2">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-500 uppercase">Date de l'action</label>
                 <input
-                  type="checkbox"
-                  id="conversion"
-                  checked={selectedAction.conversion === 'oui'}
-                  onChange={(e) => setSelectedAction({ ...selectedAction, conversion: e.target.checked ? 'oui' : 'non' })}
-                  className="w-4 h-4 text-primary"
+                  type="date"
+                  required
+                  value={selectedAction.created_at ? selectedAction.created_at.split('T')[0] : ''}
+                  onChange={(e) => setSelectedAction({ ...selectedAction, created_at: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 outline-none"
                 />
-                <label htmlFor="conversion" className="text-sm font-medium text-gray-700">
-                  Le client a-t-il déjà payé l'avance ? (Conversion)
-                </label>
               </div>
+
+              {(selectedAction.action === 'installation' || selectedAction.type_action === 'installation') && (
+                <>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-500 uppercase">Application</label>
+                    <input
+                      type="text"
+                      required
+                      value={selectedAction.application || ''}
+                      onChange={(e) => setSelectedAction({ ...selectedAction, application: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 outline-none"
+                      placeholder="ex: Gestipharm"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-gray-500 uppercase">Date Début</label>
+                      <input
+                        type="date"
+                        required
+                        value={selectedAction.date_debut ? selectedAction.date_debut.split('T')[0] : ''}
+                        onChange={(e) => setSelectedAction({ ...selectedAction, date_debut: e.target.value })}
+                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 outline-none"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-gray-500 uppercase">Date Fin</label>
+                      <input
+                        type="date"
+                        required
+                        value={selectedAction.date_fin ? selectedAction.date_fin.split('T')[0] : ''}
+                        onChange={(e) => setSelectedAction({ ...selectedAction, date_fin: e.target.value })}
+                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-500 uppercase">Chef de Mission</label>
+                    <select
+                      required
+                      value={selectedAction.chef_mission || ''}
+                      onChange={(e) => setSelectedAction({ ...selectedAction, chef_mission: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary/20 outline-none"
+                    >
+                      <option value="">Sélectionner un utilisateur</option>
+                      {users.map(u => (
+                        <option key={u.id} value={u.id}>{u.nom}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-2">
+                    <input
+                      type="checkbox"
+                      id="conversion"
+                      checked={selectedAction.conversion === 'oui'}
+                      onChange={(e) => setSelectedAction({ ...selectedAction, conversion: e.target.checked ? 'oui' : 'non' })}
+                      className="w-4 h-4 text-primary"
+                    />
+                    <label htmlFor="conversion" className="text-sm font-medium text-gray-700">
+                      Le client a-t-il déjà payé l'avance ? (Conversion)
+                    </label>
+                  </div>
+                </>
+              )}
 
               <div className="flex gap-3 pt-4 border-t">
                 <button
