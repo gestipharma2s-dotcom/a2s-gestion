@@ -58,6 +58,7 @@ export const prospectService = {
         telephone: prospectData.telephone || '',
         email: prospectData.email || '',
         wilaya: prospectData.wilaya || '',
+        temperature: prospectData.temperature || 'froid',
         statut: 'prospect',
         created_by: prospectData.created_by || null
       };
@@ -123,7 +124,8 @@ export const prospectService = {
         secteur: secteur,
         telephone: prospectData.telephone || '',
         email: prospectData.email || '',
-        wilaya: prospectData.wilaya || ''
+        wilaya: prospectData.wilaya || '',
+        temperature: prospectData.temperature || 'froid'
       };
 
       const { data, error } = await supabase
@@ -152,6 +154,28 @@ export const prospectService = {
       return data && data.length > 0 ? data[0] : cleanData;
     } catch (error) {
       console.error('Erreur mise à jour prospect:', error);
+      throw error;
+    }
+  },
+
+  // ✅ NOUVEAU: Mettre à jour seulement la température
+  async updateTemperature(id, temperature) {
+    try {
+      const { data, error } = await supabase
+        .from(TABLES.PROSPECTS)
+        .update({ temperature })
+        .eq('id', id)
+        .select();
+
+      if (error) throw error;
+
+      // Ajouter dans l'historique
+      const label = temperature.toUpperCase();
+      await this.addHistorique(id, 'temperature_change', `Intérêt du prospect passé à : ${label}`, { temperature });
+
+      return data && data.length > 0 ? data[0] : null;
+    } catch (error) {
+      console.error('Erreur mise à jour température:', error);
       throw error;
     }
   },

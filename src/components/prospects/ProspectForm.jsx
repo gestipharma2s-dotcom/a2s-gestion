@@ -13,7 +13,8 @@ const ProspectForm = ({ prospect, onSubmit, onCancel }) => {
     telephone: '',
     email: '',
     wilaya: '',
-    commercial_assigned: ''
+    commercial_assigned: '',
+    temperature: 'froid'
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -28,7 +29,8 @@ const ProspectForm = ({ prospect, onSubmit, onCancel }) => {
         telephone: prospect.telephone || '',
         email: prospect.email || '',
         wilaya: prospect.wilaya || '',
-        commercial_assigned: prospect.commercial_assigned || (user?.nom || user?.email || '')
+        commercial_assigned: prospect.commercial_assigned || (user?.nom || user?.email || ''),
+        temperature: prospect.temperature || 'froid'
       });
     } else {
       // ✅ Réinitialiser si pas de prospect (mode création)
@@ -40,7 +42,8 @@ const ProspectForm = ({ prospect, onSubmit, onCancel }) => {
         telephone: '',
         email: '',
         wilaya: '',
-        commercial_assigned: user?.nom || user?.email || ''
+        commercial_assigned: user?.nom || user?.email || '',
+        temperature: 'froid'
       });
     }
     setErrors({});
@@ -196,17 +199,35 @@ const ProspectForm = ({ prospect, onSubmit, onCancel }) => {
         placeholder="Assigné automatiquement"
       />
 
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-gray-700">
+          🌡️ Degré d'intérêt (Température)
+        </label>
+        <select
+          value={formData.temperature}
+          onChange={(e) => handleChange('temperature', e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+          disabled={isSubmitting}
+        >
+          <option value="froid">❄️ Froid (Peu intéressé)</option>
+          <option value="tiede">☁️ Tiède (En réflexion)</option>
+          <option value="chaud">🔥 Chaud (Très intéressé)</option>
+          <option value="brulant">🚀 Brûlant (Prêt à signer)</option>
+        </select>
+        <p className="text-xs text-gray-500">Permet de classer le prospect selon son niveau d'intérêt actuel.</p>
+      </div>
+
       <div className="flex justify-end gap-3 pt-4">
-        <Button 
+        <Button
           type="button"
-          variant="ghost" 
+          variant="ghost"
           onClick={onCancel}
           disabled={isSubmitting}
         >
           Annuler
         </Button>
-        <Button 
-          type="submit" 
+        <Button
+          type="submit"
           variant="primary"
           disabled={isSubmitting}
         >
