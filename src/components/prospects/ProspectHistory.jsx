@@ -218,8 +218,13 @@ const ProspectHistory = ({ prospectId, prospect }) => {
                           {formatDateTime(item.created_at)}
                         </span>
                       </div>
-                      {/* ✅ CORRIGÉ: Affiche la description qui contient plus d'infos que 'details' */}
-                      <p className="text-gray-600 text-sm mb-2">{item.description || item.details}</p>
+                      {/* ✅ AFFICHAGE DU RÉSUMÉ ET DES DÉTAILS OPTIONNELS */}
+                      <p className="text-gray-800 text-sm font-medium mb-1">{item.description}</p>
+                      {item.details && item.details !== item.description && (
+                        <p className="text-gray-500 text-xs italic mb-2 bg-white/30 p-1.5 rounded border-l-2 border-blue-200">
+                          {item.details}
+                        </p>
+                      )}
 
                       {/* BOUTONS D'ACTION (MODIFIER / SUPPRIMER) */}
                       <div className="flex gap-2 mt-3 border-t border-blue-200 pt-3">
@@ -253,14 +258,65 @@ const ProspectHistory = ({ prospectId, prospect }) => {
                         )}
                       </div>
 
-                      {/* ✅ AFFICHE aussi le montant et la date si disponibles */}
+                      {/* ✅ AFFICHAGE DÉTAILLÉ DES INFORMATIONS (APPLICATION, CHEF, DATES, ETC.) */}
+                      {(item.application || item.chef_mission || item.date_debut || item.date_fin || item.anciens_logiciels || item.conversion === 'oui') && (
+                        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 text-xs border-t border-blue-100 pt-3">
+                          {item.application && (
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-gray-500 uppercase">Application:</span>
+                              <span className="text-blue-700 font-semibold">{item.application}</span>
+                            </div>
+                          )}
+                          {item.chef_mission && (
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-gray-500 uppercase">Chef de Mission:</span>
+                              <span className="text-gray-700 font-medium">
+                                {users.find(u => String(u.id) === String(item.chef_mission))?.nom || item.chef_mission}
+                              </span>
+                            </div>
+                          )}
+                          {item.date_debut && (
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-gray-500 uppercase">Début:</span>
+                              <span className="text-gray-700">{formatDate(item.date_debut)}</span>
+                            </div>
+                          )}
+                          {item.date_fin && (
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-gray-500 uppercase">Fin:</span>
+                              <span className="text-gray-700">{formatDate(item.date_fin)}</span>
+                            </div>
+                          )}
+                          {item.conversion === 'oui' && (
+                            <div className="flex items-center gap-2 col-span-full">
+                              <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded font-bold uppercase text-[9px]">
+                                Avance Payée (Conversion OK)
+                              </span>
+                            </div>
+                          )}
+                          {item.anciens_logiciels && Array.isArray(item.anciens_logiciels) && item.anciens_logiciels.length > 0 && (
+                            <div className="col-span-full mt-1">
+                              <span className="font-bold text-gray-500 uppercase block mb-1">Anciens Logiciels:</span>
+                              <div className="flex flex-wrap gap-1">
+                                {item.anciens_logiciels.map((log, i) => (
+                                  <span key={i} className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded border border-gray-200 uppercase text-[9px]">
+                                    {log}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* ✅ AFFICHAGE DÉTAILLÉ POUR LES ABONNEMENTS */}
                       {item.action === 'abonnement_auto_renew' && item.details && (
-                        <div className="text-sm text-gray-500 mt-2 space-y-1">
+                        <div className="text-sm text-gray-500 mt-2 space-y-1 bg-white/50 p-2 rounded border border-blue-100">
                           {item.details.date_debut && (
-                            <p>📅 Du {item.details.date_debut} au {item.details.date_fin}</p>
+                            <p className="flex items-center gap-2">📅 <strong>Période:</strong> Du {item.details.date_debut} au {item.details.date_fin}</p>
                           )}
                           {item.details.montant && (
-                            <p>💰 Montant: {item.details.montant} DA</p>
+                            <p className="flex items-center gap-2">💰 <strong>Montant:</strong> <span className="text-blue-600 font-bold">{item.details.montant} DA</span></p>
                           )}
                         </div>
                       )}
