@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Eye, Phone, Mail, Zap } from 'lucide-react';
+import { Plus, Edit2, Trash2, Eye, Phone, Mail, Zap, Thermometer, Flame, Snowflake, Cloud } from 'lucide-react';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
 import SearchBar from '../common/SearchBar';
@@ -135,6 +135,22 @@ const ProspectsList = () => {
     }
 
     setFilteredProspects(filtered);
+  };
+
+  const handleUpdateTemperature = async (prospect, newTemperature) => {
+    try {
+      await prospectService.updateTemperature(prospect.id, newTemperature);
+      addNotification({
+        type: 'success',
+        message: `Intérêt mis à jour pour ${prospect.raison_sociale}`
+      });
+      loadProspects();
+    } catch (error) {
+      addNotification({
+        type: 'error',
+        message: 'Erreur lors de la mise à jour de l\'intérêt'
+      });
+    }
   };
 
   const handleCreate = () => {
@@ -540,6 +556,38 @@ const ProspectsList = () => {
                   label: 'Wilaya',
                   width: '120px',
                   render: (row) => <span>{row.wilaya || 'N/A'}</span>
+                },
+                {
+                  key: 'temperature',
+                  label: 'Intérêt',
+                  width: '130px',
+                  render: (row) => {
+                    const temp = row.temperature || 'froid';
+                    const config = {
+                      froid: { icon: Snowflake, label: 'FROID', color: 'text-blue-500 bg-blue-50 border-blue-100' },
+                      tiede: { icon: Cloud, label: 'TIÈDE', color: 'text-gray-500 bg-gray-50 border-gray-100' },
+                      chaud: { icon: Flame, label: 'CHAUD', color: 'text-orange-500 bg-orange-50 border-orange-100' },
+                      brulant: { icon: Thermometer, label: 'BRÛLANT', color: 'text-red-600 bg-red-50 border-red-200 shadow-sm animate-pulse' }
+                    }[temp] || { icon: Snowflake, label: 'FROID', color: 'text-blue-500 bg-blue-50 border-blue-100' };
+
+                    const Icon = config.icon;
+
+                    return (
+                      <div
+                        className={`flex items-center gap-1.5 px-2 py-1 rounded-md border text-[10px] font-bold ${config.color} cursor-pointer hover:brightness-95 transition-all`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const levels = ['froid', 'tiede', 'chaud', 'brulant'];
+                          const nextIdx = (levels.indexOf(temp) + 1) % levels.length;
+                          handleUpdateTemperature(row, levels[nextIdx]);
+                        }}
+                        title="Cliquez pour changer le niveau d'intérêt"
+                      >
+                        <Icon size={14} />
+                        {config.label}
+                      </div>
+                    );
+                  }
                 }
               ]}
               actions={[
@@ -579,7 +627,7 @@ const ProspectsList = () => {
                   key: 'edit',
                   label: 'Modifier',
                   icon: <Edit2 size={18} />,
-                  onClick: handleEdit,
+                  onClick: (row) => handleEdit(row),
                   disabled: !hasEditPermission,
                   title: !hasEditPermission ? 'Permission refusée: Modifier' : 'Modifier ce prospect',
                   className: hasEditPermission ? 'bg-amber-600 hover:bg-amber-700 text-white px-3 py-1' : 'bg-gray-400 cursor-not-allowed text-white px-3 py-1'
@@ -588,7 +636,7 @@ const ProspectsList = () => {
                   key: 'delete',
                   label: 'Supprimer',
                   icon: <Trash2 size={18} />,
-                  onClick: handleDelete,
+                  onClick: (row) => handleDelete(row),
                   disabled: !hasDeletePermission,
                   title: !hasDeletePermission ? 'Permission refusée: Supprimer' : 'Supprimer ce prospect',
                   className: hasDeletePermission ? 'bg-red-600 hover:bg-red-700 text-white px-3 py-1' : 'bg-gray-400 cursor-not-allowed text-white px-3 py-1'
