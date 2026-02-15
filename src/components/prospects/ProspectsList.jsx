@@ -741,8 +741,38 @@ const ProspectsList = () => {
                 <div className="bg-green-50 rounded-lg p-4 border border-green-200">
                   <p className="text-sm text-green-600 font-semibold">Conversion</p>
                   <p className="text-3xl font-bold text-green-900">
-                    {((filteredProspects.filter(p => p.statut === 'actif').length / filteredProspects.length) * 100).toFixed(1)}%
+                    {filteredProspects.length > 0 ? ((filteredProspects.filter(p => p.statut === 'actif').length / filteredProspects.length) * 100).toFixed(1) : 0}%
                   </p>
+                </div>
+              </div>
+
+              {/* Répartition par Température (Intérêt) */}
+              <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-lg p-4 border border-orange-200">
+                <h3 className="font-bold text-orange-800 mb-3 flex items-center gap-2">
+                  <Flame size={18} /> Température du Pipeline
+                </h3>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { label: 'Froid', level: 'froid', color: 'bg-blue-400', icon: Snowflake },
+                    { label: 'Tiède', level: 'tiede', color: 'bg-gray-400', icon: Cloud },
+                    { label: 'Chaud', level: 'chaud', color: 'bg-orange-400', icon: Flame },
+                    { label: 'Brûlant', level: 'brulant', color: 'bg-red-500', icon: Thermometer }
+                  ].map(t => {
+                    const count = filteredProspects.filter(p => p.temperature === t.level).length;
+                    const percent = filteredProspects.length > 0 ? (count / filteredProspects.length) * 100 : 0;
+                    const Icon = t.icon;
+                    return (
+                      <div key={t.level} className="text-center">
+                        <div className={`w-full ${t.color} h-1.5 rounded-full mb-2`}>
+                          <div className="h-full bg-white/30 rounded-full" style={{ width: `${percent}%` }}></div>
+                        </div>
+                        <p className="text-[10px] font-bold text-gray-600 uppercase flex items-center justify-center gap-1">
+                          <Icon size={10} /> {t.label}
+                        </p>
+                        <p className="text-sm font-bold text-gray-800">{count}</p>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -844,14 +874,59 @@ const ProspectsList = () => {
               {/* Analyse Prospect */}
               {(() => {
                 const p = filteredProspects[selectedProspectAnalysis];
-                const scoreConversion = p.statut === 'actif' ? 100 : p.statut === 'prospect' ? 50 : 25;
+
+                // Algorithme de calcul du score
+                let score = 0;
+                if (p.statut === 'actif') score = 100;
+                else if (p.statut === 'inactif') score = 15;
+                else {
+                  // Facteurs de score pour prospect
+                  const tempScores = { 'froid': 20, 'tiede': 45, 'chaud': 75, 'brulant': 95 };
+                  score = tempScores[p.temperature || 'froid'];
+
+                  // Bonus wilaya (stratégie locale)
+                  if (p.wilaya === 'ALGER') score += 5;
+
+                  // Bonus secteur (portefeuille cible)
+                  if (p.secteur === 'GROSSISTE PHARM') score += 5;
+                }
+
+                const finalScore = Math.min(100, score);
+                const scoreColor = finalScore > 70 ? 'from-orange-500 to-red-600' : finalScore > 40 ? 'from-blue-500 to-purple-600' : 'from-gray-500 to-gray-700';
 
                 return (
                   <div className="space-y-4">
                     {/* Header avec Score */}
-                    <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg p-6">
-                      <p className="text-sm opacity-90">Score de Conversion</p>
-                      <h2 className="text-4xl font-bold">{scoreConversion}/100</h2>
+                    <div className={`bg-gradient-to-r ${scoreColor} text-white rounded-lg p-6 shadow-lg transition-all duration-500`}>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-sm opacity-90 font-medium">Potentiel de Conversion</p>
+                          <h2 className="text-5xl font-black">{finalScore}%</h2>
+                        </div>
+                        <div className="bg-white/20 p-3 rounded-full backdrop-blur-sm">
+                          {finalScore > 70 ? <Flame size={32} /> : finalScore > 40 ? <Cloud size={32} /> : <Snowflake size={32} />}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Badge Température */}
+                    <div className="flex items-center gap-3 bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
+                      <span className="text-sm font-bold text-gray-500 uppercase">Niveau d'intérêt :</span>
+                      {(() => {
+                        const t = p.temperature || 'froid';
+                        const cfg = {
+                          froid: { icon: Snowflake, label: 'FROID', color: 'bg-blue-100 text-blue-700' },
+                          tiede: { icon: Cloud, label: 'TIÈDE', color: 'bg-gray-100 text-gray-700' },
+                          chaud: { icon: Flame, label: 'CHAUD', color: 'bg-orange-100 text-orange-700' },
+                          brulant: { icon: Thermometer, label: 'BRÛLANT', color: 'bg-red-100 text-red-700 animate-pulse' }
+                        }[t];
+                        const Icon = cfg.icon;
+                        return (
+                          <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black ${cfg.color}`}>
+                            <Icon size={14} /> {cfg.label}
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Résumé */}
@@ -889,22 +964,38 @@ const ProspectsList = () => {
                     </div>
 
                     {/* Recommandations */}
-                    <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
-                      <h3 className="font-bold text-gray-800 mb-2">💡 Recommandations IA</h3>
-                      <ul className="space-y-1 text-sm text-gray-700">
+                    <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-100 shadow-inner">
+                      <h3 className="font-bold text-indigo-900 mb-3 flex items-center gap-2">
+                        ✨ Recommandations IA
+                      </h3>
+                      <ul className="space-y-2 text-sm text-indigo-900/80">
                         {p.statut === 'prospect' && (
                           <>
+                            {p.temperature === 'brulant' && (
+                              <li className="flex gap-2 font-bold text-red-600">
+                                <span className="text-red-500 underline">URGENT</span>
+                                <span>Clôturer la vente aujourd'hui : Le client est prêt.</span>
+                              </li>
+                            )}
+                            {p.temperature === 'chaud' && (
+                              <li className="flex gap-2 text-orange-700">
+                                <span>⚡</span>
+                                <span>Envoyer le contrat final immédiatement.</span>
+                              </li>
+                            )}
+                            {p.temperature === 'froid' && (
+                              <li className="flex gap-2 text-blue-700">
+                                <span>❄️</span>
+                                <span>Changer d'approche commerciale ou proposer une remise spéciale.</span>
+                              </li>
+                            )}
                             <li className="flex gap-2">
                               <span>✓</span>
-                              <span>Relancer dans les 48h</span>
+                              <span>Vérifier la wilaya {p.wilaya} pour logistique groupée.</span>
                             </li>
                             <li className="flex gap-2">
                               <span>✓</span>
-                              <span>Prévoir un appel commercial</span>
-                            </li>
-                            <li className="flex gap-2">
-                              <span>✓</span>
-                              <span>Envoyer une proposition</span>
+                              <span>Planifier relance dans les 24h.</span>
                             </li>
                           </>
                         )}
@@ -912,23 +1003,23 @@ const ProspectsList = () => {
                           <>
                             <li className="flex gap-2">
                               <span>✓</span>
-                              <span>Maintenir le contact régulièrement</span>
+                              <span>Client stratégique : Proposer une extension de service.</span>
                             </li>
                             <li className="flex gap-2">
                               <span>✓</span>
-                              <span>Proposer des services additionnels</span>
+                              <span>Demander un témoignage de satisfaction.</span>
                             </li>
                           </>
                         )}
                         {p.statut === 'inactif' && (
                           <>
                             <li className="flex gap-2">
-                              <span>✓</span>
-                              <span>Relancer pour réactiver</span>
+                              <span>🚨</span>
+                              <span>Campagne de réactivation nécessaire.</span>
                             </li>
                             <li className="flex gap-2">
                               <span>✓</span>
-                              <span>Comprendre les raisons d'inactivité</span>
+                              <span>Identifier le point de blocage historique.</span>
                             </li>
                           </>
                         )}
