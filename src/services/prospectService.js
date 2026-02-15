@@ -221,14 +221,24 @@ export const prospectService = {
   // ✅ NOUVEAU: Ajouter une action dans l'historique (stocké dans le champ JSON et la table prospect_history)
   async addHistorique(prospectId, action, details, metadata = {}) {
     try {
-      // 1. Récupérer le prospect/client pour vérifier le statut
+      // 1. Récupérer le prospect/client pour vérifier le statut et la température actuelle
       const { data: prospect, error: fetchError } = await supabase
         .from(TABLES.PROSPECTS)
-        .select('statut, historique_actions')
+        .select('statut, historique_actions, temperature')
         .eq('id', prospectId)
         .single();
 
       if (fetchError) throw fetchError;
+
+      // 1.b Automatisation de la température selon l'action
+      const newTemp = this._getAutomatedTemperature(action, prospect?.temperature || 'froid');
+      if (newTemp !== prospect?.temperature) {
+        console.log(`🌡️ Automatisation : Température passée de ${prospect?.temperature} à ${newTemp} via l'action ${action}`);
+        await supabase
+          .from(TABLES.PROSPECTS)
+          .update({ temperature: newTemp })
+          .eq('id', prospectId);
+      }
 
       // 2. Vérifier les autorisations selon le statut (Clients actifs)
       if (prospect && prospect.statut === 'actif') {
@@ -571,5 +581,37 @@ export const prospectService = {
       console.error('Erreur statistiques prospects:', error);
       throw error;
     }
+  },
+
+  // ✅ PRIVÉ: Automatisation du degré d'intérêt
+  _getAutomatedTemperature(action, currentTemp = 'froid') {
+    const mapping = {
+      'installation': 'brulant',
+      'contrat_signe': 'brulant',
+      'demo': 'brulant',
+      'offre_envoyee': 'brulant',
+      'rdv': 'chaud',
+      'visite': 'chaud',
+      'negociation': 'chaud',
+      'appel': 'tiede',
+      'email': 'tiede',
+      'suivi': 'tiede',
+      'relance': 'tiede',
+      'creation': 'froid'
+    };
+
+    const newTemp = mapping[action];
+    if (!newTemp) return currentTemp;
+
+    // Ordre de progression : on ne descend jamais automatiquement (sauf création forcée)
+    const levels = { 'froid': 0, 'tiede': 1, 'chaud': 2, 'brulant': 3 };
+    const currentLevel = levels[currentTemp] || 0;
+    const newLevel = levels[newTemp] || 0;
+
+    // Si l'action est une création, on initialise
+    if (action === 'creation') return newTemp;
+
+    // Sinon, on ne change que si le niveau augmente
+    return newLevel > currentLevel ? newTemp : currentTemp;
   }
 };

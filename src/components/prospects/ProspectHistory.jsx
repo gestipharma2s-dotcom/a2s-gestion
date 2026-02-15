@@ -5,7 +5,7 @@ import { installationPlanningService } from '../../services/installationPlanning
 import { userService } from '../../services/userService';
 import { formatDateTime, formatDate, formatMontant } from '../../utils/helpers';
 import { useAuth } from '../../context/AuthContext';
-import { Phone, Mail, Calendar, FileText, CheckCircle, Edit2, Gift, Zap, RefreshCw, Trash2, X, Save, Thermometer } from 'lucide-react';
+import { Phone, Mail, Calendar, FileText, CheckCircle, Edit2, Gift, Zap, RefreshCw, Trash2, X, Save, Thermometer, Briefcase, FileCheck } from 'lucide-react';
 
 const ProspectHistory = ({ prospectId, prospect }) => {
   const { profile } = useAuth();
@@ -144,7 +144,10 @@ const ProspectHistory = ({ prospectId, prospect }) => {
       demo: FileText,
       offre_envoyee: FileText,
       suivi: Phone,
+      relance: Phone,
       visite: Calendar,
+      negociation: Briefcase,
+      contrat_signe: FileCheck,
       creation: CheckCircle,
       modification: Edit2,
       conversion: Gift,

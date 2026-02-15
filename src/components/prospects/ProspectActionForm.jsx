@@ -54,14 +54,16 @@ const ProspectActionForm = ({ prospect, onSubmit, onCancel }) => {
   };
 
   const typeActions = [
-    { value: 'appel', label: 'Appel Téléphonique' },
-    { value: 'email', label: 'Email' },
-    { value: 'rdv', label: 'Rendez-vous' },
-    { value: 'demo', label: 'Démonstration' },
-    { value: 'offre_envoyee', label: 'Offre Envoyée' },
-    { value: 'suivi', label: 'Suivi' },
-    { value: 'visite', label: 'Visite' },
-    { value: 'installation', label: 'Installation' }
+    { value: 'appel', label: '📞 Appel Téléphonique' },
+    { value: 'email', label: '📧 Email' },
+    { value: 'suivi', label: '🔄 Suivi / Relance' },
+    { value: 'rdv', label: '📅 Rendez-vous' },
+    { value: 'visite', label: '🏢 Visite Bureau' },
+    { value: 'demo', label: '💻 Démonstration' },
+    { value: 'negociation', label: '⚖️ Négociation' },
+    { value: 'offre_envoyee', label: '📄 Offre Envoyée' },
+    { value: 'contrat_signe', label: '✍️ Contrat Signé' },
+    { value: 'installation', label: '⚙️ Installation' }
   ];
 
   // Ajouter un nouveau logiciel
