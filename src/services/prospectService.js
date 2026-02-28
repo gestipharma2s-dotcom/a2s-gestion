@@ -58,6 +58,9 @@ export const prospectService = {
         telephone: prospectData.telephone || '',
         email: prospectData.email || '',
         wilaya: prospectData.wilaya || '',
+        ville: prospectData.ville || '',
+        adresse: prospectData.adresse || '',
+        forme_juridique: prospectData.forme_juridique || '',
         temperature: prospectData.temperature || 'froid',
         statut: 'prospect',
         created_by: prospectData.created_by || null
@@ -125,6 +128,9 @@ export const prospectService = {
         telephone: prospectData.telephone || '',
         email: prospectData.email || '',
         wilaya: prospectData.wilaya || '',
+        ville: prospectData.ville || '',
+        adresse: prospectData.adresse || '',
+        forme_juridique: prospectData.forme_juridique || '',
         temperature: prospectData.temperature || 'froid'
       };
 
@@ -565,7 +571,7 @@ export const prospectService = {
     try {
       const { data, error } = await supabase
         .from(TABLES.PROSPECTS)
-        .select('statut');
+        .select('statut, temperature');
 
       if (error) throw error;
 
@@ -573,13 +579,39 @@ export const prospectService = {
         total: data.length,
         prospects: data.filter(p => p.statut === 'prospect').length,
         actifs: data.filter(p => p.statut === 'actif').length,
-        inactifs: data.filter(p => p.statut === 'inactif').length
+        inactifs: data.filter(p => p.statut === 'inactif').length,
+        temperature: {
+          froid: data.filter(p => p.temperature === 'froid').length,
+          tiede: data.filter(p => p.temperature === 'tiede').length,
+          chaud: data.filter(p => p.temperature === 'chaud').length,
+          brulant: data.filter(p => p.temperature === 'brulant').length
+        }
       };
 
       return stats;
     } catch (error) {
       console.error('Erreur statistiques prospects:', error);
       throw error;
+    }
+  },
+
+  // ✅ NOUVEAU: Récupérer les activités récentes globales
+  async getGlobalRecentActivities(limit = 10) {
+    try {
+      const { data, error } = await supabase
+        .from('prospect_history')
+        .select(`
+          *,
+          prospect: prospects(raison_sociale)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Erreur historiques globaux:', error);
+      return [];
     }
   },
 
@@ -613,5 +645,54 @@ export const prospectService = {
 
     // Sinon, on ne change que si le niveau augmente
     return newLevel > currentLevel ? newTemp : currentTemp;
+  },
+
+  // Migration des prospects sans date
+  async migrateLegacyProspects() {
+    try {
+      const { data: legacy, error: fetchError } = await supabase
+        .from('prospects')
+        .select('id')
+        .is('created_at', null);
+
+      if (fetchError) throw fetchError;
+      if (!legacy || legacy.length === 0) return { count: 0 };
+
+      const legacyIds = legacy.map(p => p.id);
+      const updateDate = '2025-12-31T23:59:59.000Z';
+
+      // 1. Mettre à jour les prospects
+      const { error: updateError } = await supabase
+        .from('prospects')
+        .update({
+          created_at: updateDate,
+          temperature: 'acquis'
+        })
+        .in('id', legacyIds);
+
+      if (updateError) throw updateError;
+
+      // 2. Créer les entrées d'historique
+      const historyEntries = legacyIds.map(id => ({
+        prospect_id: id,
+        action: 'acquis',
+        type_action: 'acquis',
+        description: 'Importation initiale : Client historique (Archives 2025)',
+        created_at: updateDate
+      }));
+
+      const { error: historyError } = await supabase
+        .from('prospect_history')
+        .insert(historyEntries);
+
+      if (historyError) {
+        console.warn("Erreur mineure : Historique non créé,", historyError);
+      }
+
+      return { count: legacyIds.length };
+    } catch (error) {
+      console.error('Erreur migration:', error);
+      throw error;
+    }
   }
 };

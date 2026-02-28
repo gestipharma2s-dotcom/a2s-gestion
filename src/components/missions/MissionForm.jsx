@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Input from '../common/Input';
 import Button from '../common/Button';
 import Select from '../common/Select';
+import SearchableSelect from '../common/SearchableSelect';
 import { X, MapPin } from 'lucide-react';
 import { getWilayaName } from '../../utils/wilayasConstants';
 
@@ -219,22 +220,18 @@ const MissionForm = ({ mission, initialData, onSave, onSubmit, onCancel, mission
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Client *</label>
-          <Select
+          <SearchableSelect
             name="clientId"
             value={formData.clientId}
-            onChange={handleChange}
-            options={[
-              { value: '', label: 'Sélectionner un client...' },
-              ...clientOptions.map(c => {
-                const client = clients.find(cl => cl.id === c.value);
-                const clientLocation = client?.wilaya || client?.lieu || '';
-                return {
-                  value: c.value,
-                  label: clientLocation ? `${c.label} (📍 ${clientLocation})` : c.label
-                };
-              })
-            ]}
+            onChange={(e) => handleChange({ target: { name: 'clientId', value: e.target.value } })}
+            options={clients.map(c => ({
+              value: c.id,
+              label: c.raison_sociale || 'Sans nom',
+              description: `${c.ville || ''} ${c.wilaya ? `(${c.wilaya})` : ''}`.trim() || c.lieu || ''
+            }))}
+            placeholder="Rechercher un client..."
             error={errors.clientId}
+            required
           />
         </div>
 

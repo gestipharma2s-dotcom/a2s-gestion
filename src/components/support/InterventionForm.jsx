@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import Input from '../common/Input';
 import Select from '../common/Select';
+import SearchableSelect from '../common/SearchableSelect';
 import Button from '../common/Button';
 import { prospectService } from '../../services/prospectService';
 import { abonnementService } from '../../services/abonnementService';
@@ -10,7 +11,7 @@ import { validators } from '../../utils/validators';
 
 const InterventionForm = ({ intervention, onSubmit, onCancel }) => {
   const { user, profile } = useAuth(); // Récupérer l'utilisateur connecté
-  
+
   const [formData, setFormData] = useState({
     client_id: '',
     priorite: 'normale',
@@ -51,13 +52,13 @@ const InterventionForm = ({ intervention, onSubmit, onCancel }) => {
     try {
       // Récupérer tous les abonnements
       const allAbonnements = await abonnementService.getAll();
-      
+
       // Chercher les abonnements du client
       // Les abonnements sont liés via installation.client_id
-      const clientAbonnements = allAbonnements.filter(abo => 
+      const clientAbonnements = allAbonnements.filter(abo =>
         abo.installation?.client_id === clientId || abo.client_id === clientId
       );
-      
+
       if (clientAbonnements.length === 0) {
         // Pas d'abonnement pour ce client
         setAbonnementInfo({ noAbonnement: true });
@@ -66,21 +67,21 @@ const InterventionForm = ({ intervention, onSubmit, onCancel }) => {
 
       // Prendre l'abonnement le plus récent/important
       const latestAbonnement = clientAbonnements[0];
-      
+
       // Vérifier l'état de l'abonnement
       const dateExpiration = new Date(latestAbonnement.date_fin);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       dateExpiration.setHours(0, 0, 0, 0);
-      
+
       const daysLeft = Math.floor((dateExpiration - today) / (1000 * 60 * 60 * 24));
-      
+
       // Déterminer le statut
       let status = latestAbonnement.statut || 'actif';
       if (daysLeft < 0) status = 'expire';
       else if (daysLeft <= 30) status = 'en_alerte';
       else status = 'actif';
-      
+
       setAbonnementInfo({
         ...latestAbonnement,
         daysLeft,
@@ -139,17 +140,17 @@ const InterventionForm = ({ intervention, onSubmit, onCancel }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     // ✅ Double-click protection
     if (isSubmitting) return;
-    
+
     // Ajouter le technicien_id (utilisateur connecté) et normaliser le type
     const dataToSubmit = {
       ...formData,
       technicien_id: user.id, // Utilisateur connecté
       type_intervention: normalizeType(formData.type_intervention) // Normaliser le type
     };
-    
+
     const validation = validators.validateIntervention(dataToSubmit);
     if (!validation.isValid) {
       setErrors(validation.errors);
@@ -174,14 +175,16 @@ const InterventionForm = ({ intervention, onSubmit, onCancel }) => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Select
+        <SearchableSelect
           label="Client"
           value={formData.client_id}
           onChange={(e) => handleChange('client_id', e.target.value)}
-          options={clients.map(c => ({ 
-            value: c.id, 
-            label: `${c.raison_sociale} (${c.contact})` 
+          options={clients.map(c => ({
+            value: c.id,
+            label: c.raison_sociale,
+            description: `${c.ville || ''} ${c.wilaya ? `(${c.wilaya})` : ''} - ${c.contact || ''}`.trim().replace(/^ - /, '')
           }))}
+          placeholder="Rechercher un client..."
           error={errors.client_id}
           required
         />
@@ -200,13 +203,12 @@ const InterventionForm = ({ intervention, onSubmit, onCancel }) => {
 
       {/* ✅ AFFICHAGE DE L'ÉTAT DE L'ABONNEMENT */}
       {abonnementInfo && (
-        <div className={`rounded-lg p-4 flex items-start gap-3 ${
-          abonnementInfo.noAbonnement ? 'bg-yellow-50 border border-yellow-200' :
+        <div className={`rounded-lg p-4 flex items-start gap-3 ${abonnementInfo.noAbonnement ? 'bg-yellow-50 border border-yellow-200' :
           abonnementInfo.error ? 'bg-red-50 border border-red-200' :
-          abonnementInfo.isExpired ? 'bg-red-50 border border-red-200' :
-          abonnementInfo.isExpiring ? 'bg-orange-50 border border-orange-200' :
-          'bg-green-50 border border-green-200'
-        }`}>
+            abonnementInfo.isExpired ? 'bg-red-50 border border-red-200' :
+              abonnementInfo.isExpiring ? 'bg-orange-50 border border-orange-200' :
+                'bg-green-50 border border-green-200'
+          }`}>
           <div className="flex-shrink-0 mt-0.5">
             {abonnementInfo.noAbonnement ? (
               <AlertCircle className="w-5 h-5 text-yellow-600" />
@@ -249,7 +251,7 @@ const InterventionForm = ({ intervention, onSubmit, onCancel }) => {
                   Application: {abonnementInfo.application}
                 </p>
                 <p className="text-sm text-orange-700">
-                  Expire dans {abonnementInfo.daysLeft} jour{abonnementInfo.daysLeft > 1 ? 's' : ''} 
+                  Expire dans {abonnementInfo.daysLeft} jour{abonnementInfo.daysLeft > 1 ? 's' : ''}
                   ({new Date(abonnementInfo.date_fin).toLocaleDateString('fr-FR')})
                 </p>
                 <p className="text-xs text-orange-600 mt-1">⚠️ À renouveler rapidement</p>

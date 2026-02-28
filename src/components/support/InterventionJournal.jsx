@@ -132,11 +132,10 @@ const InterventionJournal = ({ interventions: propsInterventions, onEdit, onDele
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 cursor-pointer" onClick={() => onViewDetails && onViewDetails(intervention)}>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        intervention.statut === 'cloturee' 
-                          ? 'bg-green-100 text-green-800' 
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${intervention.statut === 'cloturee'
+                          ? 'bg-green-100 text-green-800'
                           : 'bg-orange-100 text-orange-800'
-                      }`}>
+                        }`}>
                         {getStatutLabel(intervention.statut)}
                       </span>
                     </div>
@@ -144,31 +143,41 @@ const InterventionJournal = ({ interventions: propsInterventions, onEdit, onDele
                       {intervention.client?.raison_sociale}
                     </h4>
                     <p className="text-sm text-gray-600 mt-1">{intervention.resume_probleme}</p>
-                    
+
                     {/* Dates et durée */}
                     <div className="mt-3 grid grid-cols-3 gap-3 text-sm bg-white p-2 rounded">
                       <div>
                         <p className="text-xs text-gray-500 font-medium">Début</p>
-                        <p className="font-semibold text-gray-800">
-                          {intervention.time_creation 
-                            ? new Date(intervention.time_creation.endsWith('Z') ? intervention.time_creation : intervention.time_creation + 'Z').toLocaleDateString('fr-FR')
-                            : 'N/A'}
-                        </p>
-                        <p className="text-xs text-gray-600">
-                          {intervention.time_creation 
-                            ? new Date(intervention.time_creation.endsWith('Z') ? intervention.time_creation : intervention.time_creation + 'Z').toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-                            : '-'}
-                        </p>
+                        {(() => {
+                          const timeCreationValue = intervention.created_at || intervention.time_creation;
+                          const timeCreationUTC = timeCreationValue
+                            ? (timeCreationValue.endsWith('Z') ? timeCreationValue : timeCreationValue + 'Z')
+                            : null;
+                          return (
+                            <>
+                              <p className="font-semibold text-gray-800">
+                                {timeCreationUTC
+                                  ? new Date(timeCreationUTC).toLocaleDateString('fr-FR')
+                                  : 'N/A'}
+                              </p>
+                              <p className="text-xs text-gray-600">
+                                {timeCreationUTC
+                                  ? new Date(timeCreationUTC).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+                                  : '-'}
+                              </p>
+                            </>
+                          );
+                        })()}
                       </div>
                       <div>
                         <p className="text-xs text-gray-500 font-medium">Fin</p>
                         <p className="font-semibold text-gray-800">
-                          {intervention.date_fin 
+                          {intervention.date_fin
                             ? new Date(intervention.date_fin.endsWith('Z') ? intervention.date_fin : intervention.date_fin + 'Z').toLocaleDateString('fr-FR')
                             : '-'}
                         </p>
                         <p className="text-xs text-gray-600">
-                          {intervention.date_fin 
+                          {intervention.date_fin
                             ? new Date(intervention.date_fin.endsWith('Z') ? intervention.date_fin : intervention.date_fin + 'Z').toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
                             : '-'}
                         </p>

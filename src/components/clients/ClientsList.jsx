@@ -8,6 +8,7 @@ import { prospectService } from '../../services/prospectService';
 import { installationService } from '../../services/installationService';
 import { paiementService } from '../../services/paiementService';
 import { useApp } from '../../context/AppContext';
+import { formatDate } from '../../utils/helpers';
 
 const ClientsList = () => {
   const [clients, setClients] = useState([]);
@@ -32,18 +33,18 @@ const ClientsList = () => {
       const data = await prospectService.getAll();
       // Filtrer uniquement les clients actifs
       const activeClients = data.filter(p => p.statut === 'actif');
-      
+
       // Pour chaque client, calculer montant payé et reste à payer
       const clientsWithFinancials = await Promise.all(
         activeClients.map(async (client) => {
           try {
             const installations = await installationService.getByClient(client.id);
             const paiements = await paiementService.getByClient(client.id);
-            
+
             const totalInstallations = (installations || []).reduce((sum, i) => sum + (i.montant || 0), 0);
             const totalPaye = (paiements || []).reduce((sum, p) => sum + (p.montant || 0), 0);
             const resteAPayer = Math.max(0, totalInstallations - totalPaye);
-            
+
             return {
               ...client,
               montant_paye: totalPaye,
@@ -61,7 +62,7 @@ const ClientsList = () => {
           }
         })
       );
-      
+
       setClients(clientsWithFinancials);
     } catch (error) {
       addNotification({
@@ -149,6 +150,16 @@ const ClientsList = () => {
               )
             },
             {
+              key: 'created_at',
+              label: 'Date Création',
+              width: '120px',
+              render: (row) => (
+                <span className={`text-xs font-bold ${row.created_at?.includes('2025-12-31') ? 'text-red-600 bg-red-50 p-1 rounded' : 'text-gray-600'}`}>
+                  {row.created_at ? formatDate(row.created_at) : 'Sans date'}
+                </span>
+              )
+            },
+            {
               key: 'contact',
               label: 'Contact',
               width: '150px',
@@ -173,7 +184,7 @@ const ClientsList = () => {
                 const montantTotal = row.montant_total || 0;
                 const montantPaye = row.montant_paye || 0;
                 const reste = Math.max(0, montantTotal - montantPaye);
-                
+
                 let statut, couleur, code;
                 if (reste === montantTotal || montantTotal === 0) {
                   // 0 = Aucun paiement
@@ -191,7 +202,7 @@ const ClientsList = () => {
                   couleur = 'bg-green-100 text-green-700';
                   code = 2;
                 }
-                
+
                 return (
                   <span className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${couleur}`}>
                     {code} ({statut})

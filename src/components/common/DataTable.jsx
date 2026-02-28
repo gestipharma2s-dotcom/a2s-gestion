@@ -14,7 +14,9 @@ const DataTable = ({
   emptyMessage = 'Aucune donnée trouvée',
   onAdd = null,
   addButtonLabel = 'Ajouter',
-  title = 'Tableau de Données'
+  title = 'Tableau de Données',
+  rowClassName = null,
+  rowStyle = null
 }) => {
   if (loading) {
     return (
@@ -62,53 +64,61 @@ const DataTable = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {data.map((row, idx) => (
-              <tr key={row.id || idx} className="hover:bg-gray-50 transition-colors">
-                {columns.map((col) => (
-                  <td
-                    key={col.key}
-                    className={`px-6 py-4 text-sm ${col.className || 'text-gray-600'}`}
-                  >
-                    {col.render ? col.render(row) : String(row[col.key] || '-')}
+            {data.map((row, idx) => {
+              const customClass = typeof rowClassName === 'function' ? rowClassName(row) : rowClassName || '';
+              const customStyle = typeof rowStyle === 'function' ? rowStyle(row) : rowStyle || {};
+              return (
+                <tr
+                  key={row.id || idx}
+                  className={`hover:bg-gray-50 transition-colors ${customClass}`}
+                  style={customStyle}
+                >
+                  {columns.map((col) => (
+                    <td
+                      key={col.key}
+                      className={`px-6 py-4 text-sm ${col.className || 'text-gray-600'}`}
+                    >
+                      {col.render ? col.render(row) : String(row[col.key] || '-')}
+                    </td>
+                  ))}
+                  <td className="px-6 py-4 text-center">
+                    <div className="flex gap-2 justify-center flex-wrap">
+                      {actions.map((action) => {
+                        // Vérifier si le bouton doit être affiché selon la condition
+                        if (action.condition && !action.condition(row)) {
+                          return null;
+                        }
+
+                        // Évaluer disabled et title dynamiquement par ligne
+                        const isDisabled = typeof action.disabled === 'function'
+                          ? action.disabled(row)
+                          : action.disabled || false;
+
+                        const buttonTitle = typeof action.title === 'function'
+                          ? action.title(row)
+                          : action.title || action.label;
+
+                        const buttonClassName = typeof action.className === 'function'
+                          ? action.className(row)
+                          : action.className || 'bg-blue-600 hover:bg-blue-700 text-white px-4 py-2';
+
+                        return (
+                          <Button
+                            key={action.key}
+                            onClick={() => action.onClick(row)}
+                            disabled={isDisabled}
+                            className={buttonClassName}
+                            title={buttonTitle}
+                          >
+                            {action.icon ? action.icon : action.label}
+                          </Button>
+                        );
+                      })}
+                    </div>
                   </td>
-                ))}
-                <td className="px-6 py-4 text-center">
-                  <div className="flex gap-2 justify-center flex-wrap">
-                    {actions.map((action) => {
-                      // Vérifier si le bouton doit être affiché selon la condition
-                      if (action.condition && !action.condition(row)) {
-                        return null;
-                      }
-                      
-                      // Évaluer disabled et title dynamiquement par ligne
-                      const isDisabled = typeof action.disabled === 'function' 
-                        ? action.disabled(row) 
-                        : action.disabled || false;
-                      
-                      const buttonTitle = typeof action.title === 'function'
-                        ? action.title(row)
-                        : action.title || action.label;
-                      
-                      const buttonClassName = typeof action.className === 'function'
-                        ? action.className(row)
-                        : action.className || 'bg-blue-600 hover:bg-blue-700 text-white px-4 py-2';
-                      
-                      return (
-                        <Button
-                          key={action.key}
-                          onClick={() => action.onClick(row)}
-                          disabled={isDisabled}
-                          className={buttonClassName}
-                          title={buttonTitle}
-                        >
-                          {action.icon ? action.icon : action.label}
-                        </Button>
-                      );
-                    })}
-                  </div>
-                </td>
-              </tr>
-            ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Eye, Phone, Mail, Zap, Thermometer, Flame, Snowflake, Cloud } from 'lucide-react';
+import { Plus, Edit2, Trash2, Eye, Phone, Mail, Zap, Thermometer, Flame, Snowflake, Cloud, CheckCircle, RefreshCw } from 'lucide-react';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
 import SearchBar from '../common/SearchBar';
@@ -107,7 +107,9 @@ const ProspectsList = () => {
         p.raison_sociale?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.contact?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.telephone?.includes(searchTerm) ||
-        p.email?.toLowerCase().includes(searchTerm.toLowerCase())
+        p.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.ville?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.adresse?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -354,6 +356,8 @@ const ProspectsList = () => {
     }
   };
 
+
+
   const stats = {
     total: prospects.length,
     prospects: prospects.filter(p => p.statut === 'prospect').length,
@@ -384,7 +388,7 @@ const ProspectsList = () => {
               : 'text-gray-600 hover:text-gray-800'
               }`}
           >
-            👥 Gestion des Prospects
+            👥 Gestion des Prospects <small className="text-[10px] opacity-20">v2.2</small>
           </button>
           <button
             onClick={() => setCurrentPage('installations')}
@@ -418,7 +422,7 @@ const ProspectsList = () => {
               <p className="text-sm opacity-90 mb-1">Taux Conversion</p>
               <h3 className="text-3xl font-bold">{stats.tauxConversion}%</h3>
             </div>
-            <div className="card">
+            <div className="card space-y-2">
               <Button
                 variant="primary"
                 icon={Plus}
@@ -427,8 +431,9 @@ const ProspectsList = () => {
                 className="w-full h-full"
                 title={!hasCreatePermission ? 'Permission refusée: Créer un prospect' : 'Créer un nouveau prospect'}
               >
-                Nouveau Prospect
+                Nouveau
               </Button>
+
             </div>
           </div>
 
@@ -515,8 +520,18 @@ const ProspectsList = () => {
                   render: (row) => (
                     <div>
                       <p className="font-semibold text-gray-900">{row.raison_sociale}</p>
-                      <p className="text-xs text-gray-500">{row.email || 'N/A'}</p>
+                      <p className="text-xs text-gray-500">{row.forme_juridique || row.email || 'N/A'}</p>
                     </div>
+                  )
+                },
+                {
+                  key: 'created_at',
+                  label: 'Date Création',
+                  width: '120px',
+                  render: (row) => (
+                    <span className={`text-xs font-bold ${row.created_at?.includes('2025-12-31') ? 'text-red-600 bg-red-50 p-1 rounded' : 'text-gray-600'}`}>
+                      {row.created_at ? formatDate(row.created_at) : 'Sans date'}
+                    </span>
                   )
                 },
                 {
@@ -553,9 +568,14 @@ const ProspectsList = () => {
                 },
                 {
                   key: 'wilaya',
-                  label: 'Wilaya',
-                  width: '120px',
-                  render: (row) => <span>{row.wilaya || 'N/A'}</span>
+                  label: 'Wilaya / Ville',
+                  width: '180px',
+                  render: (row) => (
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{row.wilaya || 'N/A'}</p>
+                      <p className="text-xs text-gray-500">{row.ville || ''}</p>
+                    </div>
+                  )
                 },
                 {
                   key: 'temperature',
@@ -567,7 +587,8 @@ const ProspectsList = () => {
                       froid: { icon: Snowflake, label: 'FROID', color: 'text-blue-500 bg-blue-50 border-blue-100' },
                       tiede: { icon: Cloud, label: 'TIÈDE', color: 'text-gray-500 bg-gray-50 border-gray-100' },
                       chaud: { icon: Flame, label: 'CHAUD', color: 'text-orange-500 bg-orange-50 border-orange-100' },
-                      brulant: { icon: Thermometer, label: 'BRÛLANT', color: 'text-red-600 bg-red-50 border-red-200 shadow-sm animate-pulse' }
+                      brulant: { icon: Thermometer, label: 'BRÛLANT', color: 'text-red-600 bg-red-50 border-red-200 shadow-sm animate-pulse' },
+                      acquis: { icon: CheckCircle, label: 'ACQUIS', color: 'text-gray-400 bg-gray-100 border-gray-200' }
                     }[temp] || { icon: Snowflake, label: 'FROID', color: 'text-blue-500 bg-blue-50 border-blue-100' };
 
                     const Icon = config.icon;
@@ -643,7 +664,8 @@ const ProspectsList = () => {
                 }
               ]}
               loading={loading}
-              emptyMessage="Aucun prospect trouvé"
+              emptyMessage="Aucun client trouvé"
+              rowStyle={(row) => row.temperature === 'acquis' ? { opacity: 0.5, filter: 'grayscale(100%)', backgroundColor: '#F9FAFB' } : {}}
             />
           )}
         </>

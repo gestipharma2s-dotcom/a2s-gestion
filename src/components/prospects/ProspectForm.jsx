@@ -13,6 +13,9 @@ const ProspectForm = ({ prospect, onSubmit, onCancel }) => {
     telephone: '',
     email: '',
     wilaya: '',
+    ville: '',
+    adresse: '',
+    forme_juridique: '',
     commercial_assigned: '',
     temperature: 'froid'
   });
@@ -29,6 +32,9 @@ const ProspectForm = ({ prospect, onSubmit, onCancel }) => {
         telephone: prospect.telephone || '',
         email: prospect.email || '',
         wilaya: prospect.wilaya || '',
+        ville: prospect.ville || '',
+        adresse: prospect.adresse || '',
+        forme_juridique: prospect.forme_juridique || '',
         commercial_assigned: prospect.commercial_assigned || (user?.nom || user?.email || ''),
         temperature: prospect.temperature || 'froid'
       });
@@ -42,6 +48,9 @@ const ProspectForm = ({ prospect, onSubmit, onCancel }) => {
         telephone: '',
         email: '',
         wilaya: '',
+        ville: '',
+        adresse: '',
+        forme_juridique: '',
         commercial_assigned: user?.nom || user?.email || '',
         temperature: 'froid'
       });
@@ -110,6 +119,24 @@ const ProspectForm = ({ prospect, onSubmit, onCancel }) => {
         required
         disabled={isSubmitting}
       />
+
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-gray-700">Forme Juridique</label>
+        <select
+          value={formData.forme_juridique}
+          onChange={(e) => handleChange('forme_juridique', e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+          disabled={isSubmitting}
+        >
+          <option value="">Sélectionner...</option>
+          <option value="SARL">SARL</option>
+          <option value="EURL">EURL</option>
+          <option value="SPA">SPA</option>
+          <option value="SNC">SNC</option>
+          <option value="PERSONNE PHYSIQUE">PERSONNE PHYSIQUE</option>
+          <option value="AUTRE">AUTRE</option>
+        </select>
+      </div>
 
       <Input
         label="Contact"
@@ -188,7 +215,25 @@ const ProspectForm = ({ prospect, onSubmit, onCancel }) => {
         {errors.wilaya && (
           <p className="text-sm text-red-600 mt-1">{errors.wilaya}</p>
         )}
-        <p className="text-xs text-blue-600">L'auto-remplissage dans les missions sera basé sur cette wilaya</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Input
+          label="Ville"
+          type="text"
+          value={formData.ville}
+          onChange={(e) => handleChange('ville', e.target.value)}
+          placeholder="Ville"
+          disabled={isSubmitting}
+        />
+        <Input
+          label="Adresse"
+          type="text"
+          value={formData.adresse}
+          onChange={(e) => handleChange('adresse', e.target.value)}
+          placeholder="Adresse complète"
+          disabled={isSubmitting}
+        />
       </div>
 
       <Input
@@ -213,6 +258,7 @@ const ProspectForm = ({ prospect, onSubmit, onCancel }) => {
           <option value="tiede">☁️ Tiède (En réflexion)</option>
           <option value="chaud">🔥 Chaud (Très intéressé)</option>
           <option value="brulant">🚀 Brûlant (Prêt à signer)</option>
+          <option value="acquis">✅ Acquis (Client historique)</option>
         </select>
         <p className="text-xs text-gray-500">Permet de classer le prospect selon son niveau d'intérêt actuel.</p>
       </div>

@@ -19,7 +19,7 @@ import { useAuth } from '../../context/AuthContext';
 
 const InterventionsList = () => {
   const ITEMS_PER_PAGE = 25;
-  
+
   const [interventions, setInterventions] = useState([]);
   const [filteredInterventions, setFilteredInterventions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -74,14 +74,14 @@ const InterventionsList = () => {
     const checkPermissions = async () => {
       if (user?.id && profile) {
         try {
-          const canCreate = profile?.role === 'admin' || profile?.role === 'super_admin' || 
-                           await userService.hasCreatePermission(user.id, 'support');
-          const canEdit = profile?.role === 'admin' || profile?.role === 'super_admin' || 
-                         await userService.hasEditPermission(user.id, 'support');
-          const canDelete = profile?.role === 'admin' || profile?.role === 'super_admin' || 
-                           await userService.hasDeletePermission(user.id, 'support');
-          const canClose = profile?.role === 'admin' || profile?.role === 'super_admin' || 
-                          await userService.hasClosePermission(user.id, 'support');
+          const canCreate = profile?.role === 'admin' || profile?.role === 'super_admin' ||
+            await userService.hasCreatePermission(user.id, 'support');
+          const canEdit = profile?.role === 'admin' || profile?.role === 'super_admin' ||
+            await userService.hasEditPermission(user.id, 'support');
+          const canDelete = profile?.role === 'admin' || profile?.role === 'super_admin' ||
+            await userService.hasDeletePermission(user.id, 'support');
+          const canClose = profile?.role === 'admin' || profile?.role === 'super_admin' ||
+            await userService.hasClosePermission(user.id, 'support');
           setHasCreatePermission(canCreate);
           setHasEditPermission(canEdit);
           setHasDeletePermission(canDelete);
@@ -203,12 +203,12 @@ const InterventionsList = () => {
   const handleDelete = async (intervention) => {
     // ✅ Extraire l'ID si c'est un objet (du DataTable)
     const interventionId = intervention?.id || intervention;
-    
+
     // ✅ Vérifier la permission AVANT de supprimer (silencieusement, sans message)
     if (!hasDeletePermission) {
       return;
     }
-    
+
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette intervention ?')) {
       return;
     }
@@ -223,7 +223,7 @@ const InterventionsList = () => {
     } catch (error) {
       // ✅ Gérer les erreurs spécifiques
       console.error('Erreur suppression intervention:', error);
-      
+
       // 409 Conflict = contrainte de clé étrangère
       if (error.status === 409 || error.message?.includes('foreign key')) {
         addNotification({
@@ -272,7 +272,7 @@ const InterventionsList = () => {
   const handleCloturerSubmit = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    
+
     try {
       const result = await interventionService.cloturer(
         selectedIntervention.id,
@@ -329,7 +329,7 @@ const InterventionsList = () => {
           </div>
         </div>
       </div>
-      
+
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
@@ -363,22 +363,20 @@ const InterventionsList = () => {
         <div className="flex gap-2">
           <button
             onClick={() => setCurrentView('journal')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-              currentView === 'journal'
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${currentView === 'journal'
                 ? 'bg-primary text-white'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
+              }`}
           >
             <FileText size={18} />
             Journal
           </button>
           <button
             onClick={() => setCurrentView('analyse')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-              currentView === 'analyse'
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${currentView === 'analyse'
                 ? 'bg-primary text-white'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
+              }`}
           >
             <Brain size={18} />
             Analyse IA
@@ -452,9 +450,10 @@ const InterventionsList = () => {
                   label: 'Début',
                   width: '160px',
                   render: (row) => {
-                    const timeCreationUTC = row.time_creation?.endsWith('Z') 
-                      ? row.time_creation 
-                      : row.time_creation ? row.time_creation + 'Z' : null;
+                    const timeCreationValue = row.created_at || row.time_creation;
+                    const timeCreationUTC = timeCreationValue?.endsWith('Z')
+                      ? timeCreationValue
+                      : timeCreationValue ? timeCreationValue + 'Z' : null;
                     return (
                       <div>
                         <p className="font-medium text-gray-900">
@@ -472,8 +471,8 @@ const InterventionsList = () => {
                   label: 'Fin',
                   width: '160px',
                   render: (row) => {
-                    const dateFin = row.date_fin?.endsWith('Z') 
-                      ? row.date_fin 
+                    const dateFin = row.date_fin?.endsWith('Z')
+                      ? row.date_fin
                       : row.date_fin ? row.date_fin + 'Z' : null;
                     return (
                       <div>
@@ -500,13 +499,12 @@ const InterventionsList = () => {
                   label: 'Priorité',
                   width: '100px',
                   render: (row) => (
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      row.priorite === 'haute' 
-                        ? 'bg-red-100 text-red-800' 
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${row.priorite === 'haute'
+                        ? 'bg-red-100 text-red-800'
                         : row.priorite === 'normale'
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : 'bg-green-100 text-green-800'
-                    }`}>
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : 'bg-green-100 text-green-800'
+                      }`}>
                       {row.priorite === 'haute' ? 'Haute' : row.priorite === 'normale' ? 'Normale' : 'Basse'}
                     </span>
                   )
@@ -516,11 +514,10 @@ const InterventionsList = () => {
                   label: 'Statut',
                   width: '100px',
                   render: (row) => (
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      row.statut === 'en_cours' 
-                        ? 'bg-amber-100 text-amber-800' 
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${row.statut === 'en_cours'
+                        ? 'bg-amber-100 text-amber-800'
                         : 'bg-green-100 text-green-800'
-                    }`}>
+                      }`}>
                       {row.statut === 'en_cours' ? 'En cours' : 'Clôturée'}
                     </span>
                   )
@@ -562,7 +559,7 @@ const InterventionsList = () => {
           )}
         </>
       )}
-      
+
       {/* Pagination */}
       {currentView === 'journal' && filteredInterventions.length > 0 && (
         <div className="card flex items-center justify-between">
@@ -584,11 +581,10 @@ const InterventionsList = () => {
                 <button
                   key={i + 1}
                   onClick={() => setCurrentPage(i + 1)}
-                  className={`px-3 py-2 rounded-lg ${
-                    currentPage === i + 1
+                  className={`px-3 py-2 rounded-lg ${currentPage === i + 1
                       ? 'bg-primary text-white'
                       : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
+                    }`}
                 >
                   {i + 1}
                 </button>
@@ -604,7 +600,7 @@ const InterventionsList = () => {
           </div>
         </div>
       )}
-      
+
       {/* Vue Analyse */}
       {currentView === 'analyse' && <InterventionAnalyse />}
 
