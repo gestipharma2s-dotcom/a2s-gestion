@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Input from '../common/Input';
 import Select from '../common/Select';
+import SearchableSelect from '../common/SearchableSelect';
 import Button from '../common/Button';
 import { prospectService } from '../../services/prospectService';
 import { installationService } from '../../services/installationService';
@@ -40,11 +41,11 @@ const PaiementForm = ({ paiement, onSubmit, onCancel, isAbonnement = false, isSu
         mode_paiement: paiement.mode_paiement || 'especes',
         date_paiement: paiement.date_paiement?.split('T')[0] || ''
       });
-      
+
       // Si c'est un paiement d'abonnement, récupérer le montant et calculer le reste
       if (isAbonnement && paiement.abonnement_montant) {
         setAbonnementMontant(paiement.abonnement_montant);
-        
+
         // ✅ Calculer le reste à payer pour l'abonnement
         const calculerResteAbonnement = async () => {
           try {
@@ -96,28 +97,28 @@ const PaiementForm = ({ paiement, onSubmit, onCancel, isAbonnement = false, isSu
     if (field === 'client_id' && value) {
       loadInstallations(value);
     }
-    
+
     // Si une installation est choisie, pré-remplir le type et calculer le reste à payer
     if (field === 'installation_id' && value) {
       const inst = installations.find(i => String(i.id) === String(value));
       if (inst) {
-        setFormData(prev => ({ 
-          ...prev, 
+        setFormData(prev => ({
+          ...prev,
           type: inst.type || 'acquisition'
         }));
-        
+
         // ✅ Récupérer les paiements existants pour cette installation
         const calculerRestAPayer = async () => {
           try {
             const paiements = await paiementService.getByInstallation(value);
             const totalPaye = paiements.reduce((sum, p) => sum + (p.montant || 0), 0);
             setPaiementsExistants(totalPaye);
-            
+
             setMontantInstallation(inst.montant || 0);
             const reste = Math.max(0, (inst.montant || 0) - totalPaye);
             setRestAPayer(reste);
             setMontantInstallationCalcule(true);
-            
+
             console.log(`✅ Installation: ${inst.application_installee}, Montant: ${inst.montant}, Payé: ${totalPaye}, Reste: ${reste}`);
           } catch (error) {
             console.error('Erreur calcul reste à payer:', error);
@@ -134,15 +135,15 @@ const PaiementForm = ({ paiement, onSubmit, onCancel, isAbonnement = false, isSu
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     let validationErrors = {};
-    
+
     const validation = validators.validatePaiement(formData);
     if (!validation.isValid) {
       setErrors({ ...validation.errors, ...validationErrors });
       return;
     }
-    
+
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
@@ -153,15 +154,17 @@ const PaiementForm = ({ paiement, onSubmit, onCancel, isAbonnement = false, isSu
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <Select
+      <SearchableSelect
         label="Client"
         value={formData.client_id}
         onChange={(e) => handleChange('client_id', e.target.value)}
         disabled={isAbonnement}
-        options={clients.map(c => ({ 
-          value: c.id, 
-          label: `${c.raison_sociale} (${c.contact})` 
+        options={clients.map(c => ({
+          value: c.id,
+          label: c.raison_sociale,
+          description: `${c.ville || ''} ${c.wilaya ? `(${c.wilaya})` : ''} - ${c.contact || ''}`.trim().replace(/^ - /, '')
         }))}
+        placeholder="Rechercher un client..."
         error={errors.client_id}
         required
       />
@@ -172,8 +175,8 @@ const PaiementForm = ({ paiement, onSubmit, onCancel, isAbonnement = false, isSu
           value={formData.installation_id}
           onChange={(e) => handleChange('installation_id', e.target.value)}
           disabled={isAbonnement}
-          options={installations.map(i => ({ 
-            value: i.id, 
+          options={installations.map(i => ({
+            value: i.id,
             label: i.application_installee
           }))}
         />

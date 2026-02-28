@@ -28,12 +28,12 @@ const ProspectCard = ({ prospect, onEdit, onDelete, onConvertToClient, onViewHis
         // Vérifier les permissions
         if (user?.id && profile) {
           setLoadingPermissions(true);
-          const canCreate = profile?.role === 'admin' || profile?.role === 'super_admin' || 
-                           await userService.hasCreatePermission(user.id, 'prospects');
-          const canEdit = profile?.role === 'admin' || profile?.role === 'super_admin' || 
-                         await userService.hasEditPermission(user.id, 'prospects');
-          const canDelete = profile?.role === 'admin' || profile?.role === 'super_admin' || 
-                           await userService.hasDeletePermission(user.id, 'prospects');
+          const canCreate = profile?.role === 'admin' || profile?.role === 'super_admin' ||
+            await userService.hasCreatePermission(user.id, 'prospects');
+          const canEdit = profile?.role === 'admin' || profile?.role === 'super_admin' ||
+            await userService.hasEditPermission(user.id, 'prospects');
+          const canDelete = profile?.role === 'admin' || profile?.role === 'super_admin' ||
+            await userService.hasDeletePermission(user.id, 'prospects');
           setHasCreatePermission(canCreate);
           setHasEditPermission(canEdit);
           setHasDeletePermission(canDelete);
@@ -66,7 +66,7 @@ const ProspectCard = ({ prospect, onEdit, onDelete, onConvertToClient, onViewHis
   };
 
   return (
-    <div className="card hover:shadow-xl transition-shadow duration-200 border-l-4 border-primary">
+    <div className={`card hover:shadow-xl transition-shadow duration-200 border-l-4 border-primary ${prospect.temperature === 'acquis' ? 'opacity-60 grayscale-[0.5]' : ''}`}>
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
@@ -98,11 +98,10 @@ const ProspectCard = ({ prospect, onEdit, onDelete, onConvertToClient, onViewHis
           <button
             onClick={() => onAddAction && onAddAction(prospect)}
             disabled={prospect.statut === 'actif'}
-            className={`p-2 rounded-lg transition-colors ${
-              prospect.statut === 'actif'
-                ? 'text-gray-400 cursor-not-allowed bg-gray-100'
-                : 'text-green-600 hover:bg-green-50'
-            }`}
+            className={`p-2 rounded-lg transition-colors ${prospect.statut === 'actif'
+              ? 'text-gray-400 cursor-not-allowed bg-gray-100'
+              : 'text-green-600 hover:bg-green-50'
+              }`}
             title={prospect.statut === 'actif' ? 'Actions non disponibles pour les clients' : 'Ajouter une action'}
           >
             <Plus size={18} />
@@ -117,11 +116,10 @@ const ProspectCard = ({ prospect, onEdit, onDelete, onConvertToClient, onViewHis
           <button
             onClick={() => onEdit(prospect)}
             disabled={!hasEditPermission && !(profile?.role === 'admin' || profile?.role === 'super_admin')}
-            className={`p-2 rounded-lg transition-colors ${
-              !hasEditPermission && !(profile?.role === 'admin' || profile?.role === 'super_admin')
-                ? 'text-gray-400 cursor-not-allowed'
-                : 'text-blue-600 hover:bg-blue-50'
-            }`}
+            className={`p-2 rounded-lg transition-colors ${!hasEditPermission && !(profile?.role === 'admin' || profile?.role === 'super_admin')
+              ? 'text-gray-400 cursor-not-allowed'
+              : 'text-blue-600 hover:bg-blue-50'
+              }`}
             title={!hasEditPermission && !(profile?.role === 'admin' || profile?.role === 'super_admin') ? 'Permission refusée' : 'Modifier'}
           >
             {!hasEditPermission && !(profile?.role === 'admin' || profile?.role === 'super_admin') ? (
@@ -133,11 +131,10 @@ const ProspectCard = ({ prospect, onEdit, onDelete, onConvertToClient, onViewHis
           <button
             onClick={() => onDelete(prospect.id)}
             disabled={!hasDeletePermission && !(profile?.role === 'admin' || profile?.role === 'super_admin')}
-            className={`p-2 rounded-lg transition-colors ${
-              !hasDeletePermission && !(profile?.role === 'admin' || profile?.role === 'super_admin')
-                ? 'text-gray-400 cursor-not-allowed'
-                : 'text-red-600 hover:bg-red-50'
-            }`}
+            className={`p-2 rounded-lg transition-colors ${!hasDeletePermission && !(profile?.role === 'admin' || profile?.role === 'super_admin')
+              ? 'text-gray-400 cursor-not-allowed'
+              : 'text-red-600 hover:bg-red-50'
+              }`}
             title={!hasDeletePermission && !(profile?.role === 'admin' || profile?.role === 'super_admin') ? 'Permission refusée' : 'Supprimer'}
           >
             {!hasDeletePermission && !(profile?.role === 'admin' || profile?.role === 'super_admin') ? (
@@ -155,7 +152,7 @@ const ProspectCard = ({ prospect, onEdit, onDelete, onConvertToClient, onViewHis
           <User size={16} className="text-primary flex-shrink-0" />
           <span className="font-medium">{prospect.contact}</span>
         </div>
-        
+
         {prospect.telephone && (
           <div className="flex items-center gap-2 text-gray-600 text-sm">
             <Phone size={16} className="text-primary flex-shrink-0" />
@@ -164,7 +161,7 @@ const ProspectCard = ({ prospect, onEdit, onDelete, onConvertToClient, onViewHis
             </a>
           </div>
         )}
-        
+
         {prospect.email && (
           <div className="flex items-center gap-2 text-gray-600 text-sm">
             <Mail size={16} className="text-primary flex-shrink-0" />
@@ -177,10 +174,10 @@ const ProspectCard = ({ prospect, onEdit, onDelete, onConvertToClient, onViewHis
         {prospect.wilaya && (
           <div className="flex items-center gap-2 text-gray-600 text-sm bg-blue-50 p-2 rounded border border-blue-100">
             <MapPin size={16} className="text-blue-600 flex-shrink-0" />
-            <span className="font-medium text-blue-900">📍 {getWilayaName(prospect.wilaya)}</span>
+            <span className="font-medium text-blue-900">📍 {getWilayaName(prospect.wilaya)} {prospect.ville ? ` - ${prospect.ville}` : ''}</span>
           </div>
         )}
-        
+
         {prospect.adresse && (
           <div className="flex items-start gap-2 text-gray-600 text-sm">
             <MapPin size={16} className="text-primary flex-shrink-0 mt-0.5" />

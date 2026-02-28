@@ -7,22 +7,22 @@ const calculateDuration = (dateDebut, dateFin, dureeStockee) => {
   if (dureeStockee && dureeStockee > 0) {
     return dureeStockee;
   }
-  
+
   if (!dateDebut || !dateFin) return null;
-  
+
   // Convertir les dates en objets Date
   const debut = new Date(dateDebut);
   const fin = new Date(dateFin);
-  
+
   // Valider les dates
   if (isNaN(debut.getTime()) || isNaN(fin.getTime())) {
     return null;
   }
-  
+
   // Calculer la différence en minutes
   const differenceMs = fin.getTime() - debut.getTime();
   const differenceMinutes = Math.round(differenceMs / (1000 * 60));
-  
+
   // Retourner la durée (au minimum 0 minutes)
   return Math.max(0, differenceMinutes);
 };
@@ -33,9 +33,9 @@ const addDurationToIntervention = (intervention) => {
   return {
     ...intervention,
     // Afficher la durée stockée en base (duree), ou la calculer si absent
-    duree_minutes: intervention.duree && intervention.duree > 0 
-      ? intervention.duree 
-      : calculateDuration(intervention.time_creation || intervention.created_at || intervention.date_intervention, intervention.date_fin, intervention.duree)
+    duree_minutes: intervention.duree && intervention.duree > 0
+      ? intervention.duree
+      : calculateDuration(intervention.created_at || intervention.time_creation || intervention.date_intervention, intervention.date_fin, intervention.duree)
   };
 };
 
@@ -57,7 +57,7 @@ export const interventionService = {
           technicien:users!technicien_id(id, nom, email)
         `)
         .order('date_intervention', { ascending: false });
-      
+
       if (error) throw error;
       return addDurationToInterventions(data);
     } catch (error) {
@@ -77,7 +77,7 @@ export const interventionService = {
         `)
         .eq('client_id', clientId)
         .order('date_intervention', { ascending: false });
-      
+
       if (error) throw error;
       return addDurationToInterventions(data);
     } catch (error) {
@@ -98,7 +98,7 @@ export const interventionService = {
         `)
         .eq('technicien_id', technicienId)
         .order('date_intervention', { ascending: false });
-      
+
       if (error) throw error;
       return addDurationToInterventions(data);
     } catch (error) {
@@ -112,9 +112,9 @@ export const interventionService = {
     try {
       // Capturer le timestamp exact de création côté client EN UTC
       const creationTime = new Date().toISOString();
-      
+
       console.log('DEBUG create: creationTime (UTC):', creationTime);
-      
+
       const { data, error } = await supabase
         .from(TABLES.INTERVENTIONS)
         .insert([{
@@ -131,7 +131,7 @@ export const interventionService = {
           technicien:users!technicien_id(id, nom, email)
         `)
         .single();
-      
+
       if (error) throw error;
       console.log('DEBUG create: intervention créée avec time_creation =', data.time_creation);
       return addDurationToIntervention(data);
@@ -154,7 +154,7 @@ export const interventionService = {
           technicien:users!technicien_id(id, nom, email)
         `)
         .single();
-      
+
       if (error) throw error;
       return addDurationToIntervention(data);
     } catch (error) {
@@ -172,33 +172,35 @@ export const interventionService = {
         .select('*')
         .eq('id', id)
         .single();
-      
+
       if (fetchError) throw fetchError;
-      
+
       // Date de clôture = NOW en UTC
       const now = new Date();
       const dateFinISO = now.toISOString();
-      
+
       console.log('DEBUG cloturer:');
       console.log('  intervention id:', id);
       console.log('  time_creation:', intervention.time_creation);
       console.log('  dateFin (UTC):', dateFinISO);
-      
+
       // Calculer la durée : (maintenant - time_creation) / 60000 ms
       let dateDebut;
       let source = 'UNKNOWN';
-      
-      console.log('  DEBUG: Checking time_creation...');
-      console.log('  type of time_creation:', typeof intervention.time_creation);
-      console.log('  time_creation is null:', intervention.time_creation === null);
-      console.log('  time_creation is undefined:', intervention.time_creation === undefined);
-      
-      if (intervention.time_creation) {
+
+      console.log('  DEBUG: Checking timestamps...');
+
+      // Utiliser en priorité le timestamp généré par Supabase (created_at) qui est toujours en UTC correct
+      if (intervention.created_at) {
+        dateDebut = new Date(intervention.created_at);
+        source = 'created_at';
+        console.log('  Using created_at:', intervention.created_at);
+      } else if (intervention.time_creation) {
         // IMPORTANT: Supabase returns timestamp WITHOUT 'Z' timezone indicator
         // If we don't add 'Z', JavaScript treats it as LOCAL TIME instead of UTC!
         // This causes a 60-minute offset (UTC+1)
-        const timeCreationUTC = intervention.time_creation.endsWith('Z') 
-          ? intervention.time_creation 
+        const timeCreationUTC = intervention.time_creation.endsWith('Z')
+          ? intervention.time_creation
           : intervention.time_creation + 'Z';
         dateDebut = new Date(timeCreationUTC);
         source = 'time_creation';
@@ -213,7 +215,7 @@ export const interventionService = {
         const currentHour = now.getHours().toString().padStart(2, '0');
         const currentMin = now.getMinutes().toString().padStart(2, '0');
         const currentSec = now.getSeconds().toString().padStart(2, '0');
-        
+
         dateDebut = new Date(dateStr + 'T' + currentHour + ':' + currentMin + ':' + currentSec + 'Z');
         source = 'date_intervention with current time (fallback - NO EXACT TIME)';
         console.log('  Using date_intervention fallback with current time - parsed as:', dateDebut.toISOString());
@@ -224,16 +226,16 @@ export const interventionService = {
         source = 'NOW (last resort)';
         console.log('  Using NOW fallback');
       }
-      
+
       if (isNaN(dateDebut.getTime())) {
         throw new Error('Impossible de calculer la date de début. time_creation: ' + intervention.time_creation + ', date_intervention: ' + intervention.date_intervention);
       }
-      
-      
+
+
       const dateFin = new Date(dateFinISO);
       const timeDiffMs = dateFin.getTime() - dateDebut.getTime();
       const durationMinutes = Math.max(0, Math.round(timeDiffMs / (1000 * 60)));
-      
+
       console.log('  ');
       console.log('  === DURATION CALCULATION ===');
       console.log('  source:', source);
@@ -245,7 +247,7 @@ export const interventionService = {
       console.log('  durationMinutes:', durationMinutes);
       console.log('  durationHeures:', (durationMinutes / 60).toFixed(2));
       console.log('  ===========================');;
-      
+
       const { data, error } = await supabase
         .from(TABLES.INTERVENTIONS)
         .update({
@@ -262,9 +264,9 @@ export const interventionService = {
           technicien:users!technicien_id(id, nom, email)
         `)
         .single();
-      
+
       if (error) throw error;
-      
+
       console.log('  Clôture OK - duree enregistrée:', data.duree);
       return addDurationToIntervention(data);
     } catch (error) {
@@ -280,7 +282,7 @@ export const interventionService = {
         .from(TABLES.INTERVENTIONS)
         .delete()
         .eq('id', id);
-      
+
       if (error) throw error;
       return true;
     } catch (error) {
@@ -295,9 +297,9 @@ export const interventionService = {
       const { data, error } = await supabase
         .from(TABLES.INTERVENTIONS)
         .select('statut, priorite, type_intervention, duree');
-      
+
       if (error) throw error;
-      
+
       const stats = {
         total: data.length,
         enCours: data.filter(i => i.statut === 'en_cours').length,
@@ -305,7 +307,7 @@ export const interventionService = {
         hautesPriorites: data.filter(i => i.priorite === 'haute').length,
         dureeMoyenne: data.reduce((sum, i) => sum + (i.duree || 0), 0) / data.length || 0
       };
-      
+
       return stats;
     } catch (error) {
       console.error('Erreur statistiques interventions:', error);

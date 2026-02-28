@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Input from '../common/Input';
 import Select from '../common/Select';
+import SearchableSelect from '../common/SearchableSelect';
 import Button from '../common/Button';
 import { prospectService } from '../../services/prospectService';
 import { applicationService } from '../../services/applicationService';
@@ -79,16 +80,16 @@ const InstallationForm = ({ installation, onSubmit, onCancel }) => {
       // ✅ NOUVEAU: Utiliser le bon prix selon le type d'installation COURANT
       // Si type='abonnement' -> prix_abonnement
       // Si type='acquisition' -> prix_acquisition
-      const prixApplicable = formData.type === 'abonnement' 
+      const prixApplicable = formData.type === 'abonnement'
         ? (app.prix_abonnement || app.prix_acquisition || app.prix || 0)
         : (app.prix_acquisition || app.prix_abonnement || app.prix || 0);
-      
+
       setFormData(prev => ({
         ...prev,
         application_installee: app.nom,
         montant: prixApplicable
       }));
-      
+
       console.log(`✅ Application sélectionnée: ${app.nom}, Type: ${formData.type}, Prix: ${prixApplicable}`);
     }
   };
@@ -96,7 +97,7 @@ const InstallationForm = ({ installation, onSubmit, onCancel }) => {
   const handleTypeChange = (type) => {
     // ✅ NOUVEAU: Quand on change le type, recalculer automatiquement le montant
     const appName = formData.application_installee;
-    
+
     if (appName) {
       const app = applications.find(a => a.nom === appName);
       if (app) {
@@ -104,32 +105,32 @@ const InstallationForm = ({ installation, onSubmit, onCancel }) => {
         const prixApplicable = type === 'abonnement'
           ? (app.prix_abonnement || app.prix_acquisition || app.prix || 0)
           : (app.prix_acquisition || app.prix_abonnement || app.prix || 0);
-        
+
         setFormData(prev => ({
           ...prev,
           type: type,
           montant: prixApplicable
         }));
-        
+
         console.log(`✅ Type changé: ${type}, Montant recalculé: ${prixApplicable}`);
         return;
       }
     }
-    
+
     // Si pas d'application sélectionnée, just changer le type
     handleChange('type', type);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (isSubmitting) {
       return;
     }
-    
+
     // Validation
     const newErrors = {};
-    
+
     if (!formData.client_id) {
       newErrors.client_id = 'Client requis';
     }
@@ -180,17 +181,16 @@ const InstallationForm = ({ installation, onSubmit, onCancel }) => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <Select
+      <SearchableSelect
         label="Client"
         value={formData.client_id}
         onChange={(e) => handleChange('client_id', e.target.value)}
-        options={[
-          { value: '', label: 'Sélectionner un client...' },
-          ...clients.map(c => ({ 
-            value: c.id, 
-            label: `${c.raison_sociale} (${c.contact})` 
-          }))
-        ]}
+        options={clients.map(c => ({
+          value: c.id,
+          label: c.raison_sociale,
+          description: `${c.ville || ''} ${c.wilaya ? `(${c.wilaya})` : ''} - ${c.contact || ''}`.trim().replace(/^ - /, '')
+        }))}
+        placeholder="Rechercher un client..."
         error={errors.client_id}
         required
         disabled={isSubmitting}
@@ -205,11 +205,11 @@ const InstallationForm = ({ installation, onSubmit, onCancel }) => {
         }}
         options={[
           { value: '', label: 'Sélectionner une application...' },
-          ...applications.map(a => { 
+          ...applications.map(a => {
             const acq = a.prix_acquisition || a.prix;
             const abo = a.prix_abonnement || a.prix;
             return {
-              value: a.id, 
+              value: a.id,
               label: `${a.nom} - ACQ: ${acq} DA / ABO: ${abo} DA`
             };
           })
@@ -287,15 +287,15 @@ const InstallationForm = ({ installation, onSubmit, onCancel }) => {
       />
 
       <div className="flex justify-end gap-3 pt-4">
-        <Button 
-          variant="ghost" 
+        <Button
+          variant="ghost"
           onClick={onCancel}
           disabled={isSubmitting}
         >
           Annuler
         </Button>
-        <Button 
-          type="submit" 
+        <Button
+          type="submit"
           variant="primary"
           disabled={isSubmitting}
         >
