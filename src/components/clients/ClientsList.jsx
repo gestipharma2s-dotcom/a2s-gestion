@@ -8,7 +8,7 @@ import { prospectService } from '../../services/prospectService';
 import { installationService } from '../../services/installationService';
 import { paiementService } from '../../services/paiementService';
 import { useApp } from '../../context/AppContext';
-import { formatDate } from '../../utils/helpers';
+import { formatDate, formatMontant, formatPriceDisplay } from '../../utils/helpers';
 
 const ClientsList = () => {
   const [clients, setClients] = useState([]);
@@ -42,14 +42,17 @@ const ClientsList = () => {
             const paiements = await paiementService.getByClient(client.id);
 
             const totalInstallations = (installations || []).reduce((sum, i) => sum + (i.montant || 0), 0);
+            const soldeInitial = client.solde_initial || 0;
+            const totalDu = totalInstallations + soldeInitial;
             const totalPaye = (paiements || []).reduce((sum, p) => sum + (p.montant || 0), 0);
-            const resteAPayer = Math.max(0, totalInstallations - totalPaye);
+            const resteAPayer = Math.max(0, totalDu - totalPaye);
 
             return {
               ...client,
               montant_paye: totalPaye,
               reste_a_payer: resteAPayer,
-              montant_total: totalInstallations
+              montant_total: totalDu,
+              total_installations: totalInstallations
             };
           } catch (error) {
             console.warn(`Erreur calcul financials pour client ${client.id}:`, error);
@@ -154,8 +157,8 @@ const ClientsList = () => {
               label: 'Date Création',
               width: '120px',
               render: (row) => (
-                <span className={`text-xs font-bold ${row.created_at?.includes('2025-12-31') ? 'text-red-600 bg-red-50 p-1 rounded' : 'text-gray-600'}`}>
-                  {row.created_at ? formatDate(row.created_at) : 'Sans date'}
+                <span className={`text-xs font-bold ${row.created_at?.includes('2025-12-31') ? 'text-blue-700 bg-blue-100 px-2 py-1 rounded border border-blue-200' : 'text-gray-600'}`}>
+                  {row.created_at?.includes('2025-12-31') ? '📦 ARCHIVE 2025' : (row.created_at ? formatDate(row.created_at) : 'Sans date')}
                 </span>
               )
             },
@@ -175,6 +178,16 @@ const ClientsList = () => {
               label: 'Secteur',
               width: '120px',
               render: (row) => <span>{row.secteur || 'N/A'}</span>
+            },
+            {
+              key: 'solde_initial',
+              label: 'Solde Initial',
+              width: '120px',
+              render: (row) => (
+                <span className="font-semibold text-gray-700">
+                  {formatMontant(row.solde_initial || 0)}
+                </span>
+              )
             },
             {
               key: 'statut_paiement',

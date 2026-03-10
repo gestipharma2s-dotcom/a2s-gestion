@@ -3,18 +3,12 @@
 const generateAIAnalysis = async (stats, resteAPayerData) => {
   try {
     const apiKey = import.meta.env.VITE_AI_API_KEY;
-    const provider = import.meta.env.VITE_AI_PROVIDER || 'openai';
-    
+    const provider = (import.meta.env.VITE_AI_PROVIDER || 'gemini').toLowerCase();
+
     console.log('🤖 Démarrage analyse IA...');
     console.log('Provider:', provider);
     console.log('API Key présente:', apiKey ? 'Oui ✅' : 'Non ❌');
-    
-    // ⚠️ Désactiver temporairement Gemini (clé API compromise)
-    if (provider === 'gemini') {
-      console.warn('⚠️ API Gemini temporairement désactivée (clé compromise). Utilisation des analyses par défaut.');
-      return null;
-    }
-    
+
     if (!apiKey) {
       console.warn('⚠️ API IA non configurée. Utilisation des analyses par défaut.');
       return null;
@@ -71,9 +65,9 @@ RÉPONDS UNIQUEMENT EN JSON, RIEN D'AUTRE.`;
     if (provider === 'gemini') {
       // 🚀 GOOGLE GEMINI API - Modèle correct: gemini-2.0-flash
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-      
+
       console.log('📡 Appel API Gemini (v1beta/gemini-2.0-flash)...');
-      
+
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
@@ -104,9 +98,9 @@ RÉPONDS UNIQUEMENT EN JSON, RIEN D'AUTRE.`;
 
       const data = await response.json();
       console.log('✅ Réponse Gemini reçue');
-      
+
       const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      
+
       if (content) {
         console.log('📝 Contenu brut:', content.substring(0, 200) + '...');
         try {
@@ -124,17 +118,29 @@ RÉPONDS UNIQUEMENT EN JSON, RIEN D'AUTRE.`;
       }
 
     } else {
-      // 🔵 OPENAI API (fallback)
-      const apiUrl = import.meta.env.VITE_AI_API_URL || 'https://api.openai.com/v1/chat/completions';
-      
+      // 🔵 APIs Compatibles OpenAI (OpenAI, Groq, OpenRouter)
+      let apiUrl = import.meta.env.VITE_AI_API_URL || 'https://api.openai.com/v1/chat/completions';
+      let model = import.meta.env.VITE_AI_MODEL || 'gpt-3.5-turbo';
+      let headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      };
+
+      if (provider === 'groq') {
+        apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
+        model = import.meta.env.VITE_AI_MODEL || 'llama-3.1-8b-instant'; // Totalement gratuit et rapide
+      } else if (provider === 'openrouter') {
+        apiUrl = 'https://openrouter.ai/api/v1/chat/completions';
+        model = import.meta.env.VITE_AI_MODEL || 'google/gemini-2.0-flash:free'; // Totalement gratuit
+        headers['HTTP-Referer'] = 'https://a2s-gestion.local';
+        headers['X-Title'] = 'A2S Gestion Dashboard';
+      }
+
       const response = await fetch(apiUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
+        headers: headers,
         body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
+          model: model,
           messages: [
             {
               role: 'system',
@@ -151,16 +157,19 @@ RÉPONDS UNIQUEMENT EN JSON, RIEN D'AUTRE.`;
       });
 
       if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Erreur API OpenAI:', errorData);
         throw new Error('Erreur API OpenAI');
       }
 
       const data = await response.json();
       const content = data.choices[0]?.message?.content;
-      
+
       if (content) {
         try {
           const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
           insights = JSON.parse(cleanContent);
+          console.log('✅ JSON OPENAI parsé avec succès:', insights.length, 'insights');
         } catch (e) {
           console.warn('⚠️ Impossible de parser la réponse OpenAI');
           return null;

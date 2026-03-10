@@ -6,77 +6,74 @@ export const abonnementService = {
   // Récupérer tous les abonnements
   async getAll() {
     try {
-      // 1. Récupérer tous les abonnements
+      // 1. Récupérer tous les abonnements avec installations, clients ET paiements en une SEULE requête
       const { data: abonnements, error } = await supabase
         .from(TABLES.ABONNEMENTS)
-        .select('*')
+        .select(`
+          *,
+          installation:${TABLES.INSTALLATIONS} (
+            *,
+            client:${TABLES.PROSPECTS} (raison_sociale, contact, telephone, email),
+            paiements:${TABLES.PAIEMENTS} (montant, type)
+          )
+        `)
         .order('date_fin', { ascending: true });
-      
+
       if (error) throw error;
-      
+
       const now = new Date();
       now.setHours(0, 0, 0, 0);
       const alertDate = new Date();
       alertDate.setDate(alertDate.getDate() + 30);
       alertDate.setHours(0, 0, 0, 0);
-      
-      // 2. Pour chaque abonnement, vérifier et mettre à jour le statut si nécessaire
-      const dataWithDetails = await Promise.all(
-        abonnements.map(async (abo) => {
-          // Vérifier le statut basé sur la date d'expiration
-          const dateFin = new Date(abo.date_fin);
-          dateFin.setHours(0, 0, 0, 0);
-          let nouveauStatut = abo.statut;
-          
-          if (dateFin < now) {
-            nouveauStatut = 'expire';
-          } else if (dateFin <= alertDate) {
-            nouveauStatut = 'en_alerte';
-          } else {
-            nouveauStatut = 'actif';
-          }
-          
-          // Mettre à jour le statut en base si changement
-          if (abo.statut !== nouveauStatut) {
-            await supabase
-              .from(TABLES.ABONNEMENTS)
-              .update({ statut: nouveauStatut })
-              .eq('id', abo.id);
-          }
-          
-          let installation = {};
 
-          if (abo.installation_id) {
-            const { data: instData } = await supabase
-              .from(TABLES.INSTALLATIONS)
-              .select('*')
-              .eq('id', abo.installation_id)
-              .single();
-            
-            if (instData) {
-              // Récupérer aussi le client
-              const { data: clientData } = await supabase
-                .from(TABLES.PROSPECTS)
-                .select('raison_sociale, contact, telephone, email')
-                .eq('id', instData.client_id)
-                .single();
-              
-              installation = {
-                ...instData,
-                client: clientData || {}
-              };
-            }
+      // 2. Transformer et enrichir les données
+      return (abonnements || []).map((abo) => {
+        // Gérer le cas où Supabase renverrait un tableau pour la jointure
+        let inst = abo.installation || {};
+        if (Array.isArray(inst)) inst = inst[0] || {};
+
+        // Gérer le cas où Supabase renverrait un tableau pour le client
+        let client = inst.client || {};
+        if (Array.isArray(client)) client = client[0] || {};
+
+        // Calculer le montant payé pour les abonnements
+        const paiements = inst.paiements || [];
+        const totalPaye = paiements
+          .filter(p => p.type === 'abonnement')
+          .reduce((sum, p) => sum + (p.montant || 0), 0);
+
+        // Déterminer le montant du prix annuel
+        const montantAbo = inst.montant_abonnement || inst.montant || 0;
+
+        // Calculer le reste à payer
+        const resteAPayer = Math.max(0, montantAbo - totalPaye);
+
+        // Calculer le statut en temps réel
+        const dateFin = new Date(abo.date_fin);
+        dateFin.setHours(0, 0, 0, 0);
+
+        let displayStatut = abo.statut;
+        if (dateFin < now) {
+          displayStatut = 'expire';
+        } else if (dateFin <= alertDate) {
+          displayStatut = 'en_alerte';
+        } else {
+          displayStatut = 'actif';
+        }
+
+        return {
+          ...abo,
+          statut: displayStatut,
+          totalPaye,
+          resteAPayer,
+          montantInstallation: montantAbo, // Pour compatibilité UI
+          installation: {
+            ...inst,
+            client
           }
-          
-          return {
-            ...abo,
-            statut: nouveauStatut,
-            installation: installation
-          };
-        })
-      );
-      
-      return dataWithDetails;
+        };
+      });
     } catch (error) {
       console.error('Erreur récupération abonnements:', error);
       throw error;
@@ -92,40 +89,40 @@ export const abonnementService = {
         .select('id')
         .eq('installation_id', installationId)
         .in('statut', ['actif', 'en_alerte']);
-      
+
       if (checkError) throw checkError;
-      
+
       if (existing && existing.length > 0) {
         throw new Error('Un abonnement actif ou en alerte existe déjà pour cette installation.');
       }
-      
+
       // 2. Récupérer l'installation avec la date d'installation et le montant_abonnement
       const { data: installation, error: fetchError } = await supabase
         .from(TABLES.INSTALLATIONS)
         .select('date_installation, montant_abonnement')
         .eq('id', installationId)
         .single();
-      
+
       if (fetchError) throw fetchError;
-      
+
       // 3. Utiliser la date d'installation comme date de début
       const dateDebut = new Date(installation.date_installation);
       const dateFin = new Date(dateDebut);
       dateFin.setFullYear(dateFin.getFullYear() + 1);
-      
+
       // 4. Déterminer le statut selon la date de fin
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const alertDate = new Date(today);
       alertDate.setDate(alertDate.getDate() + 30);
-      
+
       let statut = 'actif';
       if (dateFin < today) {
         statut = 'expire';
       } else if (dateFin <= alertDate) {
         statut = 'en_alerte';
       }
-      
+
       // 5. Créer l'abonnement avec montant (si fourni)
       const abonnementData = {
         installation_id: installationId,
@@ -133,18 +130,18 @@ export const abonnementService = {
         date_fin: dateFin.toISOString().split('T')[0],
         statut: statut
       };
-      
+
       // ✅ NOUVEAU: Ajouter le montant s'il est fourni en paramètre ou dans l'installation
       if (montantAbonnement) {
         abonnementData.montant = parseFloat(montantAbonnement);
       } else if (installation.montant_abonnement) {
         abonnementData.montant = parseFloat(installation.montant_abonnement);
       }
-      
+
       const { error } = await supabase
         .from(TABLES.ABONNEMENTS)
         .insert([abonnementData]);
-      
+
       if (error) throw error;
 
       // ✅ NOUVEAU: Enregistrer la création d'abonnement dans l'historique du prospect/client
@@ -155,19 +152,21 @@ export const abonnementService = {
           .select('client_id, application_installee, montant, type')
           .eq('id', installationId)
           .single();
-        
+
         if (installFullData) {
           // ✅ NOUVEAU: Si type='acquisition', récupérer le prix_abonnement de l'application
           let montantAbonnement = installFullData.montant;
-          
+
           if (installFullData.type && installFullData.type.toLowerCase() === 'acquisition') {
             try {
-              const { data: appData } = await supabase
+              const { data: apps } = await supabase
                 .from('applications')
                 .select('prix_abonnement, prix')
                 .eq('nom', installFullData.application_installee)
-                .single();
-              
+                .limit(1);
+
+              const appData = apps?.[0];
+
               if (appData && appData.prix_abonnement) {
                 montantAbonnement = appData.prix_abonnement;
                 console.log(`✅ Montant abonnement: ${montantAbonnement} DA (prix_abonnement de l'application)`);
@@ -176,7 +175,7 @@ export const abonnementService = {
               console.warn('⚠️ Impossible de récupérer le prix abonnement de l\'application');
             }
           }
-          
+
           await prospectService.addHistorique(
             installFullData.client_id,
             'abonnement_acquisition',
@@ -218,7 +217,7 @@ export const abonnementService = {
         }])
         .select()
         .single();
-      
+
       if (error) throw error;
       return data;
     } catch (error) {
@@ -247,7 +246,7 @@ export const abonnementService = {
         .select('id', { count: 'exact', head: true })
         .eq('installation_id', installationId)
         .in('statut', ['actif', 'en_alerte']);
-      
+
       if (error) throw error;
       return data && data.length > 0;
     } catch (error) {
@@ -261,18 +260,18 @@ export const abonnementService = {
     try {
       // Vérifier s'il y a des paiements associés
       const hasPaiements = await this.hasPaiements(id);
-      
+
       if (hasPaiements) {
         throw new Error('Impossible de modifier : cet abonnement a des paiements associés');
       }
-      
+
       const { data, error } = await supabase
         .from(TABLES.ABONNEMENTS)
         .update(abonnementData)
         .eq('id', id)
         .select()
         .single();
-      
+
       if (error) throw error;
       return data;
     } catch (error) {
@@ -286,17 +285,17 @@ export const abonnementService = {
     try {
       // Vérifier s'il y a des paiements associés
       const hasPaiements = await this.hasPaiements(id);
-      
+
       if (hasPaiements) {
         throw new Error('Impossible de supprimer : cet abonnement a des paiements associés');
       }
-      
+
       // Supprimer complètement l'abonnement
       const { error } = await supabase
         .from(TABLES.ABONNEMENTS)
         .delete()
         .eq('id', id);
-      
+
       if (error) throw error;
       return true;
     } catch (error) {
@@ -314,9 +313,9 @@ export const abonnementService = {
         .select('*')
         .eq('id', abonnementId)
         .single();
-      
+
       if (fetchError) throw fetchError;
-      
+
       // 2. Vérifier s'il n'existe pas déjà un abonnement actif ou en alerte pour cette installation
       const { data: existingActive, error: checkError } = await supabase
         .from(TABLES.ABONNEMENTS)
@@ -324,26 +323,26 @@ export const abonnementService = {
         .eq('installation_id', currentAbo.installation_id)
         .in('statut', ['actif', 'en_alerte'])
         .neq('id', abonnementId);
-      
+
       if (checkError) throw checkError;
-      
+
       if (existingActive && existingActive.length > 0) {
         throw new Error('Un abonnement actif ou en alerte existe déjà pour cette installation. Veuillez supprimer ou modifier l\'abonnement existant.');
       }
-      
+
       // 3. Mettre à jour l'ancien abonnement à "expire"
       const { error: updateError } = await supabase
         .from(TABLES.ABONNEMENTS)
         .update({ statut: 'expire' })
         .eq('id', abonnementId);
-      
+
       if (updateError) throw updateError;
-      
+
       // 4. Créer un nouvel abonnement
       const dateDebut = new Date(currentAbo.date_fin);
       const dateFin = new Date(dateDebut);
       dateFin.setFullYear(dateFin.getFullYear() + 1);
-      
+
       const { data: newAbo, error: insertError } = await supabase
         .from(TABLES.ABONNEMENTS)
         .insert([{
@@ -354,9 +353,9 @@ export const abonnementService = {
         }])
         .select()
         .single();
-      
+
       if (insertError) throw insertError;
-      
+
       // 5. Retourner le nouvel abonnement pour mise à jour immédiate
       return newAbo;
     } catch (error) {
@@ -373,16 +372,16 @@ export const abonnementService = {
       const alertDate = new Date();
       alertDate.setDate(alertDate.getDate() + 30);
       alertDate.setHours(23, 59, 59, 999);
-      
+
       // 1. Récupérer TOUS les abonnements actifs ET en alerte
       const { data: abonnements, error } = await supabase
         .from(TABLES.ABONNEMENTS)
         .select('*')
         .in('statut', ['actif', 'en_alerte'])
         .order('date_fin', { ascending: true });
-      
+
       if (error) throw error;
-      
+
       // 2. Pour chaque abonnement, récupérer les détails complets et mettre à jour le statut
       const alertesWithDetails = await Promise.all(
         abonnements.map(async (abo) => {
@@ -390,7 +389,7 @@ export const abonnementService = {
           const dateFin = new Date(abo.date_fin);
           dateFin.setHours(0, 0, 0, 0);
           let nouveauStatut = abo.statut;
-          
+
           if (dateFin < now) {
             // Expiré
             nouveauStatut = 'expire';
@@ -413,7 +412,7 @@ export const abonnementService = {
               .update({ statut: 'actif' })
               .eq('id', abo.id);
           }
-          
+
           // Récupérer installation et client
           let installation = {};
           if (abo.installation_id) {
@@ -422,21 +421,21 @@ export const abonnementService = {
               .select('*')
               .eq('id', abo.installation_id)
               .single();
-            
+
             if (instData) {
               const { data: clientData } = await supabase
                 .from(TABLES.PROSPECTS)
                 .select('raison_sociale, contact, telephone, email')
                 .eq('id', instData.client_id)
                 .single();
-              
+
               installation = {
                 ...instData,
                 client: clientData || {}
               };
             }
           }
-          
+
           return {
             ...abo,
             statut: nouveauStatut,
@@ -444,7 +443,7 @@ export const abonnementService = {
           };
         })
       );
-      
+
       // 3. Retourner SEULEMENT les abonnements en alerte (pas les expirés)
       return alertesWithDetails.filter(abo => abo.statut === 'en_alerte');
     } catch (error) {
@@ -459,16 +458,16 @@ export const abonnementService = {
       const { data, error } = await supabase
         .from(TABLES.ABONNEMENTS)
         .select('statut');
-      
+
       if (error) throw error;
-      
+
       const stats = {
         total: data.length,
         actifs: data.filter(a => a.statut === 'actif').length,
         enAlerte: data.filter(a => a.statut === 'en_alerte').length,
         expires: data.filter(a => a.statut === 'expire').length
       };
-      
+
       return stats;
     } catch (error) {
       console.error('Erreur statistiques abonnements:', error);

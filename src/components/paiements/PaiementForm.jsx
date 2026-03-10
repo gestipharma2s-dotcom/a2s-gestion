@@ -43,24 +43,28 @@ const PaiementForm = ({ paiement, onSubmit, onCancel, isAbonnement = false, isSu
       });
 
       // Si c'est un paiement d'abonnement, récupérer le montant et calculer le reste
-      if (isAbonnement && paiement.abonnement_montant) {
-        setAbonnementMontant(paiement.abonnement_montant);
+      if (isAbonnement && (paiement.abonnement_montant || paiement.montant_abonnement)) {
+        const amt = paiement.abonnement_montant || paiement.montant_abonnement;
+        setAbonnementMontant(amt);
 
         // ✅ Calculer le reste à payer pour l'abonnement
         const calculerResteAbonnement = async () => {
           try {
             if (paiement.installation_id) {
               const paiements = await paiementService.getByInstallation(paiement.installation_id);
-              const totalPaye = paiements.reduce((sum, p) => sum + (p.montant || 0), 0);
-              const reste = Math.max(0, paiement.abonnement_montant - totalPaye);
+              // Filtrer pour ne prendre que les paiements de type 'abonnement'
+              const totalPayeAbo = paiements
+                .filter(p => p.type === 'abonnement')
+                .reduce((sum, p) => sum + (p.montant || 0), 0);
+              const reste = Math.max(0, amt - totalPayeAbo);
               setAbonnementResteAPayer(reste);
-              console.log(`✅ Abonnement - Montant: ${paiement.abonnement_montant}, Payé: ${totalPaye}, Reste: ${reste}`);
+              console.log(`✅ Abonnement - Montant: ${amt}, Payé (Abo): ${totalPayeAbo}, Reste: ${reste}`);
             } else {
-              setAbonnementResteAPayer(paiement.abonnement_montant);
+              setAbonnementResteAPayer(amt);
             }
           } catch (error) {
             console.error('Erreur calcul reste abonnement:', error);
-            setAbonnementResteAPayer(paiement.abonnement_montant);
+            setAbonnementResteAPayer(amt);
           }
         };
         calculerResteAbonnement();
@@ -102,30 +106,51 @@ const PaiementForm = ({ paiement, onSubmit, onCancel, isAbonnement = false, isSu
     if (field === 'installation_id' && value) {
       const inst = installations.find(i => String(i.id) === String(value));
       if (inst) {
+        const typePaiement = formData.type || inst.type || 'acquisition';
         setFormData(prev => ({
           ...prev,
-          type: inst.type || 'acquisition'
+          type: typePaiement
         }));
 
         // ✅ Récupérer les paiements existants pour cette installation
         const calculerRestAPayer = async () => {
           try {
             const paiements = await paiementService.getByInstallation(value);
-            const totalPaye = paiements.reduce((sum, p) => sum + (p.montant || 0), 0);
-            setPaiementsExistants(totalPaye);
 
-            setMontantInstallation(inst.montant || 0);
-            const reste = Math.max(0, (inst.montant || 0) - totalPaye);
-            setRestAPayer(reste);
-            setMontantInstallationCalcule(true);
+            if (typePaiement === 'abonnement' || isAbonnement) {
+              // Pour un abonnement, utiliser montant_abonnement
+              const amtAbo = inst.montant_abonnement || 0;
+              const totalPayeAbo = paiements
+                .filter(p => p.type === 'abonnement')
+                .reduce((sum, p) => sum + (p.montant || 0), 0);
 
-            console.log(`✅ Installation: ${inst.application_installee}, Montant: ${inst.montant}, Payé: ${totalPaye}, Reste: ${reste}`);
+              setAbonnementMontant(amtAbo);
+              setAbonnementResteAPayer(Math.max(0, amtAbo - totalPayeAbo));
+              console.log(`✅ Abonnement - Montant: ${amtAbo}, Payé (Abo): ${totalPayeAbo}`);
+            } else {
+              // Pour une acquisition, utiliser montant
+              const totalPayeAcq = paiements
+                .filter(p => p.type === 'acquisition')
+                .reduce((sum, p) => sum + (p.montant || 0), 0);
+              setPaiementsExistants(totalPayeAcq);
+
+              setMontantInstallation(inst.montant || 0);
+              const reste = Math.max(0, (inst.montant || 0) - totalPayeAcq);
+              setRestAPayer(reste);
+              setMontantInstallationCalcule(true);
+              console.log(`✅ Acquisition - Montant: ${inst.montant}, Payé (Acq): ${totalPayeAcq}, Reste: ${reste}`);
+            }
           } catch (error) {
             console.error('Erreur calcul reste à payer:', error);
-            // Fallback: calculer sans paiements
-            setMontantInstallation(inst.montant || 0);
-            setRestAPayer(inst.montant || 0);
-            setMontantInstallationCalcule(true);
+            // Fallback
+            if (typePaiement === 'abonnement' || isAbonnement) {
+              setAbonnementMontant(inst.montant_abonnement || 0);
+              setAbonnementResteAPayer(inst.montant_abonnement || 0);
+            } else {
+              setMontantInstallation(inst.montant || 0);
+              setRestAPayer(inst.montant || 0);
+              setMontantInstallationCalcule(true);
+            }
           }
         };
         calculerRestAPayer();

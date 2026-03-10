@@ -659,9 +659,10 @@ const Dashboard = () => {
         )}
 
         {!loadingAI && !aiInsights && (
-          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-300 rounded-lg">
-            <p className="text-xs text-yellow-800">
-              💡 <strong>Conseil:</strong> Configurez VITE_AI_API_KEY dans votre fichier .env pour des analyses IA automatisées avec GPT.
+          <div className="mt-4 p-4 bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl">
+            <p className="text-sm text-yellow-800 flex items-center gap-2">
+              <Sparkles className="w-5 h-5" />
+              <strong>IA Désactivée :</strong> Créez une clé API gratuite sur Google AI Studio, puis ajoutez <code>VITE_AI_API_KEY=votre_clé_ici</code> et <code>VITE_AI_PROVIDER=gemini</code> dans le fichier <b>.env</b> de votre projet pour activer Gemini Flash 2.0.
             </p>
           </div>
         )}

@@ -44,56 +44,9 @@ const AbonnementsList = () => {
     try {
       setLoading(true);
       const data = await abonnementService.getAll();
-      
-      // Enrichir chaque abonnement avec le montant de l'installation et les paiements
-      const enrichedData = await Promise.all(data.map(async (abonnement) => {
-        try {
-          // Récupérer les paiements pour cet abonnement
-          const { data: paiements } = await supabase
-            .from('paiements')
-            .select('montant')
-            .eq('installation_id', abonnement.installation_id);
-          
-          const totalPaye = (paiements || []).reduce((sum, p) => sum + (p.montant || 0), 0);
-          const montantInstallation = abonnement.installation?.montant || 0;
-          
-          // ✅ NOUVEAU: Récupérer le prix_abonnement de l'application
-          let prixAbonnement = montantInstallation;
-          try {
-            const { data: appData } = await supabase
-              .from('applications')
-              .select('prix_abonnement, prix_acquisition')
-              .eq('nom', abonnement.installation?.application_installee)
-              .single();
-            
-            if (appData?.prix_abonnement) {
-              prixAbonnement = appData.prix_abonnement;
-            }
-          } catch (appErr) {
-            console.warn('Impossible de récupérer le prix_abonnement');
-          }
-          
-          const resteAPayer = Math.max(0, prixAbonnement - totalPaye);
-          
-          return {
-            ...abonnement,
-            totalPaye,
-            resteAPayer,
-            montantInstallation: prixAbonnement
-          };
-        } catch (err) {
-          console.error('Erreur chargement paiements:', err);
-          return {
-            ...abonnement,
-            totalPaye: 0,
-            resteAPayer: abonnement.installation?.montant || 0,
-            montantInstallation: abonnement.installation?.montant || 0
-          };
-        }
-      }));
-      
-      setAbonnements(enrichedData);
+      setAbonnements(data);
     } catch (error) {
+      console.error('Erreur chargement abonnements:', error);
       addNotification({
         type: 'error',
         message: 'Erreur lors du chargement des abonnements'
@@ -107,12 +60,12 @@ const AbonnementsList = () => {
     try {
       if (user?.id && profile) {
         // Permissions pour supprimer les abonnements
-        const canDelete = profile?.role === 'admin' || profile?.role === 'super_admin' || 
-                         await userService.hasDeletePermission(user.id, 'abonnements');
-        
+        const canDelete = profile?.role === 'admin' || profile?.role === 'super_admin' ||
+          await userService.hasDeletePermission(user.id, 'abonnements');
+
         // ✅ Permissions pour créer des paiements - SEULEMENT pour les admins
         const canCreatePaiement = profile?.role === 'admin' || profile?.role === 'super_admin';
-        
+
         setHasDeletePermission(canDelete);
         setHasCreatePaiementPermission(canCreatePaiement);
       }
@@ -141,7 +94,7 @@ const AbonnementsList = () => {
   const handleDelete = async (abonnement) => {
     // Accepter soit un ID soit un objet abonnement
     const abonnementId = typeof abonnement === 'object' ? abonnement.id : abonnement;
-    
+
     // ✅ Vérifier la permission AVANT de supprimer
     if (!hasDeletePermission) {
       addNotification({
@@ -150,7 +103,7 @@ const AbonnementsList = () => {
       });
       return;
     }
-    
+
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer cet abonnement ?')) {
       return;
     }
@@ -165,7 +118,7 @@ const AbonnementsList = () => {
     } catch (error) {
       // ✅ Gérer les erreurs spécifiques
       console.error('Erreur suppression abonnement:', error);
-      
+
       // 409 Conflict = contrainte de clé étrangère
       if (error.status === 409 || error.message?.includes('foreign key')) {
         addNotification({
@@ -185,7 +138,7 @@ const AbonnementsList = () => {
     // Accepter soit un ID soit un objet abonnement
     const abonnementId = typeof abonnement === 'object' ? abonnement.id : abonnement;
     const abonnementToRenew = typeof abonnement === 'object' ? abonnement : abonnements.find(a => a.id === abonnementId);
-    
+
     if (!window.confirm('Êtes-vous sûr de vouloir renouveler cet abonnement ?')) {
       return;
     }
@@ -193,23 +146,23 @@ const AbonnementsList = () => {
     try {
       // 1. Supprimer l'ancien abonnement d'abord
       await abonnementService.delete(abonnementId);
-      
+
       // 2. Créer un nouvel abonnement basé sur l'ancien
       if (!abonnementToRenew) {
         throw new Error('Abonnement non trouvé');
       }
-      
+
       const dateDebut = new Date(abonnementToRenew.date_fin);
       const dateFin = new Date(dateDebut);
       dateFin.setFullYear(dateFin.getFullYear() + 1);
-      
+
       await abonnementService.create({
         installation_id: abonnementToRenew.installation_id,
         date_debut: dateDebut.toISOString(),
         date_fin: dateFin.toISOString(),
         statut: 'actif'
       });
-      
+
       addNotification({
         type: 'success',
         message: 'Abonnement renouvelé avec succès'
@@ -236,7 +189,7 @@ const AbonnementsList = () => {
     // Protéger contre les double-clicks
     if (isSubmittingPaiement) return;
     setIsSubmittingPaiement(true);
-    
+
     try {
       // Créer le paiement avec les données du formulaire
       const dataToSubmit = {
@@ -248,9 +201,9 @@ const AbonnementsList = () => {
         installation_id: selectedAbonnement.installation_id,
         created_by: user?.id || null
       };
-      
+
       await paiementService.create(dataToSubmit);
-      
+
       // Vérifier si l'abonnement est complètement payé
       if (selectedAbonnement.statut === 'expire') {
         // Récupérer le montant total des paiements pour cet abonnement
@@ -258,26 +211,26 @@ const AbonnementsList = () => {
           .from('paiements')
           .select('montant')
           .eq('installation_id', selectedAbonnement.installation_id);
-        
+
         const totalPaye = (paiements || []).reduce((sum, p) => sum + (p.montant || 0), 0);
-        
+
         // Vérifier si le montant total payé ≥ montant de l'installation
         const installation = selectedAbonnement.installation;
         if (totalPaye >= (installation?.montant || 0)) {
           // Renouveler automatiquement l'abonnement
           await abonnementService.delete(selectedAbonnement.id);
-          
+
           const dateDebut = new Date(selectedAbonnement.date_fin);
           const dateFin = new Date(dateDebut);
           dateFin.setFullYear(dateFin.getFullYear() + 1);
-          
+
           await abonnementService.create({
             installation_id: selectedAbonnement.installation_id,
             date_debut: dateDebut.toISOString(),
             date_fin: dateFin.toISOString(),
             statut: 'actif'
           });
-          
+
           addNotification({
             type: 'success',
             message: 'Paiement enregistré et abonnement renouvelé automatiquement'
@@ -294,7 +247,7 @@ const AbonnementsList = () => {
           message: 'Paiement enregistré avec succès'
         });
       }
-      
+
       setShowPaiementModal(false);
       setSelectedAbonnement(null);
       loadAbonnements();
@@ -363,41 +316,37 @@ const AbonnementsList = () => {
           <div className="flex gap-2">
             <button
               onClick={() => setFilterStatus('all')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                filterStatus === 'all'
-                  ? 'bg-primary text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${filterStatus === 'all'
+                ? 'bg-primary text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
             >
               Tous
             </button>
             <button
               onClick={() => setFilterStatus('actif')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                filterStatus === 'actif'
-                  ? 'bg-success text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${filterStatus === 'actif'
+                ? 'bg-success text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
             >
               Actifs
             </button>
             <button
               onClick={() => setFilterStatus('en_alerte')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                filterStatus === 'en_alerte'
-                  ? 'bg-warning text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${filterStatus === 'en_alerte'
+                ? 'bg-warning text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
             >
               En Alerte
             </button>
             <button
               onClick={() => setFilterStatus('expire')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                filterStatus === 'expire'
-                  ? 'bg-danger text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${filterStatus === 'expire'
+                ? 'bg-danger text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
             >
               Expirés
             </button>
@@ -448,7 +397,7 @@ const AbonnementsList = () => {
               render: (row) => (
                 <span className="font-semibold">
                   {profile?.role === 'admin' || profile?.role === 'super_admin' ? (
-                    <span className="text-blue-600">{formatMontant(row.montantInstallation || 0)}</span>
+                    <span className="text-blue-600">{formatMontant(row.installation?.montant_abonnement || 0)}</span>
                   ) : (
                     <span className="text-gray-400">🔐</span>
                   )}
@@ -460,10 +409,10 @@ const AbonnementsList = () => {
               label: 'Statut de Paiement',
               width: '140px',
               render: (row) => {
-                const montantTotal = row.montantInstallation || 0;
+                const montantTotal = row.installation?.montant_abonnement || 0;
                 const montantPaye = row.totalPaye || 0;
                 const reste = Math.max(0, montantTotal - montantPaye);
-                
+
                 let statut, couleur, code;
                 if (reste === montantTotal || montantTotal === 0) {
                   // 0 = Aucun paiement
@@ -481,7 +430,7 @@ const AbonnementsList = () => {
                   couleur = 'bg-green-100 text-green-700';
                   code = 2;
                 }
-                
+
                 return (
                   <span className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${couleur}`}>
                     {profile?.role === 'admin' || profile?.role === 'super_admin' ? (
@@ -502,15 +451,14 @@ const AbonnementsList = () => {
                 const endDate = new Date(row.date_fin);
                 const isExpired = endDate < today;
                 const daysLeft = Math.ceil((endDate - today) / (1000 * 60 * 60 * 24));
-                
+
                 return (
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    isExpired
-                      ? 'bg-red-100 text-red-800'
-                      : daysLeft <= 30
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${isExpired
+                    ? 'bg-red-100 text-red-800'
+                    : daysLeft <= 30
                       ? 'bg-amber-100 text-amber-800'
                       : 'bg-green-100 text-green-800'
-                  }`}>
+                    }`}>
                     {isExpired ? 'Expiré' : daysLeft <= 30 ? 'À renouveler' : 'Actif'}
                   </span>
                 );

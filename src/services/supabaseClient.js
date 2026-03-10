@@ -20,7 +20,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 let unsubscribe = null;
 
 export function setupAuthListener() {
-  unsubscribe = supabase.auth.onAuthStateChange((event, session) => {
+  const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
     if (event === 'SIGNED_OUT') {
       console.log('🔑 Utilisateur déconnecté');
       // Ne pas rediriger automatiquement - laisser le composant gérer
@@ -32,11 +32,16 @@ export function setupAuthListener() {
       console.log('🔑 Utilisateur connecté');
     }
   });
+  unsubscribe = authListener.subscription;
 }
 
 export function cleanupAuthListener() {
   if (unsubscribe) {
-    unsubscribe();
+    if (typeof unsubscribe.unsubscribe === 'function') {
+      unsubscribe.unsubscribe();
+    } else if (typeof unsubscribe === 'function') {
+      unsubscribe();
+    }
   }
 }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Download, Calendar, Lock } from 'lucide-react';
+import { Plus, Edit2, Trash2, Download, Calendar, Lock, CreditCard } from 'lucide-react';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
 import SearchBar from '../common/SearchBar';
@@ -14,11 +14,15 @@ import { formatDate, formatMontant, getStatutPaiement, formatPriceDisplay } from
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { userService } from '../../services/userService';
+import { prospectService } from '../../services/prospectService';
 
 const PaiementsList = ({ refreshTrigger, onRefreshTrigger }) => {
   const [paiements, setPaiements] = useState([]);
+  const [prospects, setProspects] = useState([]);
   const [filteredPaiements, setFilteredPaiements] = useState([]);
   const [installations, setInstallations] = useState([]);
+  const [abonnements, setAbonnements] = useState([]);
+  const [clientBalances, setClientBalances] = useState({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
@@ -50,12 +54,12 @@ const PaiementsList = ({ refreshTrigger, onRefreshTrigger }) => {
     const checkPermissions = async () => {
       if (user?.id && profile) {
         try {
-          const canCreate = profile?.role === 'admin' || profile?.role === 'super_admin' || 
-                           await userService.hasCreatePermission(user.id, 'paiements');
-          const canEdit = profile?.role === 'admin' || profile?.role === 'super_admin' || 
-                         await userService.hasEditPermission(user.id, 'paiements');
-          const canDelete = profile?.role === 'admin' || profile?.role === 'super_admin' || 
-                           await userService.hasDeletePermission(user.id, 'paiements');
+          const canCreate = profile?.role === 'admin' || profile?.role === 'super_admin' ||
+            await userService.hasCreatePermission(user.id, 'paiements');
+          const canEdit = profile?.role === 'admin' || profile?.role === 'super_admin' ||
+            await userService.hasEditPermission(user.id, 'paiements');
+          const canDelete = profile?.role === 'admin' || profile?.role === 'super_admin' ||
+            await userService.hasDeletePermission(user.id, 'paiements');
           setHasCreatePermission(canCreate);
           setHasEditPermission(canEdit);
           setHasDeletePermission(canDelete);
@@ -85,9 +89,9 @@ const PaiementsList = ({ refreshTrigger, onRefreshTrigger }) => {
         const montantPaye = paiements
           .filter(p => p.installation_id === inst.id)
           .reduce((sum, p) => sum + (typeof p.montant === 'number' ? p.montant : 0), 0);
-        
+
         const reste = Math.max(0, (inst.montant || 0) - montantPaye);
-        
+
         if (reste === inst.montant || inst.montant === 0) {
           stats.noPaid++;
         } else if (reste > 0) {
@@ -105,24 +109,48 @@ const PaiementsList = ({ refreshTrigger, onRefreshTrigger }) => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [paiementsData, installationsData, usersData] = await Promise.all([
+      const [paiementsData, installationsData, usersData, prospectsData, abonnementsData] = await Promise.all([
         paiementService.getAll(),
         installationService.getAll(),
-        userService.getAll()
+        userService.getAll(),
+        prospectService.getAll(),
+        supabase.from('abonnements').select('*')
       ]);
       console.log(`📦 Paiements chargés (${paiementsData.length}):`, paiementsData.slice(0, 3));
       console.log(`👥 Utilisateurs chargés (${usersData.length}):`, usersData.map(u => ({ id: u.id, email: u.email })));
-      
+
       // Vérifier created_by
       const withCreatedBy = paiementsData.filter(p => p.created_by);
       console.log(`✅ Paiements avec created_by: ${withCreatedBy.length}/${paiementsData.length}`);
       if (withCreatedBy.length > 0) {
         console.log(`   Exemples:`, withCreatedBy.slice(0, 2).map(p => ({ id: p.id, created_by: p.created_by })));
       }
-      
+
       setPaiements(paiementsData);
       setInstallations(installationsData);
       setUsers(usersData);
+      setProspects(prospectsData);
+      setAbonnements(abonnementsData?.data || []);
+
+      // ✅ Pré-calculer les soldes globaux par client
+      const balances = {};
+      const allAbos = abonnementsData?.data || [];
+
+      prospectsData.forEach(p => {
+        const clientInsts = installationsData.filter(i => i.client_id === p.id);
+        const clientPaiements = paiementsData.filter(pai => pai.client_id === p.id);
+        const clientAbos = allAbos.filter(a => clientInsts.some(i => i.id === a.installation_id));
+
+        const totalInst = clientInsts.reduce((sum, i) => sum + (parseFloat(i.montant) || 0), 0);
+        const totalAbo = clientAbos.reduce((sum, a) => {
+          const inst = clientInsts.find(i => i.id === a.installation_id);
+          return sum + (parseFloat(inst?.montant_abonnement) || 0);
+        }, 0);
+        const totalPaye = clientPaiements.reduce((sum, pai) => sum + (parseFloat(pai.montant) || 0), 0);
+
+        balances[p.id] = (parseFloat(p.solde_initial) || 0) + totalInst + totalAbo - totalPaye;
+      });
+      setClientBalances(balances);
     } catch (error) {
       console.error('Erreur chargement:', error);
       addNotification({
@@ -177,12 +205,12 @@ const PaiementsList = ({ refreshTrigger, onRefreshTrigger }) => {
   const handleDelete = async (paiement) => {
     // ✅ Extraire l'ID si c'est un objet (du DataTable)
     const paiementId = paiement?.id || paiement;
-    
+
     // ✅ Vérifier la permission AVANT de supprimer (silencieusement, sans message)
     if (!hasDeletePermission) {
       return;
     }
-    
+
     const confirmMessage = `⚠️ ATTENTION ⚠️
 
 Voulez-vous vraiment supprimer ce paiement ?
@@ -212,7 +240,7 @@ Cette action est IRRÉVERSIBLE et affectera:
     } catch (error) {
       // ✅ Gérer les erreurs spécifiques
       console.error('Erreur suppression paiement:', error);
-      
+
       // 409 Conflict = contrainte de clé étrangère
       if (error.status === 409 || error.message?.includes('foreign key')) {
         addNotification({
@@ -232,7 +260,7 @@ Cette action est IRRÉVERSIBLE et affectera:
     // Protéger contre les double-clicks
     if (isSubmitting) return;
     setIsSubmitting(true);
-    
+
     try {
       if (modalMode === 'edit') {
         await paiementService.update(selectedPaiement.id, formData);
@@ -251,9 +279,9 @@ Cette action est IRRÉVERSIBLE et affectera:
           date_paiement: formData.date_paiement,
           created_by: user?.id || null
         };
-        
+
         await paiementService.create(cleanData);
-        
+
         // Vérifier si l'installation liée a un abonnement expiré
         if (formData.installation_id) {
           const { data: abonnements } = await supabase
@@ -261,40 +289,40 @@ Cette action est IRRÉVERSIBLE et affectera:
             .select('*')
             .eq('installation_id', formData.installation_id)
             .eq('statut', 'expire');
-          
+
           if (abonnements && abonnements.length > 0) {
             const expiredAbo = abonnements[0];
-            
+
             // Récupérer le montant total des paiements pour cette installation
             const { data: allPaiements } = await supabase
               .from('paiements')
               .select('montant')
               .eq('installation_id', formData.installation_id);
-            
+
             const totalPaye = (allPaiements || []).reduce((sum, p) => sum + (p.montant || 0), 0);
-            
+
             // Récupérer le montant de l'installation
             const { data: instData } = await supabase
               .from('installations')
               .select('montant')
               .eq('id', formData.installation_id)
               .single();
-            
+
             // Si complètement payé, renouveler automatiquement
             if (totalPaye >= (instData?.montant || 0)) {
               await abonnementService.delete(expiredAbo.id);
-              
+
               const dateDebut = new Date(expiredAbo.date_fin);
               const dateFin = new Date(dateDebut);
               dateFin.setFullYear(dateFin.getFullYear() + 1);
-              
+
               await abonnementService.create({
                 installation_id: formData.installation_id,
                 date_debut: dateDebut.toISOString(),
                 date_fin: dateFin.toISOString(),
                 statut: 'actif'
               });
-              
+
               addNotification({
                 type: 'success',
                 message: 'Paiement enregistré et abonnement renouvelé automatiquement'
@@ -318,7 +346,7 @@ Cette action est IRRÉVERSIBLE et affectera:
           });
         }
       }
-      
+
       setShowModal(false);
       loadData();
       // Notifier InstallationsList de se rafraîchir
@@ -336,17 +364,24 @@ Cette action est IRRÉVERSIBLE et affectera:
   };
 
   const calculateTotalReste = () => {
-    const resteDesPaiements = paiements.reduce((sum, p) => sum + (p.resteAPayer || 0), 0);
+    // 1. Total des soldes initiaux
+    const totalSoldeInitial = (prospects || []).reduce((sum, p) => sum + (parseFloat(p.solde_initial) || 0), 0);
 
-    const installationAvecPaiement = new Set(
-      paiements.map(p => p.installation_id).filter(id => id)
-    );
+    // 2. Total des nouvelles installations (Acquisitions)
+    const totalInstallations = (installations || []).reduce((sum, i) => sum + (parseFloat(i.montant) || 0), 0);
 
-    const restsInstallationsSansPaiement = installations
-      .filter(inst => !installationAvecPaiement.has(inst.id))
-      .reduce((sum, inst) => sum + (inst.montant || 0), 0);
+    // 3. Total des abonnements (Périodes facturées)
+    // Pour chaque abonnement, on ajoute le montant_abonnement de l'installation liée
+    const totalAbonnements = (abonnements || []).reduce((sum, a) => {
+      const inst = installations.find(i => i.id === a.installation_id);
+      return sum + (parseFloat(inst?.montant_abonnement) || 0);
+    }, 0);
 
-    return resteDesPaiements + restsInstallationsSansPaiement;
+    // 4. Total des paiements effectués
+    const totalPaye = (paiements || []).reduce((sum, p) => sum + (parseFloat(p.montant) || 0), 0);
+
+    // Reste Global = (Dette Initiale + Acquisitions + Abonnements) - Remboursements
+    return Math.max(0, (totalSoldeInitial + totalInstallations + totalAbonnements) - totalPaye);
   };
 
   const stats = {
@@ -369,29 +404,38 @@ Cette action est IRRÉVERSIBLE et affectera:
     <div className="space-y-6">
       {/* Stats - Cartes principales: Total des paiements et Reste à payer */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div className="card bg-gradient-to-br from-green-500 to-green-600 text-white">
-          <p className="text-sm opacity-90 mb-1">Total des Paiements</p>
-          <h3 className="text-3xl font-bold">
-            {profile?.role === 'admin' || profile?.role === 'super_admin' ? (
-              formatMontant(stats.revenuTotal)
-            ) : (
-              '🔐'
-            )}
-          </h3>
+        <div className="card bg-gradient-to-br from-green-500 to-green-600 text-white relative overflow-hidden">
+          <div className="relative z-10">
+            <p className="text-sm opacity-90 mb-1">Total des Paiements</p>
+            <h3 className="text-3xl font-bold">
+              {profile?.role === 'admin' || profile?.role === 'super_admin' ? (
+                formatMontant(stats.revenuTotal)
+              ) : (
+                '🔐'
+              )}
+            </h3>
+          </div>
+          <CreditCard className="absolute right-[-10px] bottom-[-10px] opacity-20 rotate-12" size={80} />
         </div>
-        <div className="card bg-gradient-to-br from-red-500 to-red-600 text-white">
-          <p className="text-sm opacity-90 mb-1">Reste à Payer</p>
-          <h3 className="text-3xl font-bold">
-            {profile?.role === 'admin' || profile?.role === 'super_admin' ? (
-              formatMontant(stats.resteTotal)
-            ) : (
-              '🔐'
-            )}
-          </h3>
+        <div className="card bg-gradient-to-br from-red-500 to-red-600 text-white relative overflow-hidden">
+          <div className="relative z-10">
+            <p className="text-sm opacity-90 mb-1">Reste à Payer Global</p>
+            <h3 className="text-3xl font-bold">
+              {profile?.role === 'admin' || profile?.role === 'super_admin' ? (
+                formatMontant(stats.resteTotal)
+              ) : (
+                '🔐'
+              )}
+            </h3>
+          </div>
+          <Lock className="absolute right-[-10px] bottom-[-10px] opacity-20 rotate-12" size={80} />
         </div>
-        <div className="card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-          <p className="text-sm opacity-90 mb-1">Nombre de Paiements</p>
-          <h3 className="text-3xl font-bold">{stats.total}</h3>
+        <div className="card bg-gradient-to-br from-blue-500 to-blue-600 text-white flex items-center justify-between">
+          <div>
+            <p className="text-sm opacity-90 mb-1">Nombre de Paiements</p>
+            <h3 className="text-3xl font-bold">{stats.total}</h3>
+          </div>
+          <Calendar size={40} className="opacity-50" />
         </div>
       </div>
 
@@ -496,6 +540,15 @@ Cette action est IRRÉVERSIBLE et affectera:
                 Montant Versé
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Reste
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Dette Client
+              </th>
+              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Status
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Mode
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -540,6 +593,42 @@ Cette action est IRRÉVERSIBLE et affectera:
                       <span className="text-gray-400">🔐</span>
                     )}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    {/* ✅ Afficher le reste (selon type) */}
+                    {profile?.role === 'admin' || profile?.role === 'super_admin' ? (
+                      (() => {
+                        const isAbo = paiement.type === 'abonnement' || paiement.installation?.type === 'abonnement';
+                        const totalDu = isAbo ? (paiement.installation?.montant_abonnement || 0) : (paiement.installation?.montant || 0);
+                        const reste = Math.max(0, totalDu - (paiement.montant || 0));
+                        return <span>{formatMontant(reste)}</span>;
+                      })()
+                    ) : (
+                      <span className="text-gray-400">🔐</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-bold">
+                    {/* ✅ Dette Globale du Client */}
+                    {profile?.role === 'admin' || profile?.role === 'super_admin' ? (
+                      <span className={clientBalances[paiement.client_id] > 0 ? 'text-red-600' : 'text-green-600'}>
+                        {formatMontant(clientBalances[paiement.client_id] || 0)}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">🔐</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-center">
+                    {/* ✅ Afficher le code (0, 1, 2) */}
+                    {(() => {
+                      const isAbo = paiement.type === 'abonnement' || paiement.installation?.type === 'abonnement';
+                      const totalDu = isAbo ? (paiement.installation?.montant_abonnement || 0) : (paiement.installation?.montant || 0);
+                      const status = getStatutPaiement(totalDu, paiement.montant || 0);
+                      return (
+                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${status.couleur}`}>
+                          {status.code}
+                        </span>
+                      );
+                    })()}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 capitalize">
                     {paiement.mode_paiement}
                   </td>
@@ -551,11 +640,10 @@ Cette action est IRRÉVERSIBLE et affectera:
                       <button
                         onClick={() => handleEdit(paiement)}
                         disabled={!hasEditPermission && !(profile?.role === 'admin' || profile?.role === 'super_admin')}
-                        className={`p-2 rounded-lg transition-colors ${
-                          !hasEditPermission && !(profile?.role === 'admin' || profile?.role === 'super_admin')
-                            ? 'text-gray-400 cursor-not-allowed'
-                            : 'text-blue-600 hover:bg-blue-50'
-                        }`}
+                        className={`p-2 rounded-lg transition-colors ${!hasEditPermission && !(profile?.role === 'admin' || profile?.role === 'super_admin')
+                          ? 'text-gray-400 cursor-not-allowed'
+                          : 'text-blue-600 hover:bg-blue-50'
+                          }`}
                         title={!hasEditPermission && !(profile?.role === 'admin' || profile?.role === 'super_admin') ? 'Permission refusée' : 'Modifier'}
                       >
                         {!hasEditPermission && !(profile?.role === 'admin' || profile?.role === 'super_admin') ? (
@@ -567,11 +655,10 @@ Cette action est IRRÉVERSIBLE et affectera:
                       <button
                         onClick={() => handleDelete(paiement.id)}
                         disabled={!hasDeletePermission && !(profile?.role === 'admin' || profile?.role === 'super_admin')}
-                        className={`p-2 rounded-lg transition-colors ${
-                          !hasDeletePermission && !(profile?.role === 'admin' || profile?.role === 'super_admin')
-                            ? 'text-gray-400 cursor-not-allowed'
-                            : 'text-red-600 hover:bg-red-50'
-                        }`}
+                        className={`p-2 rounded-lg transition-colors ${!hasDeletePermission && !(profile?.role === 'admin' || profile?.role === 'super_admin')
+                          ? 'text-gray-400 cursor-not-allowed'
+                          : 'text-red-600 hover:bg-red-50'
+                          }`}
                         title={!hasDeletePermission && !(profile?.role === 'admin' || profile?.role === 'super_admin') ? 'Permission refusée' : 'Supprimer'}
                       >
                         {!hasDeletePermission && !(profile?.role === 'admin' || profile?.role === 'super_admin') ? (

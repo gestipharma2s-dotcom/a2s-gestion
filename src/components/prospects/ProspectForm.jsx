@@ -16,6 +16,7 @@ const ProspectForm = ({ prospect, onSubmit, onCancel }) => {
     ville: '',
     adresse: '',
     forme_juridique: '',
+    solde_initial: 0,
     commercial_assigned: '',
     temperature: 'froid'
   });
@@ -35,6 +36,7 @@ const ProspectForm = ({ prospect, onSubmit, onCancel }) => {
         ville: prospect.ville || '',
         adresse: prospect.adresse || '',
         forme_juridique: prospect.forme_juridique || '',
+        solde_initial: prospect.solde_initial || 0,
         commercial_assigned: prospect.commercial_assigned || (user?.nom || user?.email || ''),
         temperature: prospect.temperature || 'froid'
       });
@@ -51,6 +53,7 @@ const ProspectForm = ({ prospect, onSubmit, onCancel }) => {
         ville: '',
         adresse: '',
         forme_juridique: '',
+        solde_initial: 0,
         commercial_assigned: user?.nom || user?.email || '',
         temperature: 'froid'
       });
@@ -242,6 +245,16 @@ const ProspectForm = ({ prospect, onSubmit, onCancel }) => {
         value={formData.commercial_assigned}
         disabled={true}
         placeholder="Assigné automatiquement"
+      />
+
+      <Input
+        label="Solde Initial (Dette historique)"
+        type="number"
+        step="0.01"
+        value={formData.solde_initial}
+        onChange={(e) => handleChange('solde_initial', e.target.value)}
+        placeholder="0.00 DA"
+        disabled={isSubmitting}
       />
 
       <div className="space-y-2">

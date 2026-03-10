@@ -3,6 +3,7 @@ import { prospectService } from '../../services/prospectService';
 import { installationService } from '../../services/installationService';
 import { installationPlanningService } from '../../services/installationPlanningService';
 import { userService } from '../../services/userService';
+import { paiementService } from '../../services/paiementService';
 import { formatDateTime, formatDate, formatMontant } from '../../utils/helpers';
 import { useAuth } from '../../context/AuthContext';
 import { Phone, Mail, Calendar, FileText, CheckCircle, Edit2, Gift, Zap, RefreshCw, Trash2, X, Save, Thermometer, Briefcase, FileCheck } from 'lucide-react';
@@ -11,7 +12,9 @@ const ProspectHistory = ({ prospectId, prospect }) => {
   const { profile } = useAuth();
   const [history, setHistory] = useState([]);
   const [firstInstallation, setFirstInstallation] = useState(null);
+  const [balance, setBalance] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadingBalance, setLoadingBalance] = useState(false);
   const [users, setUsers] = useState([]);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedAction, setSelectedAction] = useState(null);
@@ -68,6 +71,17 @@ const ProspectHistory = ({ prospectId, prospect }) => {
 
       console.log('📋 Historique affiché:', filteredHistory);
       setHistory(filteredHistory);
+
+      // Récupérer le solde financier
+      try {
+        setLoadingBalance(true);
+        const balanceData = await paiementService.getResteTotalClient(prospectId);
+        setBalance(balanceData);
+      } catch (balErr) {
+        console.error('Erreur balance:', balErr);
+      } finally {
+        setLoadingBalance(false);
+      }
     } catch (error) {
       console.error('❌ Erreur chargement historique:', error);
       setHistory([]);
@@ -180,6 +194,36 @@ const ProspectHistory = ({ prospectId, prospect }) => {
       <div className="border-b border-gray-200 pb-2">
         <h3 className="text-lg font-bold text-gray-800">📋 Historique Actions</h3>
       </div>
+
+      {/* ✅ NOUVEAU: Situation Financière (Fiche Client) */}
+      {balance && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white border-l-4 border-blue-500 rounded-lg p-4 shadow-sm border">
+            <p className="text-xs text-blue-600 font-bold uppercase mb-1">Dette Totale</p>
+            <p className="text-xl font-bold text-gray-800">
+              {profile?.role === 'admin' || profile?.role === 'super_admin' ? formatMontant(balance.totalDu) : '🔐'}
+            </p>
+          </div>
+          <div className="bg-white border-l-4 border-green-500 rounded-lg p-4 shadow-sm border">
+            <p className="text-xs text-green-600 font-bold uppercase mb-1">Total Payé</p>
+            <p className="text-xl font-bold text-gray-800">
+              {profile?.role === 'admin' || profile?.role === 'super_admin' ? formatMontant(balance.totalPaye) : '🔐'}
+            </p>
+          </div>
+          <div className={`bg-white border-l-4 ${balance.resteAPayer > 0 ? 'border-red-500' : 'border-green-500'} rounded-lg p-4 shadow-sm border`}>
+            <p className={`text-xs ${balance.resteAPayer > 0 ? 'text-red-600' : 'text-green-600'} font-bold uppercase mb-1`}>Reste à Payer</p>
+            <p className={`text-xl font-bold ${balance.resteAPayer > 0 ? 'text-red-700' : 'text-green-700'}`}>
+              {profile?.role === 'admin' || profile?.role === 'super_admin' ? formatMontant(balance.resteAPayer) : '🔐'}
+            </p>
+          </div>
+          <div className="bg-gray-50 border-l-4 border-gray-400 rounded-lg p-4 shadow-sm border">
+            <p className="text-xs text-gray-600 font-bold uppercase mb-1">Abonnements</p>
+            <p className="text-xl font-bold text-gray-700">
+              {profile?.role === 'admin' || profile?.role === 'super_admin' ? formatMontant(balance.totalAbonnements) : '🔐'}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Contenu Historique */}
       <div className="space-y-6">

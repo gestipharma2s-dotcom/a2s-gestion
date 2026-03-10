@@ -62,6 +62,7 @@ export const prospectService = {
         adresse: prospectData.adresse || '',
         forme_juridique: prospectData.forme_juridique || '',
         temperature: prospectData.temperature || 'froid',
+        solde_initial: parseFloat(prospectData.solde_initial) || 0,
         statut: 'prospect',
         created_by: prospectData.created_by || null
       };
@@ -131,6 +132,7 @@ export const prospectService = {
         ville: prospectData.ville || '',
         adresse: prospectData.adresse || '',
         forme_juridique: prospectData.forme_juridique || '',
+        solde_initial: parseFloat(prospectData.solde_initial) || 0,
         temperature: prospectData.temperature || 'froid'
       };
 

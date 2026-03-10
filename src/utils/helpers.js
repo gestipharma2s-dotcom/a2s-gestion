@@ -35,7 +35,7 @@ export const formatMontant = (montant) => {
 // ✅ NOUVEAU: Déterminer le statut de paiement (0, 1, 2)
 export const getStatutPaiementCode = (montantTotal, montantPaye) => {
   const montantRestant = Math.max(0, montantTotal - montantPaye);
-  
+
   if (montantRestant === montantTotal) {
     // 0 = Aucun paiement effectué
     return {
@@ -83,11 +83,11 @@ export const shouldShowRealPrices = (userRole) => {
 
 // ✅ NOUVEAU: Formater l'affichage du prix selon le rôle de l'utilisateur
 export const formatPriceDisplay = (realPrice, userRole, hideLabel = false) => {
-  if (shouldShowRealPrices(userRole)) {
-    // Afficher le code 🔐 pour les administrateurs
+  if (!shouldShowRealPrices(userRole)) {
+    // Masquer le prix pour les non-admin (commerciaux)
     return hideLabel ? '🔐' : 'Code';
   } else {
-    // Afficher le prix réel pour les autres utilisateurs
+    // Afficher le prix réel pour les administrateurs
     return formatMontant(realPrice);
   }
 };

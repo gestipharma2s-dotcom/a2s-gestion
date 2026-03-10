@@ -14,7 +14,7 @@ export const paiementService = {
           installation:installations(application_installee, montant, type, created_by)
         `)
         .order('date_paiement', { ascending: false });
-      
+
       if (error) throw error;
 
       // Calculer le reste à payer pour chaque paiement
@@ -58,7 +58,7 @@ export const paiementService = {
         `)
         .eq('client_id', clientId)
         .order('date_paiement', { ascending: false });
-      
+
       if (error) throw error;
 
       // Calculer le reste à payer pour chaque paiement
@@ -92,7 +92,7 @@ export const paiementService = {
         .select('id, montant, type, date_paiement, mode_paiement')
         .eq('installation_id', installationId)
         .order('date_paiement', { ascending: true });
-      
+
       if (error) throw error;
       return data || [];
     } catch (error) {
@@ -104,17 +104,45 @@ export const paiementService = {
   // Calculer le reste total à payer pour un client
   async getResteTotalClient(clientId) {
     try {
-      // Récupérer les installations du client
+      // 1. Récupérer le solde initial du client
+      const { data: client, error: clientError } = await supabase
+        .from(TABLES.PROSPECTS)
+        .select('solde_initial')
+        .eq('id', clientId)
+        .single();
+
+      if (clientError) throw clientError;
+      const soldeInitial = client?.solde_initial || 0;
+
+      // 2. Récupérer les installations du client
       const { data: installations, error: instError } = await supabase
         .from(TABLES.INSTALLATIONS)
-        .select('id, montant')
+        .select('id, montant, montant_abonnement')
         .eq('client_id', clientId);
 
       if (instError) throw instError;
 
       const totalMontantInstallations = installations.reduce((sum, inst) => sum + (inst.montant || 0), 0);
 
-      // Récupérer les paiements du client
+      // 3. Récupérer les abonnements (périodes facturées)
+      const installationIds = installations.map(i => i.id);
+      let totalAbonnements = 0;
+
+      if (installationIds.length > 0) {
+        const { data: abonnements } = await supabase
+          .from(TABLES.ABONNEMENTS)
+          .select('installation_id')
+          .in('installation_id', installationIds);
+
+        totalAbonnements = (abonnements || []).reduce((sum, abo) => {
+          const inst = installations.find(i => i.id === abo.installation_id);
+          return sum + (inst?.montant_abonnement || 0);
+        }, 0);
+      }
+
+      const totalDu = totalMontantInstallations + soldeInitial + totalAbonnements;
+
+      // 4. Récupérer tous les paiements du client
       const { data: paiements, error: paiError } = await supabase
         .from(TABLES.PAIEMENTS)
         .select('montant')
@@ -122,12 +150,15 @@ export const paiementService = {
 
       if (paiError) throw paiError;
 
-      const totalPaye = paiements.reduce((sum, p) => sum + (p.montant || 0), 0);
-      const resteTotal = Math.max(0, totalMontantInstallations - totalPaye);
+      const totalPaye = (paiements || []).reduce((sum, p) => sum + (p.montant || 0), 0);
+      const resteTotal = Math.max(0, totalDu - totalPaye);
 
       return {
+        soldeInitial: soldeInitial,
         totalInstallations: totalMontantInstallations,
+        totalAbonnements: totalAbonnements,
         totalPaye: totalPaye,
+        totalDu: totalDu,
         resteAPayer: resteTotal
       };
     } catch (error) {
@@ -154,7 +185,7 @@ export const paiementService = {
         .from(TABLES.PAIEMENTS)
         .insert([cleanData])
         .select('*');
-      
+
       if (error) throw error;
       return data?.[0] || null;
     } catch (error) {
@@ -176,7 +207,7 @@ export const paiementService = {
           installation:installations(application_installee, montant)
         `)
         .single();
-      
+
       if (error) throw error;
       return data;
     } catch (error) {
@@ -192,7 +223,7 @@ export const paiementService = {
         .from(TABLES.PAIEMENTS)
         .delete()
         .eq('id', id);
-      
+
       if (error) throw error;
       return true;
     } catch (error) {
@@ -207,17 +238,17 @@ export const paiementService = {
       let query = supabase
         .from(TABLES.PAIEMENTS)
         .select('montant, type, mode_paiement, date_paiement');
-      
+
       if (moisDebut && moisFin) {
         query = query
           .gte('date_paiement', moisDebut)
           .lte('date_paiement', moisFin);
       }
-      
+
       const { data, error } = await query;
-      
+
       if (error) throw error;
-      
+
       const stats = {
         total: data.length,
         revenuTotal: data.reduce((sum, p) => sum + (p.montant || 0), 0),
@@ -230,7 +261,7 @@ export const paiementService = {
           autre: data.filter(p => p.mode_paiement === 'autre').length
         }
       };
-      
+
       return stats;
     } catch (error) {
       console.error('Erreur statistiques paiements:', error);
@@ -246,16 +277,16 @@ export const paiementService = {
         .select('montant, date_paiement')
         .gte('date_paiement', `${annee}-01-01`)
         .lte('date_paiement', `${annee}-12-31`);
-      
+
       if (error) throw error;
-      
+
       const revenus = Array(12).fill(0);
-      
+
       data.forEach(paiement => {
         const mois = new Date(paiement.date_paiement).getMonth();
         revenus[mois] += paiement.montant || 0;
       });
-      
+
       return revenus.map((montant, index) => ({
         mois: ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'][index],
         montant
