@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Eye, Phone, Mail, Building, User } from 'lucide-react';
+import { Eye, Phone, Mail, Building, User, Archive, ArchiveRestore } from 'lucide-react';
 import Modal from '../common/Modal';
 import SearchBar from '../common/SearchBar';
 import DataTable from '../common/DataTable';
@@ -7,7 +7,9 @@ import ClientDetails from './ClientDetails';
 import { prospectService } from '../../services/prospectService';
 import { installationService } from '../../services/installationService';
 import { paiementService } from '../../services/paiementService';
+import { supabase } from '../../services/supabaseClient';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import { formatDate, formatMontant, formatPriceDisplay } from '../../utils/helpers';
 
 const ClientsList = () => {
@@ -15,9 +17,11 @@ const ClientsList = () => {
   const [filteredClients, setFilteredClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('actif');
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
   const { addNotification } = useApp();
+  const { user, profile } = useAuth();
 
   useEffect(() => {
     loadClients();
@@ -25,26 +29,39 @@ const ClientsList = () => {
 
   useEffect(() => {
     filterClients();
-  }, [clients, searchTerm]);
+  }, [clients, searchTerm, filterStatus]);
 
   const loadClients = async () => {
     try {
       setLoading(true);
       const data = await prospectService.getAll();
-      // Filtrer uniquement les clients actifs
-      const activeClients = data.filter(p => p.statut === 'actif');
+      // Filtrer pour n'afficher que les clients actifs ou archivés
+      const clientsListContext = data.filter(p => p.statut === 'actif' || p.statut === 'archive');
+
+      // Récupérer tous les abonnements en une fois (optimisation)
+      const { data: allAbonnements } = await supabase.from('abonnements').select('*');
 
       // Pour chaque client, calculer montant payé et reste à payer
       const clientsWithFinancials = await Promise.all(
-        activeClients.map(async (client) => {
+        clientsListContext.map(async (client) => {
           try {
             const installations = await installationService.getByClient(client.id);
             const paiements = await paiementService.getByClient(client.id);
 
-            const totalInstallations = (installations || []).reduce((sum, i) => sum + (i.montant || 0), 0);
-            const soldeInitial = client.solde_initial || 0;
-            const totalDu = totalInstallations + soldeInitial;
-            const totalPaye = (paiements || []).reduce((sum, p) => sum + (p.montant || 0), 0);
+            const totalInstallations = (installations || []).reduce((sum, i) => sum + (parseFloat(i.montant) || 0), 0);
+            const soldeInitial = parseFloat(client.solde_initial) || 0;
+
+            // Calculer le total des abonnements pour ce client
+            const clientAbonnements = (allAbonnements || []).filter(a =>
+              installations.some(i => i.id === a.installation_id)
+            );
+            const totalAbonnements = clientAbonnements.reduce((sum, a) => {
+              const inst = installations.find(i => i.id === a.installation_id);
+              return sum + (parseFloat(inst?.montant_abonnement) || 0);
+            }, 0);
+
+            const totalDu = soldeInitial + totalInstallations + totalAbonnements;
+            const totalPaye = (paiements || []).reduce((sum, p) => sum + (parseFloat(p.montant) || 0), 0);
             const resteAPayer = Math.max(0, totalDu - totalPaye);
 
             return {
@@ -52,7 +69,8 @@ const ClientsList = () => {
               montant_paye: totalPaye,
               reste_a_payer: resteAPayer,
               montant_total: totalDu,
-              total_installations: totalInstallations
+              total_installations: totalInstallations,
+              total_abonnements: totalAbonnements
             };
           } catch (error) {
             console.warn(`Erreur calcul financials pour client ${client.id}:`, error);
@@ -78,7 +96,7 @@ const ClientsList = () => {
   };
 
   const filterClients = () => {
-    let filtered = [...clients];
+    let filtered = clients.filter(c => c.statut === filterStatus);
 
     if (searchTerm) {
       filtered = filtered.filter(c =>
@@ -90,6 +108,37 @@ const ClientsList = () => {
     }
 
     setFilteredClients(filtered);
+  };
+
+  const handleArchiveToggle = async (clientRow) => {
+    try {
+      // Check permission
+      const hasEditPermission = profile?.role === 'admin' || profile?.role === 'super_admin';
+      if (!hasEditPermission) {
+        addNotification({ type: 'error', message: 'Permission refusée' });
+        return;
+      }
+
+      const newStatus = clientRow.statut === 'archive' ? 'actif' : 'archive';
+      const alertMsg = newStatus === 'archive'
+        ? `Voulez-vous vraiment archiver le client "${clientRow.raison_sociale}" ?`
+        : `Voulez-vous désarchiver le client "${clientRow.raison_sociale}" (retour aux clients actifs) ?`;
+
+      if (!window.confirm(alertMsg)) return;
+
+      await prospectService.update(clientRow.id, { statut: newStatus });
+      addNotification({
+        type: 'success',
+        message: `Client ${newStatus === 'archive' ? 'archivé' : 'désarchivé'} avec succès`
+      });
+      loadClients();
+    } catch (error) {
+      console.error('Erreur archivage:', error);
+      addNotification({
+        type: 'error',
+        message: "Erreur lors de la mise à jour de l'archivage."
+      });
+    }
   };
 
   const handleViewDetails = (client) => {
@@ -123,13 +172,35 @@ const ClientsList = () => {
         </div>
       </div>
 
-      {/* Search Bar */}
-      <div className="card">
-        <SearchBar
-          value={searchTerm}
-          onChange={setSearchTerm}
-          placeholder="Rechercher un client..."
-        />
+      {/* Search Bar & Filters */}
+      <div className="card flex flex-col md:flex-row gap-4 items-center justify-between">
+        <div className="w-full md:w-1/2">
+          <SearchBar
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder="Rechercher un client..."
+          />
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setFilterStatus('actif')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${filterStatus === 'actif'
+              ? 'bg-success text-white'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+          >
+            Clients Actifs
+          </button>
+          <button
+            onClick={() => setFilterStatus('archive')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${filterStatus === 'archive'
+              ? 'bg-gray-600 text-white'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+          >
+            Boîte Archive
+          </button>
+        </div>
       </div>
 
       {/* Liste des clients */}
@@ -180,14 +251,19 @@ const ClientsList = () => {
               render: (row) => <span>{row.secteur || 'N/A'}</span>
             },
             {
-              key: 'solde_initial',
-              label: 'Solde Initial',
-              width: '120px',
-              render: (row) => (
-                <span className="font-semibold text-gray-700">
-                  {formatMontant(row.solde_initial || 0)}
-                </span>
-              )
+              key: 'reste_a_payer',
+              label: 'Reste à Payer',
+              width: '130px',
+              render: (row) => {
+                const profileObj = profile || {};
+                return (profileObj.role === 'admin' || profileObj.role === 'super_admin') ? (
+                  <span className={`font-bold ${row.reste_a_payer > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {formatMontant(row.reste_a_payer || 0)}
+                  </span>
+                ) : (
+                  <span className="text-gray-400">🔐</span>
+                );
+              }
             },
             {
               key: 'statut_paiement',
@@ -234,8 +310,8 @@ const ClientsList = () => {
               label: 'Statut',
               width: '100px',
               render: (row) => (
-                <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                  CLIENT ACTIF
+                <span className={`px-3 py-1 rounded-full text-xs font-medium ${row.statut === 'archive' ? 'bg-gray-100 text-gray-800' : 'bg-green-100 text-green-800'}`}>
+                  {row.statut === 'archive' ? 'ARCHIVE' : 'CLIENT ACTIF'}
                 </span>
               )
             }
@@ -247,6 +323,15 @@ const ClientsList = () => {
               icon: <Eye size={18} />,
               onClick: handleViewDetails,
               className: 'bg-blue-600 hover:bg-blue-700 text-white px-3 py-1'
+            },
+            {
+              key: 'archive',
+              label: (row) => row.statut === 'archive' ? 'Désarchiver' : 'Archiver',
+              icon: (row) => row.statut === 'archive' ? <ArchiveRestore size={18} /> : <Archive size={18} />,
+              onClick: (row) => handleArchiveToggle(row),
+              disabled: !(profile?.role === 'admin' || profile?.role === 'super_admin'),
+              title: !(profile?.role === 'admin' || profile?.role === 'super_admin') ? 'Permission refusée' : (row) => row.statut === 'archive' ? 'Remettre dans les clients actifs' : 'Archiver ce client',
+              className: (profile?.role === 'admin' || profile?.role === 'super_admin') ? 'bg-gray-600 hover:bg-gray-700 text-white px-3 py-1' : 'bg-gray-400 cursor-not-allowed text-white px-3 py-1'
             }
           ]}
           loading={loading}

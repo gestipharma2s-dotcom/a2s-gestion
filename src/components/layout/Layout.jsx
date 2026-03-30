@@ -15,6 +15,7 @@ import AlertesList from '../alertes/AlertesList';
 import ApplicationsList from '../applications/ApplicationsList';
 import UsersList from '../utilisateurs/UsersList';
 import ProtectedRoute from '../auth/ProtectedRoute';
+import WelcomePage from './WelcomePage';
 import { PAGES } from '../../utils/constants';
 import { useAuth } from '../../context/AuthContext';
 
@@ -23,60 +24,42 @@ const Layout = () => {
   const { hasAccess, profile } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  // Ref to prevent the two sync effects from triggering each other
+  const isNavigatingRef = React.useRef(false);
 
-  // 🔄 SYNC: URL -> State (Navigation externe)
+  // 🔄 SYNC: URL -> State (Navigation externe, e.g. browser back/forward)
   useEffect(() => {
-    const path = location.pathname.substring(1); // Enlever le '/'
-
-    // Si racine, on laisse la logique par défaut gérer ou on met dashboard
+    if (isNavigatingRef.current) {
+      isNavigatingRef.current = false;
+      return;
+    }
+    const path = location.pathname.substring(1);
     if (path === '') return;
-
-    // Trouver la page correspondante
     const foundPage = Object.values(PAGES).find(p => p === path);
-
     if (foundPage && foundPage !== currentPage) {
-      console.log(`📍 URL détectée : ${path} -> Mise à jour vue : ${foundPage}`);
       setCurrentPage(foundPage);
     }
   }, [location.pathname]);
 
   // 🔄 SYNC: State -> URL (Navigation Sidebar)
   useEffect(() => {
-    if (currentPage) {
-      const currentPath = location.pathname.substring(1);
-      if (currentPath !== currentPage) {
-        console.log(`👉 Changement page : ${currentPage} -> Mise à jour URL`);
-        navigate(`/${currentPage}`);
-      }
+    if (!currentPage) return;
+    const currentPath = location.pathname.substring(1);
+    if (currentPath !== currentPage) {
+      isNavigatingRef.current = true;
+      navigate(`/${currentPage}`, { replace: true });
     }
   }, [currentPage]);
 
   // 📍 Initialiser sur la bonne page au chargement
-  React.useEffect(() => {
+  useEffect(() => {
     if (profile) {
-      // ✅ Admin et Super Admin → toujours sur le dashboard
       if (profile.role === 'admin' || profile.role === 'super_admin') {
         setCurrentPage(PAGES.DASHBOARD);
-        console.log(`✅ ${profile.role} → Dashboard`);
-        return;
       }
-
-      // ✅ Autres rôles → première page accessible depuis pages_visibles
-      if (profile?.pages_visibles && profile.pages_visibles.length > 0) {
-        const firstPage = profile.pages_visibles[0];
-
-        // Mapper le nom à la clé PAGES
-        const pageKey = Object.values(PAGES).find(page =>
-          page.toLowerCase() === firstPage.toLowerCase()
-        );
-
-        if (pageKey) {
-          console.log(`✅ Redirection vers: ${pageKey}`);
-          setCurrentPage(pageKey);
-        }
-      }
+      // Autres rôles → restent sur PAGES.DASHBOARD et verront la page de Bienvenue
     }
-  }, [profile]);
+  }, [profile?.id, profile?.role]); // Dépend seulement de l'ID/rôle, pas de l'objet entier
 
   const pageConfig = {
     [PAGES.DASHBOARD]: {
@@ -161,7 +144,25 @@ const Layout = () => {
 
   // ✅ Vérifier l'accès à la page actuelle pour les autres rôles
   if (!hasAccess(currentPage)) {
-    // Afficher "Accès Refusé" pour toutes les pages
+    // Si on est sur le Dashboard et qu'on n'y a pas accès, on affiche la page de Bienvenue
+    if (currentPage === PAGES.DASHBOARD) {
+      return (
+        <>
+          <NotificationContainer />
+          <div className="flex h-screen bg-gray-50">
+            <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} />
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <Header title="Bienvenue" subtitle="Modules A2S Gestion" />
+              <main className="flex-1 overflow-y-auto bg-gray-50">
+                <WelcomePage setCurrentPage={setCurrentPage} />
+              </main>
+            </div>
+          </div>
+        </>
+      );
+    }
+
+    // Afficher "Accès Refusé" pour toutes les autres pages
     return (
       <>
         <NotificationContainer />

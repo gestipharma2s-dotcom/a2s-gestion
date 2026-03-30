@@ -5,6 +5,7 @@ import Button from '../common/Button';
 import { Plus, X } from 'lucide-react';
 import { applicationService } from '../../services/applicationService';
 import { userService } from '../../services/userService';
+import InstallationForm from '../installations/InstallationForm';
 
 const ProspectActionForm = ({ prospect, onSubmit, onCancel }) => {
   const [formData, setFormData] = useState({
@@ -20,8 +21,6 @@ const ProspectActionForm = ({ prospect, onSubmit, onCancel }) => {
   });
   const [nouveauLogiciel, setNouveauLogiciel] = useState('');
   const [logicielsStockes, setLogicielsStockes] = useState([]); // Liste des logiciels créés
-
-
 
   const [logicielsSelectionnes, setLogicielsSelectionnes] = useState([]); // Logiciels sélectionnés pour ce prospect
   const [applications, setApplications] = useState([]);
@@ -93,7 +92,7 @@ const ProspectActionForm = ({ prospect, onSubmit, onCancel }) => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
 
     const newErrors = {};
 
@@ -101,18 +100,8 @@ const ProspectActionForm = ({ prospect, onSubmit, onCancel }) => {
       newErrors.type_action = 'Type d\'action requis';
     }
 
-    // Validation conditionnelle selon le type
-    if (formData.type_action === 'installation') {
-      if (!formData.date_debut) {
-        newErrors.date_debut = 'Date de début requise';
-      }
-      if (!formData.date_fin) {
-        newErrors.date_fin = 'Date de fin requise';
-      }
-    } else {
-      if (!formData.date_action) {
-        newErrors.date_action = 'Date requise';
-      }
+    if (!formData.date_action) {
+      newErrors.date_action = 'Date requise';
     }
 
     if (!formData.description.trim()) {
@@ -137,6 +126,44 @@ const ProspectActionForm = ({ prospect, onSubmit, onCancel }) => {
     }
   };
 
+  // ✅ Si type_action === 'installation', utiliser le formulaire complet d'installation
+  if (formData.type_action === 'installation') {
+    return (
+      <div className="space-y-4">
+        <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-2">
+          <Select
+            label="Type d'Action"
+            value={formData.type_action}
+            onChange={(e) => handleChange('type_action', e.target.value)}
+            options={typeActions}
+            error={errors.type_action}
+            required
+            disabled={isSubmitting}
+          />
+          <p className="mt-2 text-xs text-blue-600 italic">
+            💡 En choisissant "Installation", vous allez utiliser le formulaire complet qui générera également une nouvelle installation dans la liste globale.
+          </p>
+        </div>
+
+        <InstallationForm
+          installation={{ client_id: prospect.id }}
+          onSubmit={(installationData) => {
+            // Fusionner avec le type d'action pour le parent
+            return onSubmit({
+              ...installationData,
+              type_action: 'installation',
+              // Champs requis pour l'historique mapping
+              description: installationData.resume_action,
+              details: installationData.details_action,
+              date_action: installationData.date_installation
+            });
+          }}
+          onCancel={onCancel}
+        />
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="bg-blue-50 p-4 rounded-lg mb-4">
@@ -156,146 +183,15 @@ const ProspectActionForm = ({ prospect, onSubmit, onCancel }) => {
         disabled={isSubmitting}
       />
 
-      {/* Champs de date conditionnels selon le type d'action */}
-      {formData.type_action === 'installation' ? (
-        <div className="space-y-4">
-          {/* Application - Uniquement pour Installation */}
-          <Select
-            label="Application"
-            value={formData.application}
-            onChange={(e) => handleChange('application', e.target.value)}
-            options={[
-              { value: '', label: '-- Sélectionner une application --' },
-              ...applications.map(app => ({ value: app.nom, label: app.nom }))
-            ]}
-            disabled={isSubmitting || loadingApplications}
-            required
-          />
-
-          {/* Chef de Mission - Uniquement pour Installation */}
-          <Select
-            label="Chef de Mission"
-            value={formData.chef_mission}
-            onChange={(e) => handleChange('chef_mission', e.target.value)}
-            options={[
-              { value: '', label: '-- Sélectionner un chef de mission --' },
-              ...users.map(u => ({ value: u.id, label: u.nom }))
-            ]}
-            disabled={isSubmitting || loadingUsers}
-            required
-          />
-
-          <Input
-            label="Date de Début d'Installation"
-            type="date"
-            value={formData.date_debut}
-            onChange={(e) => handleChange('date_debut', e.target.value)}
-            error={errors.date_debut}
-            required
-            disabled={isSubmitting}
-          />
-          <Input
-            label="Date de Fin d'Installation"
-            type="date"
-            value={formData.date_fin}
-            onChange={(e) => handleChange('date_fin', e.target.value)}
-            error={errors.date_fin}
-            required
-            disabled={isSubmitting}
-          />
-
-
-          {/* Anciens Logiciels - Uniquement pour Installation */}
-          <div className="space-y-3">
-            <label className="block text-sm font-medium text-gray-700">
-              Anciens Logiciels Utilisés
-            </label>
-
-            {/* Champ unifié : Saisie et Sélection combinées */}
-            <div className="flex gap-2 items-start">
-              <div className="flex-1">
-                <Input
-                  type="text"
-                  list="suggested-softwares" // Lier à la datalist
-                  value={nouveauLogiciel}
-                  onChange={(e) => setNouveauLogiciel(e.target.value)}
-                  placeholder="Saisir ou sélectionner un logiciel..."
-                  disabled={isSubmitting}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAjouterLogiciel();
-                    }
-                  }}
-                />
-                <datalist id="suggested-softwares">
-                  {[...new Set(logicielsStockes)].sort().map(log => (
-                    <option key={log} value={log} />
-                  ))}
-                </datalist>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleAjouterLogiciel}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center justify-center h-[42px]"
-                disabled={isSubmitting || !nouveauLogiciel.trim()}
-                title="Ajouter ce logiciel"
-              >
-                <Plus size={20} />
-              </button>
-            </div>
-
-
-
-            {/* Affichage des logiciels sélectionnés */}
-            {logicielsSelectionnes.length > 0 && (
-              <div className="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-lg">
-                {logicielsSelectionnes.map((logiciel, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
-                  >
-                    <span>{logiciel}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRetirerLogiciel(index)}
-                      className="hover:bg-blue-200 rounded-full p-0.5"
-                      disabled={isSubmitting}
-                      title="Retirer ce logiciel"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-
-          {/* Conversion BDD - Uniquement pour Installation */}
-          <Select
-            label="Conversion BDD"
-            value={formData.conversion}
-            onChange={(e) => handleChange('conversion', e.target.value)}
-            options={[
-              { value: 'non', label: 'Non' },
-              { value: 'oui', label: 'Oui' }
-            ]}
-            disabled={isSubmitting}
-          />
-        </div>
-      ) : (
-        <Input
-          label="Date de l'Action"
-          type="date"
-          value={formData.date_action}
-          onChange={(e) => handleChange('date_action', e.target.value)}
-          error={errors.date_action}
-          required
-          disabled={isSubmitting}
-        />
-      )}
+      <Input
+        label="Date de l'Action"
+        type="date"
+        value={formData.date_action}
+        onChange={(e) => handleChange('date_action', e.target.value)}
+        error={errors.date_action}
+        required
+        disabled={isSubmitting}
+      />
 
       <Input
         label="Résumé de l'Action"

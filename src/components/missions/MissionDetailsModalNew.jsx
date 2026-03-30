@@ -4,6 +4,7 @@ import Button from '../common/Button';
 import Input from '../common/Input';
 import { missionService } from '../../services/missionService';
 import { useApp } from '../../context/AppContext';
+import { formatWilaya } from '../../constants/wilayas';
 
 const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin, currentUser, userProfile, onValidate, onClosure, onRemove, isAdmin }) => {
   const { addNotification } = useApp();
@@ -88,9 +89,9 @@ const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin
         texte: commentaireTechnique,
         auteur: currentUser?.email || 'Utilisateur',
         date_creation: new Date().toISOString(),
-        date_affichage: new Date().toLocaleDateString('fr-FR', { 
-          year: 'numeric', 
-          month: 'long', 
+        date_affichage: new Date().toLocaleDateString('fr-FR', {
+          year: 'numeric',
+          month: 'long',
           day: 'numeric',
           hour: '2-digit',
           minute: '2-digit'
@@ -99,7 +100,7 @@ const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin
       const updatedComments = [...commentairesTechniques, newComment];
       setCommentairesTechniques(updatedComments);
       setCommentaireTechnique('');
-      
+
       // Sauvegarder en base de données
       try {
         const result = await missionService.saveCommentairesTechniques(mission.id, updatedComments);
@@ -123,9 +124,9 @@ const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin
         texte: commentaireFinancier,
         auteur: currentUser?.email || 'Utilisateur',
         date_creation: new Date().toISOString(),
-        date_affichage: new Date().toLocaleDateString('fr-FR', { 
-          year: 'numeric', 
-          month: 'long', 
+        date_affichage: new Date().toLocaleDateString('fr-FR', {
+          year: 'numeric',
+          month: 'long',
           day: 'numeric',
           hour: '2-digit',
           minute: '2-digit'
@@ -134,7 +135,7 @@ const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin
       const updatedComments = [...commentairesFinanciers, newComment];
       setCommentairesFinanciers(updatedComments);
       setCommentaireFinancier('');
-      
+
       // Sauvegarder en base de données
       try {
         const result = await missionService.saveCommentairesFinanciers(mission.id, updatedComments);
@@ -157,9 +158,9 @@ const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin
         ...newExpense,
         montant: parseFloat(newExpense.montant),
         date_creation: new Date().toISOString(),
-        date_affichage: new Date().toLocaleDateString('fr-FR', { 
-          year: 'numeric', 
-          month: 'long', 
+        date_affichage: new Date().toLocaleDateString('fr-FR', {
+          year: 'numeric',
+          month: 'long',
           day: 'numeric',
           hour: '2-digit',
           minute: '2-digit'
@@ -169,7 +170,7 @@ const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin
       const updatedExpenses = [...expenses, newExpenseWithDate];
       setExpenses(updatedExpenses);
       setNewExpense({ type: 'transport', montant: '', description: '' });
-      
+
       // Sauvegarder en base de données
       try {
         const result = await missionService.saveDépenses(mission.id, updatedExpenses);
@@ -188,7 +189,7 @@ const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin
   const handleDeleteExpense = async (id) => {
     const updatedExpenses = expenses.filter(e => e.id !== id);
     setExpenses(updatedExpenses);
-    
+
     // Sauvegarder en base de données
     try {
       await missionService.saveDépenses(mission.id, updatedExpenses);
@@ -202,7 +203,7 @@ const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin
   const handleDeleteCommentaireTechnique = async (id) => {
     const updatedComments = commentairesTechniques.filter(c => c.id !== id);
     setCommentairesTechniques(updatedComments);
-    
+
     // Sauvegarder en base de données
     try {
       await missionService.saveCommentairesTechniques(mission.id, updatedComments);
@@ -216,7 +217,7 @@ const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin
   const handleDeleteCommentaireFinancier = async (id) => {
     const updatedComments = commentairesFinanciers.filter(c => c.id !== id);
     setCommentairesFinanciers(updatedComments);
-    
+
     // Sauvegarder en base de données
     try {
       await missionService.saveCommentairesFinanciers(mission.id, updatedComments);
@@ -231,17 +232,17 @@ const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin
     if (window.confirm('⏱️ Êtes-vous certain de vouloir démarrer cette mission?\nLe statut passera à "En cours".')) {
       try {
         const result = await missionService.startMission(mission.id);
-        
+
         // Succès - mettre à jour l'état local
         if (result) {
           addNotification({
             type: 'success',
             message: '✅ Mission démarrée avec succès'
           });
-          
+
           // Mettre à jour le statut de la mission localement
           const updatedMission = { ...mission, statut: 'en_cours' };
-          
+
           // Fermer la modal après un court délai (sans recharger)
           setTimeout(() => {
             onClose();
@@ -266,18 +267,18 @@ const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin
   const isAdminUser = isAdmin !== undefined ? isAdmin : (userProfile?.role === 'admin' || userProfile?.role === 'super_admin');
   const isChefMission = mission?.chefMissionId === currentUser?.id || mission?.chef_mission_id === currentUser?.id;
   const isAccompagnateur = mission?.accompagnateurs_ids?.includes(currentUser?.id);
-  
+
   // EXCEPTION: Chef de mission qui est aussi admin/super_admin peut tout faire
   const isChefAndAdmin = isChefMission && isAdminUser;
-  
+
   // Vérification d'accès à la mission
   const hasAccessToMission = isChefMission || isAccompagnateur || isAdminUser;
-  
+
   // Avant clôture: uniquement chef de mission
   // Après clôture: uniquement admin OU (chef de mission qui est aussi admin/super_admin)
   const isMissionClosed = mission?.cloturee_par_chef || mission?.cloturee_definitive;
   const canEditMission = !isMissionClosed ? isChefMission : (isAdminUser || isChefAndAdmin);
-  
+
   // Actions spécifiques
   const canCloseMission = isChefMission || isAdminUser;
   const canCloseAdmin = isAdminUser; // Seulement admin/super_admin (ou chef qui est admin)
@@ -344,622 +345,619 @@ const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin
 
       {hasAccessToMission && (
         <>
-      {/* ALERTE SI MISSION CLÔTURÉE */}
-      {isMissionClosed && (
-        <div className={`p-4 rounded-lg border-l-4 ${isChefAndAdmin ? 'bg-blue-50 border-blue-400 text-blue-800' : isAdminUser ? 'bg-yellow-50 border-yellow-400 text-yellow-800' : 'bg-red-50 border-red-400 text-red-800'}`}>
-          <div className="flex items-center gap-2">
-            <Lock size={20} />
-            <div>
-              <p className="font-bold">🔒 Mission Clôturée</p>
-              <p className="text-sm">
-                {isChefAndAdmin ? '✅ Vous êtes Chef de Mission avec rôle Admin - Édition complète autorisée' : isAdminUser ? '⚠️ Seul un administrateur peut modifier cette mission.' : 'Cette mission est clôturée et ne peut plus être modifiée.'}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ENTÊTE BLEU - Style ClientDetails */}
-      <div className="bg-gradient-to-r from-primary to-primary-dark text-white rounded-lg p-6 shadow-lg">
-        <h3 className="text-2xl font-bold mb-2">{mission.titre}</h3>
-        <p className="text-primary-light mb-4 text-sm">{mission.description}</p>
-        
-        {/* Infos rapides */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-4 border-t border-white border-opacity-30">
-          {/* Client */}
-          <div className="flex items-center gap-2">
-            <Users size={18} />
-            <div>
-              <p className="text-xs opacity-80">Client</p>
-              <p className="font-semibold">{mission.client?.raison_sociale || 'N/A'}</p>
-            </div>
-          </div>
-
-          {/* Wilaya/Lieu */}
-          <div className="flex items-center gap-2">
-            <MapPin size={18} />
-            <div>
-              <p className="text-xs opacity-80">Wilaya</p>
-              <p className="font-semibold">{mission.wilaya || mission.lieu || 'N/A'}</p>
-            </div>
-          </div>
-
-          {/* Statut */}
-          <div className="flex items-center gap-2">
-            <CheckCircle size={18} />
-            <div>
-              <p className="text-xs opacity-80">Statut</p>
-              <p className="font-semibold">{getStatusLabel(mission.statut)}</p>
-            </div>
-          </div>
-
-          {/* Type */}
-          <div className="flex items-center gap-2">
-            <div className="w-5 h-5 bg-white bg-opacity-30 rounded flex items-center justify-center text-xs">🎯</div>
-            <div>
-              <p className="text-xs opacity-80">Type</p>
-              <p className="font-semibold">{mission.type}</p>
-            </div>
-          </div>
-
-          {/* Budget */}
-          <div className="flex items-center gap-2">
-            <DollarSign size={18} />
-            <div>
-              <p className="text-xs opacity-80">Budget</p>
-              <p className="font-semibold">{(mission.budgetInitial || mission.budget_alloue || 0).toLocaleString('fr-DZ')} DA</p>
-            </div>
-          </div>
-
-          {/* Avancement */}
-          <div className="flex items-center gap-2">
-            <div className="w-5 h-5 bg-white bg-opacity-30 rounded flex items-center justify-center text-xs">📊</div>
-            <div>
-              <p className="text-xs opacity-80">Avancement</p>
-              <p className="font-semibold">{mission.avancement || 0}%</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-2 bg-gray-100 p-1 rounded-lg overflow-x-auto">
-        <button
-          onClick={() => {
-            setActiveTab('general');
-            setExpandedSections(prev => ({ ...prev, general: true }));
-          }}
-          className={`flex-1 py-2 px-4 rounded font-medium transition-colors whitespace-nowrap ${
-            activeTab === 'general'
-              ? 'bg-white text-primary shadow-sm'
-              : 'text-gray-700 hover:text-gray-900'
-          }`}
-        >
-          📋 Général
-        </button>
-        <button
-          onClick={() => {
-            setActiveTab('technique');
-            setExpandedSections(prev => ({ ...prev, technique: true }));
-          }}
-          className={`flex-1 py-2 px-4 rounded font-medium transition-colors whitespace-nowrap ${
-            activeTab === 'technique'
-              ? 'bg-white text-primary shadow-sm'
-              : 'text-gray-700 hover:text-gray-900'
-          }`}
-        >
-          🔧 Technique
-        </button>
-        <button
-          onClick={() => {
-            setActiveTab('financier');
-            setExpandedSections(prev => ({ ...prev, financier: true }));
-          }}
-          className={`flex-1 py-2 px-4 rounded font-medium transition-colors whitespace-nowrap ${
-            activeTab === 'financier'
-              ? 'bg-white text-primary shadow-sm'
-              : 'text-gray-700 hover:text-gray-900'
-          }`}
-        >
-          💰 Financier
-        </button>
-        <button
-          onClick={() => {
-            setActiveTab('cloture');
-            setExpandedSections(prev => ({ ...prev, cloture: true }));
-          }}
-          className={`flex-1 py-2 px-4 rounded font-medium transition-colors whitespace-nowrap ${
-            activeTab === 'cloture'
-              ? 'bg-white text-red-600 shadow-sm'
-              : 'text-gray-700 hover:text-gray-900'
-          }`}
-        >
-          🔴 Clôture
-        </button>
-      </div>
-
-      {/* ONGLET GÉNÉRAL */}
-      {activeTab === 'general' && (
-        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-          <ExpandButton section="general" label="📋 Informations Générales" />
-          {expandedSections.general && (
-            <div className="bg-gray-50 p-4 rounded-lg space-y-4 border-l-4 border-primary">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-gray-600 uppercase font-semibold">Client</p>
-                  <p className="text-sm text-gray-900 mt-1 font-medium">
-                    {mission.client?.raison_sociale || 'N/A'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-600 uppercase font-semibold">Dates Prévues</p>
-                  <p className="text-sm text-gray-900 mt-1">
-                    {new Date(mission.dateDebut || mission.date_debut).toLocaleDateString('fr-FR')} → {new Date(mission.dateFin || mission.date_fin_prevue).toLocaleDateString('fr-FR')}
-                  </p>
-                </div>
-                {mission.date_demarrage && (
-                  <div>
-                    <p className="text-xs text-green-600 uppercase font-semibold">📌 Démarrée le</p>
-                    <p className="text-sm text-green-900 mt-1 font-semibold">
-                      {new Date(mission.date_demarrage).toLocaleDateString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                  </div>
-                )}
-                {mission.date_cloture_reelle && (
-                  <div>
-                    <p className="text-xs text-red-600 uppercase font-semibold">🔒 Clôturée le</p>
-                    <p className="text-sm text-red-900 mt-1 font-semibold">
-                      {new Date(mission.date_cloture_reelle).toLocaleDateString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-gray-600 uppercase font-semibold">Priorité</p>
-                  <p className="text-sm text-gray-900 mt-1">
-                    {mission.priorite?.charAt(0).toUpperCase() + mission.priorite?.slice(1)}
-                  </p>
-                </div>
-              </div>
-
-              {mission.commentaireCreation && (
-                <div className="p-3 bg-blue-50 rounded border border-blue-200">
-                  <p className="text-xs text-blue-600 uppercase font-semibold mb-1">Notes à la création</p>
-                  <p className="text-sm text-blue-900">{mission.commentaireCreation}</p>
-                </div>
-              )}
-
-              <div>
-                <p className="text-xs text-gray-600 uppercase font-semibold">Chef de Mission</p>
-                <p className="text-sm text-gray-900 mt-1">{mission.chef_name || 'Non assigné'}</p>
-              </div>
-
-              {/* BOUTON DÉMARRER MISSION */}
-              {canStartMission && (
-                <div className="pt-2">
-                  <Button
-                    onClick={handleStartMission}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2 py-3 font-semibold"
-                  >
-                    ▶️ Démarrer la Mission
-                  </Button>
-                  <p className="text-xs text-gray-600 mt-2">Le statut passera à "En cours"</p>
-                </div>
-              )}
-
-              {!canStartMission && (mission?.statut === 'creee' || mission?.statut === 'planifiee') && (
-                <div className="p-3 bg-amber-50 rounded border border-amber-200 text-sm text-amber-900">
-                  <p><strong>ℹ️ Info:</strong> Seul le Chef de Mission peut démarrer cette mission.</p>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ONGLET TECHNIQUE */}
-      {activeTab === 'technique' && (
-        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-          <ExpandButton section="technique" label="🔧 Volet Technique" />
-          {expandedSections.technique && (
-            <div className="bg-gray-50 p-4 rounded-lg space-y-4 border-l-4 border-primary">
-              <div>
-                <p className="text-xs text-gray-600 uppercase font-semibold mb-2">Rapport Technique</p>
-                <p className="text-sm text-gray-900 bg-white p-3 rounded">{mission.rapportTechnique || 'Pas encore documenté'}</p>
-              </div>
-
-              {mission.actionsRealisees && mission.actionsRealisees.length > 0 && (
-                <div>
-                  <p className="text-xs text-gray-600 uppercase font-semibold mb-2">Actions Réalisées</p>
-                  <ul className="space-y-2">
-                    {mission.actionsRealisees.map((action, idx) => (
-                      <li key={idx} className="text-sm bg-white p-2 rounded border-l-2 border-green-500">
-                        ✅ {action}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* AJOUTER COMMENTAIRE TECHNIQUE */}
-              <div className={`bg-white p-4 rounded-lg border ${!canEditMission ? 'border-red-300 bg-red-50 opacity-60' : 'border-gray-200'}`}>
-                <h4 className="font-semibold text-gray-900 mb-3">💬 Ajouter un Commentaire Technique</h4>
-                {!canEditMission && <p className="text-red-600 text-sm mb-3">🔒 Mission clôturée - Édition non autorisée</p>}
-                <div className="space-y-3">
-                  <textarea
-                    value={commentaireTechnique}
-                    onChange={(e) => setCommentaireTechnique(e.target.value)}
-                    placeholder="Observations techniques, remarques sur l'exécution, problèmes rencontrés..."
-                    rows="3"
-                    disabled={!canEditMission}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  />
-                  <Button
-                    onClick={handleAddCommentaireTechnique}
-                    disabled={!canEditMission}
-                    className={`w-full flex items-center justify-center gap-2 ${!canEditMission ? 'bg-gray-400 cursor-not-allowed' : 'bg-primary hover:bg-primary-dark text-white'}`}
-                  >
-                    💾 Enregistrer le Commentaire
-                  </Button>
-                </div>
-              </div>
-
-              {/* HISTORIQUE COMMENTAIRES TECHNIQUES */}
-              {commentairesTechniques.length > 0 && (
-                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                  <h4 className="font-semibold text-blue-900 mb-3">📝 Historique des Commentaires Techniques</h4>
-                  <div className="space-y-3">
-                    {commentairesTechniques.map((comment) => (
-                      <div key={comment.id} className="bg-white p-3 rounded border-l-4 border-blue-500">
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <p className="text-sm text-gray-900">{comment.texte}</p>
-                            <div className="flex gap-4 mt-2 text-xs text-gray-600">
-                              <span>👤 {comment.auteur}</span>
-                              <span>📅 {comment.date_affichage}</span>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => handleDeleteCommentaireTechnique(comment.id)}
-                            className="text-red-500 hover:text-red-700 ml-2"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ONGLET FINANCIER */}
-      {activeTab === 'financier' && (
-        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-          <ExpandButton section="financier" label="💰 Volet Financier" />
-          {expandedSections.financier && (
-            <div className="space-y-4">
-              {/* Cartes Financières */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 bg-blue-50 rounded border border-blue-200">
-                  <p className="text-xs text-blue-600 uppercase font-semibold">Budget Initial</p>
-                  <p className="text-xl font-bold text-blue-900 mt-1">
-                    {budgetInitial.toLocaleString('fr-DZ')} DA
-                  </p>
-                </div>
-
-                <div className={`p-3 rounded border ${budgetUtilise > 80 ? 'bg-red-50 border-red-200' : 'bg-orange-50 border-orange-200'}`}>
-                  <p className={`text-xs uppercase font-semibold ${budgetUtilise > 80 ? 'text-red-600' : 'text-orange-600'}`}>
-                    Dépenses
-                  </p>
-                  <p className={`text-xl font-bold mt-1 ${budgetUtilise > 80 ? 'text-red-900' : 'text-orange-900'}`}>
-                    {totalExpenses.toLocaleString('fr-DZ')} DA
-                  </p>
-                </div>
-
-                <div className={`p-3 rounded border ${budgetRestant < 0 ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
-                  <p className={`text-xs uppercase font-semibold ${budgetRestant < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    Restant
-                  </p>
-                  <p className={`text-xl font-bold mt-1 ${budgetRestant < 0 ? 'text-red-900' : 'text-green-900'}`}>
-                    {budgetRestant.toLocaleString('fr-DZ')} DA
-                  </p>
-                </div>
-
-                <div className={`p-3 rounded border ${budgetUtilise > 80 ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'}`}>
-                  <p className={`text-xs uppercase font-semibold ${budgetUtilise > 80 ? 'text-red-600' : 'text-yellow-600'}`}>
-                    Utilisation
-                  </p>
-                  <p className={`text-xl font-bold mt-1 ${budgetUtilise > 80 ? 'text-red-900' : 'text-yellow-900'}`}>
-                    {budgetUtilise}%
-                  </p>
-                </div>
-              </div>
-
-              {budgetUtilise > 80 && (
-                <div className="p-4 bg-red-50 border border-red-200 rounded flex gap-3">
-                  <AlertCircle className="text-red-600 flex-shrink-0" size={20} />
-                  <div>
-                    <p className="font-semibold text-red-900">⚠️ Dépassement Budgétaire!</p>
-                    <p className="text-sm text-red-800 mt-1">Budget utilisé à {budgetUtilise}%. Attention à ne pas dépasser la limite.</p>
-                  </div>
-                </div>
-              )}
-
-              {/* AJOUTER DÉPENSE */}
-              <div className={`p-4 rounded-lg border ${!canEditMission ? 'bg-red-50 border-red-300 opacity-60' : 'bg-gray-50 border-gray-200'}`}>
-                <h4 className="font-semibold text-gray-900 mb-3">➕ Ajouter une Dépense</h4>
-                {!canEditMission && <p className="text-red-600 text-sm mb-3">🔒 Mission clôturée - Édition non autorisée</p>}
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Type de Dépense</label>
-                    <select
-                      value={newExpense.type}
-                      onChange={(e) => setNewExpense({ ...newExpense, type: e.target.value })}
-                      disabled={!canEditMission}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 disabled:cursor-not-allowed"
-                    >
-                      {expenseTypes.map(t => (
-                        <option key={t.value} value={t.value}>{t.label}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Montant (DA)</label>
-                    <Input
-                      type="number"
-                      value={newExpense.montant}
-                      onChange={(e) => setNewExpense({ ...newExpense, montant: e.target.value })}
-                      placeholder="0.00"
-                      disabled={!canEditMission}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                    <textarea
-                      value={newExpense.description}
-                      onChange={(e) => setNewExpense({ ...newExpense, description: e.target.value })}
-                      placeholder="Détails de la dépense..."
-                      rows="2"
-                      disabled={!canEditMission}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 disabled:cursor-not-allowed"
-                    />
-                  </div>
-
-                  <Button
-                    onClick={handleAddExpense}
-                    disabled={!canEditMission}
-                    className={`w-full flex items-center justify-center gap-2 ${!canEditMission ? 'bg-gray-400 cursor-not-allowed' : 'bg-primary hover:bg-primary-dark text-white'}`}
-                  >
-                    <Plus size={18} />
-                    Ajouter la Dépense
-                  </Button>
-                </div>
-              </div>
-
-              {/* LISTE DES DÉPENSES */}
-              {expenses.length > 0 && (
-                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                  <h4 className="font-semibold text-gray-900 mb-3">📋 Dépenses Enregistrées ({expenses.length})</h4>
-                  <div className="space-y-2">
-                    {expenses.map((expense) => (
-                      <div key={expense.id} className="flex items-start justify-between bg-white p-3 rounded border border-gray-200">
-                        <div className="flex-1">
-                          <p className="font-medium text-gray-900">
-                            {expenseTypes.find(t => t.value === expense.type)?.label}
-                          </p>
-                          <p className="text-sm text-gray-600">{expense.description}</p>
-                          <div className="flex gap-4 mt-2 text-xs text-gray-500">
-                            <span>👤 {expense.auteur || 'Utilisateur'}</span>
-                            <span>📅 {expense.date_affichage || new Date(expense.date_creation).toLocaleDateString('fr-FR')}</span>
-                          </div>
-                        </div>
-                        <div className="text-right mr-3 min-w-fit">
-                          <p className="font-semibold text-gray-900">
-                            {expense.montant.toLocaleString('fr-DZ')} DA
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => handleDeleteExpense(expense.id)}
-                          className="text-red-500 hover:text-red-700 ml-2"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* AJOUTER COMMENTAIRE */}
-              <div className={`p-4 rounded-lg border ${!canEditMission ? 'bg-red-50 border-red-300 opacity-60' : 'bg-gray-50 border-gray-200'}`}>
-                <h4 className="font-semibold text-gray-900 mb-3">💬 Ajouter un Commentaire Financier</h4>
-                {!canEditMission && <p className="text-red-600 text-sm mb-3">🔒 Mission clôturée - Édition non autorisée</p>}
-                <textarea
-                  value={commentaireFinancier}
-                  onChange={(e) => setCommentaireFinancier(e.target.value)}
-                  placeholder="Vos observations ou commentaires financiers..."
-                  rows="3"
-                  disabled={!canEditMission}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 disabled:cursor-not-allowed"
-                />
-                <Button
-                  onClick={handleAddCommentaireFinancier}
-                  disabled={!canEditMission}
-                  className={`mt-2 w-full ${!canEditMission ? 'bg-gray-400 cursor-not-allowed' : 'bg-primary hover:bg-primary-dark text-white'}`}
-                >
-                  💾 Enregistrer le Commentaire
-                </Button>
-              </div>
-
-              {/* HISTORIQUE COMMENTAIRES FINANCIERS */}
-              {commentairesFinanciers.length > 0 && (
-                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                  <h4 className="font-semibold text-green-900 mb-3">📝 Historique des Commentaires Financiers</h4>
-                  <div className="space-y-3">
-                    {commentairesFinanciers.map((comment) => (
-                      <div key={comment.id} className="bg-white p-3 rounded border-l-4 border-green-500">
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <p className="text-sm text-gray-900">{comment.texte}</p>
-                            <div className="flex gap-4 mt-2 text-xs text-gray-600">
-                              <span>👤 {comment.auteur}</span>
-                              <span>📅 {comment.date_affichage}</span>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => handleDeleteCommentaireFinancier(comment.id)}
-                            className="text-red-500 hover:text-red-700 ml-2"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ONGLET CLÔTURE */}
-      {activeTab === 'cloture' && (
-        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <p className="text-sm text-yellow-900">
-              <strong>📌 Statut actuel:</strong> {getStatusLabel(mission.statut)}
-            </p>
-          </div>
-
+          {/* ALERTE SI MISSION CLÔTURÉE */}
           {isMissionClosed && (
-            <div className="p-4 bg-green-50 border border-green-300 rounded-lg flex gap-3">
-              <CheckCircle className="text-green-600 flex-shrink-0" size={20} />
-              <div>
-                <p className="font-semibold text-green-900">✅ Mission Clôturée</p>
-                <p className="text-sm text-green-800 mt-1">
-                  Cette mission a été clôturée {mission.date_cloture_reelle ? `le ${new Date(mission.date_cloture_reelle).toLocaleDateString('fr-FR')}` : ''}.
-                  {!isAdminUser && ' Seul un administrateur peut la modifier.'}
+            <div className={`p-4 rounded-lg border-l-4 ${isChefAndAdmin ? 'bg-blue-50 border-blue-400 text-blue-800' : isAdminUser ? 'bg-yellow-50 border-yellow-400 text-yellow-800' : 'bg-red-50 border-red-400 text-red-800'}`}>
+              <div className="flex items-center gap-2">
+                <Lock size={20} />
+                <div>
+                  <p className="font-bold">🔒 Mission Clôturée</p>
+                  <p className="text-sm">
+                    {isChefAndAdmin ? '✅ Vous êtes Chef de Mission avec rôle Admin - Édition complète autorisée' : isAdminUser ? '⚠️ Seul un administrateur peut modifier cette mission.' : 'Cette mission est clôturée et ne peut plus être modifiée.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ENTÊTE BLEU - Style ClientDetails */}
+          <div className="bg-gradient-to-r from-primary to-primary-dark text-white rounded-lg p-6 shadow-lg">
+            <h3 className="text-2xl font-bold mb-2">{mission.titre}</h3>
+            <p className="text-primary-light mb-4 text-sm">{mission.description}</p>
+
+            {/* Infos rapides */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-4 border-t border-white border-opacity-30">
+              {/* Client */}
+              <div className="flex items-center gap-2">
+                <Users size={18} />
+                <div>
+                  <p className="text-xs opacity-80">Client</p>
+                  <p className="font-semibold">{mission.client?.raison_sociale || 'N/A'}</p>
+                </div>
+              </div>
+
+              {/* Wilaya/Lieu */}
+              <div className="flex items-center gap-2">
+                <MapPin size={18} />
+                <div>
+                  <p className="text-xs opacity-80">Wilaya</p>
+                  <p className="font-semibold">{formatWilaya(mission.client?.wilaya || mission.wilaya || mission.lieu) || 'N/A'}</p>
+                </div>
+              </div>
+
+              {/* Statut */}
+              <div className="flex items-center gap-2">
+                <CheckCircle size={18} />
+                <div>
+                  <p className="text-xs opacity-80">Statut</p>
+                  <p className="font-semibold">{getStatusLabel(mission.statut)}</p>
+                </div>
+              </div>
+
+              {/* Type */}
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 bg-white bg-opacity-30 rounded flex items-center justify-center text-xs">🎯</div>
+                <div>
+                  <p className="text-xs opacity-80">Type</p>
+                  <p className="font-semibold">{mission.type}</p>
+                </div>
+              </div>
+
+              {/* Budget */}
+              <div className="flex items-center gap-2">
+                <DollarSign size={18} />
+                <div>
+                  <p className="text-xs opacity-80">Budget</p>
+                  <p className="font-semibold">{(mission.budgetInitial || mission.budget_alloue || 0).toLocaleString('fr-DZ')} DA</p>
+                </div>
+              </div>
+
+              {/* Avancement */}
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 bg-white bg-opacity-30 rounded flex items-center justify-center text-xs">📊</div>
+                <div>
+                  <p className="text-xs opacity-80">Avancement</p>
+                  <p className="font-semibold">{mission.avancement || 0}%</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex gap-2 bg-gray-100 p-1 rounded-lg overflow-x-auto">
+            <button
+              onClick={() => {
+                setActiveTab('general');
+                setExpandedSections(prev => ({ ...prev, general: true }));
+              }}
+              className={`flex-1 py-2 px-4 rounded font-medium transition-colors whitespace-nowrap ${activeTab === 'general'
+                ? 'bg-white text-primary shadow-sm'
+                : 'text-gray-700 hover:text-gray-900'
+                }`}
+            >
+              📋 Général
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('technique');
+                setExpandedSections(prev => ({ ...prev, technique: true }));
+              }}
+              className={`flex-1 py-2 px-4 rounded font-medium transition-colors whitespace-nowrap ${activeTab === 'technique'
+                ? 'bg-white text-primary shadow-sm'
+                : 'text-gray-700 hover:text-gray-900'
+                }`}
+            >
+              🔧 Technique
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('financier');
+                setExpandedSections(prev => ({ ...prev, financier: true }));
+              }}
+              className={`flex-1 py-2 px-4 rounded font-medium transition-colors whitespace-nowrap ${activeTab === 'financier'
+                ? 'bg-white text-primary shadow-sm'
+                : 'text-gray-700 hover:text-gray-900'
+                }`}
+            >
+              💰 Financier
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('cloture');
+                setExpandedSections(prev => ({ ...prev, cloture: true }));
+              }}
+              className={`flex-1 py-2 px-4 rounded font-medium transition-colors whitespace-nowrap ${activeTab === 'cloture'
+                ? 'bg-white text-red-600 shadow-sm'
+                : 'text-gray-700 hover:text-gray-900'
+                }`}
+            >
+              🔴 Clôture
+            </button>
+          </div>
+
+          {/* ONGLET GÉNÉRAL */}
+          {activeTab === 'general' && (
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+              <ExpandButton section="general" label="📋 Informations Générales" />
+              {expandedSections.general && (
+                <div className="bg-gray-50 p-4 rounded-lg space-y-4 border-l-4 border-primary">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-gray-600 uppercase font-semibold">Client</p>
+                      <p className="text-sm text-gray-900 mt-1 font-medium">
+                        {mission.client?.raison_sociale || 'N/A'}
+                      </p>
+                      <p className="text-xs text-blue-600 font-bold uppercase">{formatWilaya(mission.client?.wilaya)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600 uppercase font-semibold">Dates Prévues</p>
+                      <p className="text-sm text-gray-900 mt-1">
+                        {new Date(mission.dateDebut || mission.date_debut).toLocaleDateString('fr-FR')} → {new Date(mission.dateFin || mission.date_fin_prevue).toLocaleDateString('fr-FR')}
+                      </p>
+                    </div>
+                    {mission.date_demarrage && (
+                      <div>
+                        <p className="text-xs text-green-600 uppercase font-semibold">📌 Démarrée le</p>
+                        <p className="text-sm text-green-900 mt-1 font-semibold">
+                          {new Date(mission.date_demarrage).toLocaleDateString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    )}
+                    {mission.date_cloture_reelle && (
+                      <div>
+                        <p className="text-xs text-red-600 uppercase font-semibold">🔒 Clôturée le</p>
+                        <p className="text-sm text-red-900 mt-1 font-semibold">
+                          {new Date(mission.date_cloture_reelle).toLocaleDateString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-gray-600 uppercase font-semibold">Priorité</p>
+                      <p className="text-sm text-gray-900 mt-1">
+                        {mission.priorite?.charAt(0).toUpperCase() + mission.priorite?.slice(1)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {mission.commentaireCreation && (
+                    <div className="p-3 bg-blue-50 rounded border border-blue-200">
+                      <p className="text-xs text-blue-600 uppercase font-semibold mb-1">Notes à la création</p>
+                      <p className="text-sm text-blue-900">{mission.commentaireCreation}</p>
+                    </div>
+                  )}
+
+                  <div>
+                    <p className="text-xs text-gray-600 uppercase font-semibold">Chef de Mission</p>
+                    <p className="text-sm text-gray-900 mt-1">{mission.chef_name || 'Non assigné'}</p>
+                  </div>
+
+                  {/* BOUTON DÉMARRER MISSION */}
+                  {canStartMission && (
+                    <div className="pt-2">
+                      <Button
+                        onClick={handleStartMission}
+                        className="w-full bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2 py-3 font-semibold"
+                      >
+                        ▶️ Démarrer la Mission
+                      </Button>
+                      <p className="text-xs text-gray-600 mt-2">Le statut passera à "En cours"</p>
+                    </div>
+                  )}
+
+                  {!canStartMission && (mission?.statut === 'creee' || mission?.statut === 'planifiee') && (
+                    <div className="p-3 bg-amber-50 rounded border border-amber-200 text-sm text-amber-900">
+                      <p><strong>ℹ️ Info:</strong> Seul le Chef de Mission peut démarrer cette mission.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ONGLET TECHNIQUE */}
+          {activeTab === 'technique' && (
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+              <ExpandButton section="technique" label="🔧 Volet Technique" />
+              {expandedSections.technique && (
+                <div className="bg-gray-50 p-4 rounded-lg space-y-4 border-l-4 border-primary">
+                  <div>
+                    <p className="text-xs text-gray-600 uppercase font-semibold mb-2">Rapport Technique</p>
+                    <p className="text-sm text-gray-900 bg-white p-3 rounded">{mission.rapportTechnique || 'Pas encore documenté'}</p>
+                  </div>
+
+                  {mission.actionsRealisees && mission.actionsRealisees.length > 0 && (
+                    <div>
+                      <p className="text-xs text-gray-600 uppercase font-semibold mb-2">Actions Réalisées</p>
+                      <ul className="space-y-2">
+                        {mission.actionsRealisees.map((action, idx) => (
+                          <li key={idx} className="text-sm bg-white p-2 rounded border-l-2 border-green-500">
+                            ✅ {action}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* AJOUTER COMMENTAIRE TECHNIQUE */}
+                  <div className={`bg-white p-4 rounded-lg border ${!canEditMission ? 'border-red-300 bg-red-50 opacity-60' : 'border-gray-200'}`}>
+                    <h4 className="font-semibold text-gray-900 mb-3">💬 Ajouter un Commentaire Technique</h4>
+                    {!canEditMission && <p className="text-red-600 text-sm mb-3">🔒 Mission clôturée - Édition non autorisée</p>}
+                    <div className="space-y-3">
+                      <textarea
+                        value={commentaireTechnique}
+                        onChange={(e) => setCommentaireTechnique(e.target.value)}
+                        placeholder="Observations techniques, remarques sur l'exécution, problèmes rencontrés..."
+                        rows="3"
+                        disabled={!canEditMission}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      />
+                      <Button
+                        onClick={handleAddCommentaireTechnique}
+                        disabled={!canEditMission}
+                        className={`w-full flex items-center justify-center gap-2 ${!canEditMission ? 'bg-gray-400 cursor-not-allowed' : 'bg-primary hover:bg-primary-dark text-white'}`}
+                      >
+                        💾 Enregistrer le Commentaire
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* HISTORIQUE COMMENTAIRES TECHNIQUES */}
+                  {commentairesTechniques.length > 0 && (
+                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                      <h4 className="font-semibold text-blue-900 mb-3">📝 Historique des Commentaires Techniques</h4>
+                      <div className="space-y-3">
+                        {commentairesTechniques.map((comment) => (
+                          <div key={comment.id} className="bg-white p-3 rounded border-l-4 border-blue-500">
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <p className="text-sm text-gray-900">{comment.texte}</p>
+                                <div className="flex gap-4 mt-2 text-xs text-gray-600">
+                                  <span>👤 {comment.auteur}</span>
+                                  <span>📅 {comment.date_affichage}</span>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => handleDeleteCommentaireTechnique(comment.id)}
+                                className="text-red-500 hover:text-red-700 ml-2"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ONGLET FINANCIER */}
+          {activeTab === 'financier' && (
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+              <ExpandButton section="financier" label="💰 Volet Financier" />
+              {expandedSections.financier && (
+                <div className="space-y-4">
+                  {/* Cartes Financières */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 bg-blue-50 rounded border border-blue-200">
+                      <p className="text-xs text-blue-600 uppercase font-semibold">Budget Initial</p>
+                      <p className="text-xl font-bold text-blue-900 mt-1">
+                        {budgetInitial.toLocaleString('fr-DZ')} DA
+                      </p>
+                    </div>
+
+                    <div className={`p-3 rounded border ${budgetUtilise > 80 ? 'bg-red-50 border-red-200' : 'bg-orange-50 border-orange-200'}`}>
+                      <p className={`text-xs uppercase font-semibold ${budgetUtilise > 80 ? 'text-red-600' : 'text-orange-600'}`}>
+                        Dépenses
+                      </p>
+                      <p className={`text-xl font-bold mt-1 ${budgetUtilise > 80 ? 'text-red-900' : 'text-orange-900'}`}>
+                        {totalExpenses.toLocaleString('fr-DZ')} DA
+                      </p>
+                    </div>
+
+                    <div className={`p-3 rounded border ${budgetRestant < 0 ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+                      <p className={`text-xs uppercase font-semibold ${budgetRestant < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        Restant
+                      </p>
+                      <p className={`text-xl font-bold mt-1 ${budgetRestant < 0 ? 'text-red-900' : 'text-green-900'}`}>
+                        {budgetRestant.toLocaleString('fr-DZ')} DA
+                      </p>
+                    </div>
+
+                    <div className={`p-3 rounded border ${budgetUtilise > 80 ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'}`}>
+                      <p className={`text-xs uppercase font-semibold ${budgetUtilise > 80 ? 'text-red-600' : 'text-yellow-600'}`}>
+                        Utilisation
+                      </p>
+                      <p className={`text-xl font-bold mt-1 ${budgetUtilise > 80 ? 'text-red-900' : 'text-yellow-900'}`}>
+                        {budgetUtilise}%
+                      </p>
+                    </div>
+                  </div>
+
+                  {budgetUtilise > 80 && (
+                    <div className="p-4 bg-red-50 border border-red-200 rounded flex gap-3">
+                      <AlertCircle className="text-red-600 flex-shrink-0" size={20} />
+                      <div>
+                        <p className="font-semibold text-red-900">⚠️ Dépassement Budgétaire!</p>
+                        <p className="text-sm text-red-800 mt-1">Budget utilisé à {budgetUtilise}%. Attention à ne pas dépasser la limite.</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* AJOUTER DÉPENSE */}
+                  <div className={`p-4 rounded-lg border ${!canEditMission ? 'bg-red-50 border-red-300 opacity-60' : 'bg-gray-50 border-gray-200'}`}>
+                    <h4 className="font-semibold text-gray-900 mb-3">➕ Ajouter une Dépense</h4>
+                    {!canEditMission && <p className="text-red-600 text-sm mb-3">🔒 Mission clôturée - Édition non autorisée</p>}
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Type de Dépense</label>
+                        <select
+                          value={newExpense.type}
+                          onChange={(e) => setNewExpense({ ...newExpense, type: e.target.value })}
+                          disabled={!canEditMission}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        >
+                          {expenseTypes.map(t => (
+                            <option key={t.value} value={t.value}>{t.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Montant (DA)</label>
+                        <Input
+                          type="number"
+                          value={newExpense.montant}
+                          onChange={(e) => setNewExpense({ ...newExpense, montant: e.target.value })}
+                          placeholder="0.00"
+                          disabled={!canEditMission}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                        <textarea
+                          value={newExpense.description}
+                          onChange={(e) => setNewExpense({ ...newExpense, description: e.target.value })}
+                          placeholder="Détails de la dépense..."
+                          rows="2"
+                          disabled={!canEditMission}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        />
+                      </div>
+
+                      <Button
+                        onClick={handleAddExpense}
+                        disabled={!canEditMission}
+                        className={`w-full flex items-center justify-center gap-2 ${!canEditMission ? 'bg-gray-400 cursor-not-allowed' : 'bg-primary hover:bg-primary-dark text-white'}`}
+                      >
+                        <Plus size={18} />
+                        Ajouter la Dépense
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* LISTE DES DÉPENSES */}
+                  {expenses.length > 0 && (
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                      <h4 className="font-semibold text-gray-900 mb-3">📋 Dépenses Enregistrées ({expenses.length})</h4>
+                      <div className="space-y-2">
+                        {expenses.map((expense) => (
+                          <div key={expense.id} className="flex items-start justify-between bg-white p-3 rounded border border-gray-200">
+                            <div className="flex-1">
+                              <p className="font-medium text-gray-900">
+                                {expenseTypes.find(t => t.value === expense.type)?.label}
+                              </p>
+                              <p className="text-sm text-gray-600">{expense.description}</p>
+                              <div className="flex gap-4 mt-2 text-xs text-gray-500">
+                                <span>👤 {expense.auteur || 'Utilisateur'}</span>
+                                <span>📅 {expense.date_affichage || new Date(expense.date_creation).toLocaleDateString('fr-FR')}</span>
+                              </div>
+                            </div>
+                            <div className="text-right mr-3 min-w-fit">
+                              <p className="font-semibold text-gray-900">
+                                {expense.montant.toLocaleString('fr-DZ')} DA
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => handleDeleteExpense(expense.id)}
+                              className="text-red-500 hover:text-red-700 ml-2"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* AJOUTER COMMENTAIRE */}
+                  <div className={`p-4 rounded-lg border ${!canEditMission ? 'bg-red-50 border-red-300 opacity-60' : 'bg-gray-50 border-gray-200'}`}>
+                    <h4 className="font-semibold text-gray-900 mb-3">💬 Ajouter un Commentaire Financier</h4>
+                    {!canEditMission && <p className="text-red-600 text-sm mb-3">🔒 Mission clôturée - Édition non autorisée</p>}
+                    <textarea
+                      value={commentaireFinancier}
+                      onChange={(e) => setCommentaireFinancier(e.target.value)}
+                      placeholder="Vos observations ou commentaires financiers..."
+                      rows="3"
+                      disabled={!canEditMission}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    />
+                    <Button
+                      onClick={handleAddCommentaireFinancier}
+                      disabled={!canEditMission}
+                      className={`mt-2 w-full ${!canEditMission ? 'bg-gray-400 cursor-not-allowed' : 'bg-primary hover:bg-primary-dark text-white'}`}
+                    >
+                      💾 Enregistrer le Commentaire
+                    </Button>
+                  </div>
+
+                  {/* HISTORIQUE COMMENTAIRES FINANCIERS */}
+                  {commentairesFinanciers.length > 0 && (
+                    <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                      <h4 className="font-semibold text-green-900 mb-3">📝 Historique des Commentaires Financiers</h4>
+                      <div className="space-y-3">
+                        {commentairesFinanciers.map((comment) => (
+                          <div key={comment.id} className="bg-white p-3 rounded border-l-4 border-green-500">
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <p className="text-sm text-gray-900">{comment.texte}</p>
+                                <div className="flex gap-4 mt-2 text-xs text-gray-600">
+                                  <span>👤 {comment.auteur}</span>
+                                  <span>📅 {comment.date_affichage}</span>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => handleDeleteCommentaireFinancier(comment.id)}
+                                className="text-red-500 hover:text-red-700 ml-2"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ONGLET CLÔTURE */}
+          {activeTab === 'cloture' && (
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <p className="text-sm text-yellow-900">
+                  <strong>📌 Statut actuel:</strong> {getStatusLabel(mission.statut)}
                 </p>
               </div>
-            </div>
-          )}
 
-          {!canCloseMission && mission.statut !== 'cloturee' && mission.statut !== 'validee' && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3">
-              <Shield className="text-red-600 flex-shrink-0" size={20} />
-              <div>
-                <p className="font-semibold text-red-900">🚫 Accès Restreint</p>
-                <p className="text-sm text-red-800 mt-1">Vous n'avez pas les permissions nécessaires pour clôturer cette mission. Seul le Chef de Mission ou un Admin peut clôturer.</p>
-              </div>
-            </div>
-          )}
-
-          {canCloseMission && mission.statut !== 'cloturee' && mission.statut !== 'validee' && (
-            <div className="space-y-3">
-              <h4 className="font-semibold text-gray-900">Actions de Clôture Disponibles:</h4>
-              
-              {mission.statut === 'en_cours' && isChefMission && (
-                <Button
-                  onClick={() => {
-                    if (onClosureAdmin) onClosureAdmin({
-                      type: 'chef',
-                      totalExpenses: expenses.reduce((sum, e) => sum + (e.montant || 0), 0)
-                    });
-                  }}
-                  className="w-full bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center gap-2"
-                >
-                  ⏹️ Clôturer par Chef de Mission
-                </Button>
+              {isMissionClosed && (
+                <div className="p-4 bg-green-50 border border-green-300 rounded-lg flex gap-3">
+                  <CheckCircle className="text-green-600 flex-shrink-0" size={20} />
+                  <div>
+                    <p className="font-semibold text-green-900">✅ Mission Clôturée</p>
+                    <p className="text-sm text-green-800 mt-1">
+                      Cette mission a été clôturée {mission.date_cloture_reelle ? `le ${new Date(mission.date_cloture_reelle).toLocaleDateString('fr-FR')}` : ''}.
+                      {!isAdminUser && ' Seul un administrateur peut la modifier.'}
+                    </p>
+                  </div>
+                </div>
               )}
 
-              {canCloseAdmin && (
-                <Button
-                  onClick={() => onClosureAdmin({
-                    type: 'admin',
-                    totalExpenses: expenses.reduce((sum, e) => sum + (e.montant || 0), 0)
-                  })}
-                  className="w-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center gap-2"
-                >
-                  <Lock size={18} />
-                  🔒 Clôture Définitive (Admin)
-                </Button>
+              {!canCloseMission && mission.statut !== 'cloturee' && mission.statut !== 'validee' && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3">
+                  <Shield className="text-red-600 flex-shrink-0" size={20} />
+                  <div>
+                    <p className="font-semibold text-red-900">🚫 Accès Restreint</p>
+                    <p className="text-sm text-red-800 mt-1">Vous n'avez pas les permissions nécessaires pour clôturer cette mission. Seul le Chef de Mission ou un Admin peut clôturer.</p>
+                  </div>
+                </div>
               )}
 
-              {!canCloseAdmin && isChefMission && (
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-900">
-                  <p><strong>ℹ️ Info:</strong> Le bouton "Clôture Définitive (Admin)" n'est accessible qu'aux administrateurs.</p>
+              {canCloseMission && mission.statut !== 'cloturee' && mission.statut !== 'validee' && (
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-gray-900">Actions de Clôture Disponibles:</h4>
+
+                  {mission.statut === 'en_cours' && isChefMission && (
+                    <Button
+                      onClick={() => {
+                        if (onClosureAdmin) onClosureAdmin({
+                          type: 'chef',
+                          totalExpenses: expenses.reduce((sum, e) => sum + (e.montant || 0), 0)
+                        });
+                      }}
+                      className="w-full bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center gap-2"
+                    >
+                      ⏹️ Clôturer par Chef de Mission
+                    </Button>
+                  )}
+
+                  {canCloseAdmin && (
+                    <Button
+                      onClick={() => onClosureAdmin({
+                        type: 'admin',
+                        totalExpenses: expenses.reduce((sum, e) => sum + (e.montant || 0), 0)
+                      })}
+                      className="w-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center gap-2"
+                    >
+                      <Lock size={18} />
+                      🔒 Clôture Définitive (Admin)
+                    </Button>
+                  )}
+
+                  {!canCloseAdmin && isChefMission && (
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-900">
+                      <p><strong>ℹ️ Info:</strong> Le bouton "Clôture Définitive (Admin)" n'est accessible qu'aux administrateurs.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {(mission.statut === 'cloturee' || mission.statut === 'validee') && (
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex gap-3">
+                  <CheckCircle className="text-green-600 flex-shrink-0" size={20} />
+                  <div>
+                    <p className="font-semibold text-green-900">✅ Mission Clôturée</p>
+                    <p className="text-sm text-green-800 mt-1">Cette mission a été clôturée et validée.</p>
+                  </div>
+                </div>
+              )}
+
+              {/* ✅ Boutons ADMIN - Valider, Clôturer, Supprimer */}
+              {isAdminUser && (
+                <div className="flex gap-3 mt-6 flex-wrap">
+                  {mission.statut !== 'validee' && onValidate && (
+                    <Button
+                      onClick={() => {
+                        onValidate(mission);
+                        onClose();
+                      }}
+                      className="flex-1 min-w-[120px] bg-green-50 text-green-600 hover:bg-green-100 rounded-lg py-2 font-medium flex items-center justify-center gap-2"
+                      title="Valider cette mission"
+                    >
+                      <CheckCircle size={16} />
+                      Valider
+                    </Button>
+                  )}
+
+                  {mission.statut !== 'cloturee' && onClosure && (
+                    <Button
+                      onClick={() => {
+                        onClosure(mission);
+                        onClose();
+                      }}
+                      className="flex-1 min-w-[120px] bg-orange-50 text-orange-600 hover:bg-orange-100 rounded-lg py-2 font-medium flex items-center justify-center gap-2"
+                      title="Clôturer cette mission"
+                    >
+                      <AlertCircle size={16} />
+                      Clôturer
+                    </Button>
+                  )}
+
+                  {onRemove && (
+                    <Button
+                      onClick={() => {
+                        onRemove(mission);
+                        onClose();
+                      }}
+                      className="flex-1 min-w-[120px] bg-red-50 text-red-600 hover:bg-red-100 rounded-lg py-2 font-medium flex items-center justify-center gap-2"
+                      title="Supprimer cette mission (Admin - Irréversible)"
+                    >
+                      <Trash2 size={16} />
+                      Supprimer
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
           )}
-
-          {(mission.statut === 'cloturee' || mission.statut === 'validee') && (
-            <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex gap-3">
-              <CheckCircle className="text-green-600 flex-shrink-0" size={20} />
-              <div>
-                <p className="font-semibold text-green-900">✅ Mission Clôturée</p>
-                <p className="text-sm text-green-800 mt-1">Cette mission a été clôturée et validée.</p>
-              </div>
-            </div>
-          )}
-
-          {/* ✅ Boutons ADMIN - Valider, Clôturer, Supprimer */}
-          {isAdminUser && (
-            <div className="flex gap-3 mt-6 flex-wrap">
-              {mission.statut !== 'validee' && onValidate && (
-                <Button
-                  onClick={() => {
-                    onValidate(mission);
-                    onClose();
-                  }}
-                  className="flex-1 min-w-[120px] bg-green-50 text-green-600 hover:bg-green-100 rounded-lg py-2 font-medium flex items-center justify-center gap-2"
-                  title="Valider cette mission"
-                >
-                  <CheckCircle size={16} />
-                  Valider
-                </Button>
-              )}
-              
-              {mission.statut !== 'cloturee' && onClosure && (
-                <Button
-                  onClick={() => {
-                    onClosure(mission);
-                    onClose();
-                  }}
-                  className="flex-1 min-w-[120px] bg-orange-50 text-orange-600 hover:bg-orange-100 rounded-lg py-2 font-medium flex items-center justify-center gap-2"
-                  title="Clôturer cette mission"
-                >
-                  <AlertCircle size={16} />
-                  Clôturer
-                </Button>
-              )}
-              
-              {onRemove && (
-                <Button
-                  onClick={() => {
-                    onRemove(mission);
-                    onClose();
-                  }}
-                  className="flex-1 min-w-[120px] bg-red-50 text-red-600 hover:bg-red-100 rounded-lg py-2 font-medium flex items-center justify-center gap-2"
-                  title="Supprimer cette mission (Admin - Irréversible)"
-                >
-                  <Trash2 size={16} />
-                  Supprimer
-                </Button>
-              )}
-            </div>
-          )}
-        </div>
-      )}
         </>
       )}
     </div>

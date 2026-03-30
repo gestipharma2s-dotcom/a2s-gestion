@@ -56,21 +56,21 @@ const InstallationCard = ({ installation, onEdit, onDelete, onPayment, refreshTr
   const calculateResteAPayer = async () => {
     try {
       setLoading(true);
-      
+
       // Récupérer TOUS les paiements du client
       const paiements = await paiementService.getByClient(installation.client_id);
-      
+
       // Filtrer STRICTEMENT par installation_id
-      const paiementsInst = paiements.filter(p => 
+      const paiementsInst = paiements.filter(p =>
         p.installation_id === installation.id
       );
-      
+
       setPaiementsInstallation(paiementsInst);
-      
+
       // Calculer le total payé pour CETTE installation uniquement
       const totalPaye = paiementsInst.reduce((sum, p) => sum + (p.montant || 0), 0);
       setMontantPaye(totalPaye);
-      
+
       // Calculer le reste pour CETTE installation uniquement
       const reste = Math.max(0, installation.montant - totalPaye);
       setResteAPayer(reste);
@@ -105,11 +105,10 @@ const InstallationCard = ({ installation, onEdit, onDelete, onPayment, refreshTr
           <button
             onClick={() => onEdit(installation)}
             disabled={!hasEditPermission && !(profile?.role === 'admin' || profile?.role === 'super_admin')}
-            className={`p-2 rounded-lg transition-colors ${
-              !hasEditPermission && !(profile?.role === 'admin' || profile?.role === 'super_admin')
+            className={`p-2 rounded-lg transition-colors ${!hasEditPermission && !(profile?.role === 'admin' || profile?.role === 'super_admin')
                 ? 'text-gray-400 cursor-not-allowed'
                 : 'text-blue-600 hover:bg-blue-50'
-            }`}
+              }`}
             title={!hasEditPermission && !(profile?.role === 'admin' || profile?.role === 'super_admin') ? 'Permission refusée' : 'Modifier'}
           >
             {!hasEditPermission && !(profile?.role === 'admin' || profile?.role === 'super_admin') ? (
@@ -119,13 +118,12 @@ const InstallationCard = ({ installation, onEdit, onDelete, onPayment, refreshTr
             )}
           </button>
           <button
-            onClick={() => onDelete(installation.id)}
+            onClick={() => onDelete(installation)}
             disabled={!hasDeletePermission && !(profile?.role === 'admin' || profile?.role === 'super_admin')}
-            className={`p-2 rounded-lg transition-colors ${
-              !hasDeletePermission && !(profile?.role === 'admin' || profile?.role === 'super_admin')
+            className={`p-2 rounded-lg transition-colors ${!hasDeletePermission && !(profile?.role === 'admin' || profile?.role === 'super_admin')
                 ? 'text-gray-400 cursor-not-allowed'
                 : 'text-red-600 hover:bg-red-50'
-            }`}
+              }`}
             title={!hasDeletePermission && !(profile?.role === 'admin' || profile?.role === 'super_admin') ? 'Permission refusée' : 'Supprimer'}
           >
             {!hasDeletePermission && !(profile?.role === 'admin' || profile?.role === 'super_admin') ? (
@@ -143,12 +141,12 @@ const InstallationCard = ({ installation, onEdit, onDelete, onPayment, refreshTr
           <Building size={16} />
           <span className="font-medium">{installation.client?.raison_sociale}</span>
         </div>
-        
+
         <div className="flex items-center gap-2 text-gray-600 text-sm">
           <Calendar size={16} />
           <span>Installé le {formatDate(installation.date_installation)}</span>
         </div>
-        
+
         {/* ✅ Afficher Montant Installation réel pour admins, codes pour autres */}
         <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
           <p className="text-xs text-blue-600 font-semibold">MONTANT</p>
@@ -160,7 +158,7 @@ const InstallationCard = ({ installation, onEdit, onDelete, onPayment, refreshTr
             )}
           </p>
         </div>
-        
+
         {/* ✅ Montant Payé et Reste à Payer - Vrai montant au lieu de codes */}
         {!loading && (
           <div className="space-y-2">

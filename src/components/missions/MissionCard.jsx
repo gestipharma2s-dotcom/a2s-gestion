@@ -1,6 +1,7 @@
 import React from 'react';
-import { Edit, Trash2, Eye, AlertCircle, CheckCircle, Clock, DollarSign, Lock, Check, XCircle } from 'lucide-react';
+import { Edit, Trash2, Eye, AlertCircle, CheckCircle, Clock, DollarSign, Lock, Check, XCircle, Printer } from 'lucide-react';
 import Button from '../common/Button';
+import { missionExportService } from '../../services/missionExportService';
 
 const MissionCard = ({ mission, onEdit, onDelete, onDetails, onValidate, onClosure, onRemove, getStatusColor, getStatusLabel, hasEditPermission, hasDeletePermission, isAdmin }) => {
   const getDaysUntilDue = () => {
@@ -23,7 +24,7 @@ const MissionCard = ({ mission, onEdit, onDelete, onDetails, onValidate, onClosu
 
   // Vérifier si la mission est clôturée
   const isMissionClosed = mission?.cloturee_definitive || mission?.cloturee_par_chef;
-  
+
   const indicator = getDelayIndicator();
   const IndicatorIcon = indicator.icon;
 
@@ -45,7 +46,7 @@ const MissionCard = ({ mission, onEdit, onDelete, onDetails, onValidate, onClosu
           </div>
 
           <h3 className="text-xl font-bold text-gray-900 mb-2">{mission.titre}</h3>
-          
+
           <p className="text-gray-600 mb-4">{mission.description}</p>
 
           {/* Mission Details Grid */}
@@ -64,12 +65,11 @@ const MissionCard = ({ mission, onEdit, onDelete, onDetails, onValidate, onClosu
             </div>
             <div>
               <p className="text-xs text-gray-500">Priorité</p>
-              <p className={`font-semibold ${
-                mission.priorite === 'critique' ? 'text-red-600' :
-                mission.priorite === 'haute' ? 'text-orange-600' :
-                mission.priorite === 'moyenne' ? 'text-blue-600' :
-                'text-green-600'
-              }`}>
+              <p className={`font-semibold ${mission.priorite === 'critique' ? 'text-red-600' :
+                  mission.priorite === 'haute' ? 'text-orange-600' :
+                    mission.priorite === 'moyenne' ? 'text-blue-600' :
+                      'text-green-600'
+                }`}>
                 {mission.priorite?.toUpperCase() || 'N/A'}
               </p>
             </div>
@@ -150,15 +150,25 @@ const MissionCard = ({ mission, onEdit, onDelete, onDetails, onValidate, onClosu
               <Eye size={16} />
               Détails
             </Button>
-            
+
+            {/* Bouton Impression Ordre Mission */}
+            <Button
+              onClick={() => missionExportService.printMission(mission)}
+              className="w-full bg-purple-50 text-purple-600 hover:bg-purple-100 flex items-center justify-center gap-2 py-2 rounded"
+              size="sm"
+              title="Imprimer Ordre de Mission"
+            >
+              <Printer size={16} />
+              Ordre de Mission
+            </Button>
+
             {hasEditPermission && (isMissionClosed ? isAdmin : true) && (
               <Button
                 onClick={() => onEdit(mission)}
-                className={`w-full flex items-center justify-center gap-2 py-2 rounded ${
-                  isMissionClosed && !isAdmin
+                className={`w-full flex items-center justify-center gap-2 py-2 rounded ${isMissionClosed && !isAdmin
                     ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                     : 'bg-amber-50 text-amber-600 hover:bg-amber-100'
-                }`}
+                  }`}
                 size="sm"
                 disabled={isMissionClosed && !isAdmin}
                 title={isMissionClosed && !isAdmin ? 'Seuls les admins peuvent modifier une mission clôturée' : ''}
@@ -167,7 +177,7 @@ const MissionCard = ({ mission, onEdit, onDelete, onDetails, onValidate, onClosu
                 Modifier
               </Button>
             )}
-            
+
             {/* ✅ NOUVEAU: Boutons ADMIN - Valider, Clôturer, Supprimer */}
             {isAdmin && onRemove && (
               <>
@@ -182,7 +192,7 @@ const MissionCard = ({ mission, onEdit, onDelete, onDetails, onValidate, onClosu
                     Valider
                   </Button>
                 )}
-                
+
                 {mission.statut !== 'cloturee' && onClosure && (
                   <Button
                     onClick={() => onClosure(mission)}
@@ -194,7 +204,7 @@ const MissionCard = ({ mission, onEdit, onDelete, onDetails, onValidate, onClosu
                     Clôturer
                   </Button>
                 )}
-                
+
                 <Button
                   onClick={() => onRemove(mission)}
                   className="w-full flex items-center justify-center gap-2 py-2 rounded bg-red-50 text-red-600 hover:bg-red-100"
@@ -206,15 +216,14 @@ const MissionCard = ({ mission, onEdit, onDelete, onDetails, onValidate, onClosu
                 </Button>
               </>
             )}
-            
+
             {!isAdmin && hasDeletePermission && (
               <Button
                 onClick={() => onDelete(mission)}
-                className={`w-full flex items-center justify-center gap-2 py-2 rounded ${
-                  isMissionClosed && !isAdmin
+                className={`w-full flex items-center justify-center gap-2 py-2 rounded ${isMissionClosed && !isAdmin
                     ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                     : 'bg-red-50 text-red-600 hover:bg-red-100'
-                }`}
+                  }`}
                 size="sm"
                 disabled={isMissionClosed && !isAdmin}
                 title={isMissionClosed && !isAdmin ? 'Seuls les admins peuvent supprimer une mission clôturée' : ''}

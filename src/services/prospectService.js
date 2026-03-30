@@ -115,26 +115,32 @@ export const prospectService = {
   // Mettre à jour un prospect
   async update(id, prospectData) {
     try {
-      // ✅ Valider le secteur
-      const secteursValides = ['GROSSISTE PHARM', 'GROSSISTE PARA', 'PARA SUPER GROS', 'LABO PROD', 'AUTRE'];
-      const secteur = prospectData.secteur && secteursValides.includes(prospectData.secteur)
-        ? prospectData.secteur
-        : 'AUTRE';
+      // ✅ Permettre les mises à jour partielles (ne pas écraser les champs non fournis)
+      const cleanData = {};
 
-      // ✅ CORRIGÉ: N'envoyer que les champs minimums
-      const cleanData = {
-        raison_sociale: prospectData.raison_sociale || '',
-        contact: prospectData.contact || '',
-        secteur: secteur,
-        telephone: prospectData.telephone || '',
-        email: prospectData.email || '',
-        wilaya: prospectData.wilaya || '',
-        ville: prospectData.ville || '',
-        adresse: prospectData.adresse || '',
-        forme_juridique: prospectData.forme_juridique || '',
-        solde_initial: parseFloat(prospectData.solde_initial) || 0,
-        temperature: prospectData.temperature || 'froid'
-      };
+      const textFields = ['raison_sociale', 'contact', 'telephone', 'email', 'wilaya', 'ville', 'adresse', 'forme_juridique'];
+      textFields.forEach(field => {
+        if (prospectData[field] !== undefined) {
+          cleanData[field] = prospectData[field] || '';
+        }
+      });
+
+      if (prospectData.statut !== undefined) {
+        cleanData.statut = prospectData.statut;
+      }
+
+      if (prospectData.temperature !== undefined) {
+        cleanData.temperature = prospectData.temperature || 'froid';
+      }
+
+      if (prospectData.solde_initial !== undefined) {
+        cleanData.solde_initial = parseFloat(prospectData.solde_initial) || 0;
+      }
+
+      if (prospectData.secteur !== undefined) {
+        const secteursValides = ['GROSSISTE PHARM', 'GROSSISTE PARA', 'PARA SUPER GROS', 'LABO PROD', 'AUTRE'];
+        cleanData.secteur = secteursValides.includes(prospectData.secteur) ? prospectData.secteur : 'AUTRE';
+      }
 
       const { data, error } = await supabase
         .from(TABLES.PROSPECTS)

@@ -272,7 +272,7 @@ Cette action est IRRÉVERSIBLE et affectera:
         // Mode création
         const cleanData = {
           client_id: formData.client_id,
-          installation_id: formData.installation_id,
+          installation_id: formData.installation_id || null,
           type: formData.type,
           montant: formData.montant,
           mode_paiement: formData.mode_paiement,
@@ -402,6 +402,23 @@ Cette action est IRRÉVERSIBLE et affectera:
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-800">Paiements</h2>
+        {hasCreatePermission && (
+          <Button
+            onClick={() => {
+              setSelectedPaiement(null);
+              setModalMode('create');
+              setShowModal(true);
+            }}
+            className="flex items-center gap-2"
+          >
+            <Plus size={20} />
+            Ajouter Paiement
+          </Button>
+        )}
+      </div>
+
       {/* Stats - Cartes principales: Total des paiements et Reste à payer */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="card bg-gradient-to-br from-green-500 to-green-600 text-white relative overflow-hidden">
@@ -680,7 +697,7 @@ Cette action est IRRÉVERSIBLE et affectera:
       <Modal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
-        title="Modifier Paiement"
+        title={modalMode === 'create' ? "Ajouter un Paiement" : "Modifier Paiement"}
       >
         <PaiementForm
           paiement={selectedPaiement}

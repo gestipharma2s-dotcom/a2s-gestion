@@ -1,6 +1,6 @@
 import React from 'react';
-import { 
-  LayoutDashboard, Target, Users, Calendar, CreditCard, 
+import {
+  LayoutDashboard, Target, Users, Calendar, CreditCard,
   Download, Package, Settings, LogOut, Menu, X, HelpCircle, CheckCircle
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -65,7 +65,10 @@ const Sidebar = ({ currentPage, onPageChange }) => {
         `}
       >
         {/* Header */}
-        <div className="p-6 border-b border-primary-light">
+        <div
+          onClick={() => onPageChange(PAGES.DASHBOARD)}
+          className="p-6 border-b border-primary-light cursor-pointer hover:bg-white/5 transition-colors"
+        >
           <div className="flex items-center gap-3">
             <div className="bg-white w-12 h-12 rounded-xl flex items-center justify-center">
               <span className="text-primary text-xl font-bold">A2S</span>
@@ -82,7 +85,7 @@ const Sidebar = ({ currentPage, onPageChange }) => {
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = currentPage === item.id;
-            
+
             return (
               <button
                 key={item.id}
@@ -93,8 +96,8 @@ const Sidebar = ({ currentPage, onPageChange }) => {
                 className={`
                   w-full flex items-center gap-3 px-6 py-3 
                   transition-colors duration-200
-                  ${isActive 
-                    ? 'bg-white bg-opacity-20 border-l-4 border-white' 
+                  ${isActive
+                    ? 'bg-white bg-opacity-20 border-l-4 border-white'
                     : 'hover:bg-white hover:bg-opacity-10'
                   }
                 `}
@@ -117,7 +120,7 @@ const Sidebar = ({ currentPage, onPageChange }) => {
               <p className="text-sm text-blue-200 truncate">Utilisateur</p>
             </div>
           </div>
-          
+
           <button
             onClick={handleLogout}
             className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white bg-opacity-10 hover:bg-opacity-20 rounded-lg transition-colors"

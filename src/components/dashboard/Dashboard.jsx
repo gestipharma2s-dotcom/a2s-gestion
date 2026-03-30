@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Users, Target, Calendar, TrendingUp, DollarSign, AlertCircle, TrendingDown, Sparkles, CheckCircle, Clock, Activity, BarChart3, PieChart as PieChartIcon, MapPin } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Users, Target, Calendar, TrendingUp, DollarSign, AlertCircle, TrendingDown, Sparkles, CheckCircle, Clock, Activity, BarChart3, PieChart as PieChartIcon, MapPin, Filter, RefreshCw } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import MultiSelectDropdown from '../common/MultiSelectDropdown';
 import { prospectService } from '../../services/prospectService';
@@ -7,6 +7,7 @@ import { installationService } from '../../services/installationService';
 import { paiementService } from '../../services/paiementService';
 import { interventionService } from '../../services/interventionService'; // ✅ Ajout
 import { missionService } from '../../services/missionService'; // ✅ Ajout missions
+import { supabase } from '../../services/supabaseClient'; // ✅ Pour abonnements
 import { formatWilaya } from '../../constants/wilayas';
 import generateAIAnalysis from '../../services/aiService';
 import { useAuth } from '../../context/AuthContext';
@@ -52,6 +53,11 @@ const Dashboard = () => {
   const [loadingAI, setLoadingAI] = useState(false);
   const [showGraphs, setShowGraphs] = useState(false);
 
+  // Filtre de dates : par défaut = année en cours
+  const currentYear = new Date().getFullYear();
+  const [dateFrom, setDateFrom] = useState(`${currentYear}-01-01`);
+  const [dateTo, setDateTo] = useState(`${currentYear}-12-31`);
+
   // ✅ Charger les graphiques après un délai (lazy loading)
   useEffect(() => {
     if (!loading) {
@@ -61,9 +67,8 @@ const Dashboard = () => {
   }, [loading]);
 
   useEffect(() => {
-    // ✅ Charger d'abord les stats de base
-    loadDashboardData();
-  }, []);
+    loadDashboardData(dateFrom, dateTo);
+  }, [dateFrom, dateTo]);
 
   // ✅ Charger l'IA en arrière-plan après les stats
   useEffect(() => {
@@ -72,39 +77,48 @@ const Dashboard = () => {
     }
   }, [stats]);
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = async (from, to) => {
     try {
       setLoading(true);
 
-      // ✅ Fonction de filtrage par année en cours
-      const currentYear = new Date().getFullYear();
-      const filterByCurrentYear = (data) => {
+      // Filtre par plage de dates
+      const fromDate = from ? new Date(from) : null;
+      const toDate = to ? new Date(to) : null;
+      if (toDate) toDate.setHours(23, 59, 59, 999);
+
+      const filterByDateRange = (data) => {
         return data.filter(item => {
           const dateStr = item.created_at || item.date_creation || item.date_debut || item.date_installation || item.date_paiement || item.date;
           if (!dateStr) return false;
-          return new Date(dateStr).getFullYear() === currentYear;
+          const d = new Date(dateStr);
+          if (fromDate && d < fromDate) return false;
+          if (toDate && d > toDate) return false;
+          return true;
         });
       };
 
       // Charger les prospects (garder une référence à tous pour les noms)
       const allProspectsData = await prospectService.getAll();
-      const prospectsData = filterByCurrentYear(allProspectsData);
+      const prospectsData = filterByDateRange(allProspectsData);
       const clientsActifs = prospectsData.filter(p => p.statut === 'actif').length;
       const prospectsEnCours = prospectsData.filter(p => p.statut === 'prospect').length;
 
       // Charger les installations
       const allInstallationsData = await installationService.getAll();
-      const installationsData = filterByCurrentYear(allInstallationsData);
+      const installationsData = filterByDateRange(allInstallationsData);
       const totalInstallations = installationsData.reduce((sum, inst) => sum + (inst.montant || 0), 0);
 
       // Charger les paiements
       const allPaiementsData = await paiementService.getAll();
-      const paiementsData = filterByCurrentYear(allPaiementsData);
+      const paiementsData = filterByDateRange(allPaiementsData);
       const totalPaiements = paiementsData.reduce((sum, p) => sum + (p.montant || 0), 0);
+
+      // Charger les abonnements (pour calcul global identique à PaiementsList)
+      const { data: allAbonnementsData } = await supabase.from('abonnements').select('*');
 
       // ✅ Charger les interventions
       const allInterventionsData = await interventionService.getAll();
-      const interventionsData = filterByCurrentYear(allInterventionsData);
+      const interventionsData = filterByDateRange(allInterventionsData);
 
       // ✅ Calculer interventions par utilisateur avec temps total
       const interventionsByUser = {};
@@ -131,7 +145,7 @@ const Dashboard = () => {
 
       // ✅ CHARGER LES MISSIONS ET COMPTER PAR WILAYA
       const allMissionsData = await missionService.getAll();
-      const missionsData = filterByCurrentYear(allMissionsData);
+      const missionsData = filterByDateRange(allMissionsData);
       const missionsByWilaya = {};
 
       missionsData.forEach(mission => {
@@ -149,7 +163,26 @@ const Dashboard = () => {
 
       setMissionsByWilayaData(missionsByWilayaArray);
 
-      // ✅ CALCUL CORRECT: Reste à Payer = Total Installations - Total Paiements
+      // ✅ RESTE À PAYER GLOBAL - Même formule que la page Paiements :
+      // solde_initial + totalInstallations + totalAbonnements - totalPaiements
+      const allAbos = allAbonnementsData || [];
+      const resteAPayerGlobal = allProspectsData.reduce((globalSum, prospect) => {
+        const clientInsts = allInstallationsData.filter(i => i.client_id === prospect.id);
+        const clientPaiements = allPaiementsData.filter(p => p.client_id === prospect.id);
+        const clientAbos = allAbos.filter(a => clientInsts.some(i => i.id === a.installation_id));
+
+        const totalInst = clientInsts.reduce((s, i) => s + (parseFloat(i.montant) || 0), 0);
+        const totalAbo = clientAbos.reduce((s, a) => {
+          const inst = clientInsts.find(i => i.id === a.installation_id);
+          return s + (parseFloat(inst?.montant_abonnement) || 0);
+        }, 0);
+        const totalPaye = clientPaiements.reduce((s, p) => s + (parseFloat(p.montant) || 0), 0);
+
+        const solde = (parseFloat(prospect.solde_initial) || 0) + totalInst + totalAbo - totalPaye;
+        return globalSum + Math.max(0, solde);
+      }, 0);
+
+      // Reste à Payer période filtrée (pour usage interne)
       const resteAPayer = Math.max(0, totalInstallations - totalPaiements);
 
       // ✅ RÉPARTITION REVENUS - À partir des PAIEMENTS (type field)
@@ -313,7 +346,7 @@ const Dashboard = () => {
         prospects: prospectsEnCours,
         revenus: totalPaiements,
         abonnementsActifs: clientsActifs,
-        resteAPayer: resteAPayer,
+        resteAPayer: resteAPayerGlobal,   // ✅ Toujours depuis l'historique global
         totalPaiements: totalPaiements,
         tauxConversion: parseFloat(tauxConversion),
         totalInstallations: totalInstallations,
@@ -398,10 +431,38 @@ const Dashboard = () => {
   // ✅ Afficher le dashboard (pas de vérification WelcomePage)
   return (
     <div className="space-y-6 p-6 bg-[#f8fafc] min-h-screen lg:px-8">
-      {/* En-tête du Dashboard */}
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold text-gray-800 mb-2">Tableau de Bord A2S Gestion</h1>
-        <p className="text-gray-600">Bienvenue, {profile?.nom || 'utilisateur'}. Voici un aperçu de vos opérations.</p>
+      {/* En-tête du Dashboard avec Filtre Dates */}
+      <div className="mb-6 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <div>
+          <h1 className="text-4xl font-bold text-gray-800 mb-1">Tableau de Bord A2S Gestion</h1>
+          <p className="text-gray-500 text-sm">Bienvenue, {profile?.nom || 'utilisateur'}. Voici un aperçu de vos opérations.</p>
+        </div>
+
+        {/* Filtre Du / Au */}
+        <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-2xl px-5 py-3 shadow-sm">
+          <Filter size={16} className="text-primary shrink-0" />
+          <span className="text-sm font-semibold text-gray-600 whitespace-nowrap">Du</span>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={e => setDateFrom(e.target.value)}
+            className="text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+          <span className="text-sm font-semibold text-gray-600 whitespace-nowrap">Au</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={e => setDateTo(e.target.value)}
+            className="text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+          <button
+            onClick={() => { setDateFrom(`${currentYear}-01-01`); setDateTo(`${currentYear}-12-31`); }}
+            className="ml-1 p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-primary transition-colors"
+            title="Réinitialiser au filtre annuel"
+          >
+            <RefreshCw size={14} />
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards - Première ligne (5 cartes principales) */}
@@ -440,9 +501,9 @@ const Dashboard = () => {
           <div className="flex items-center justify-between mb-2">
             <div>
               <p className="text-indigo-100 uppercase tracking-widest text-[10px] font-bold">Total Vente</p>
-              <h3 className="text-3xl font-black text-white">
+              <h3 className="text-2xl font-black text-white">
                 {profile?.role === 'admin' || profile?.role === 'super_admin'
-                  ? `${(stats.totalInstallations / 1000).toFixed(0)}K DA`
+                  ? formatMontant(stats.totalInstallations)
                   : '🔐'}
               </h3>
             </div>
@@ -456,9 +517,9 @@ const Dashboard = () => {
           <div className="flex items-center justify-between mb-2">
             <div>
               <p className="text-sky-100 uppercase tracking-widest text-[10px] font-bold">Montants Versé</p>
-              <h3 className="text-3xl font-black text-white">
+              <h3 className="text-2xl font-black text-white">
                 {profile?.role === 'admin' || profile?.role === 'super_admin'
-                  ? `${(stats.totalPaiements / 1000).toFixed(0)}K DA`
+                  ? formatMontant(stats.totalPaiements)
                   : '🔐'}
               </h3>
             </div>
@@ -472,15 +533,15 @@ const Dashboard = () => {
           <div className="flex items-center justify-between mb-2">
             <div>
               <p className="text-rose-100 uppercase tracking-widest text-[10px] font-bold">Reste à Payer</p>
-              <h3 className="text-3xl font-black text-white">
+              <h3 className="text-2xl font-black text-white">
                 {profile?.role === 'admin' || profile?.role === 'super_admin'
-                  ? `${(stats.resteAPayer / 1000).toFixed(0)}K DA`
+                  ? formatMontant(stats.resteAPayer)
                   : '🔐'}
               </h3>
             </div>
             <div className="w-10 h-10 rounded-lg bg-white/20 text-white flex items-center justify-center shrink-0"><AlertCircle size={20} /></div>
           </div>
-          <div className="text-[10px] font-bold text-rose-100 pt-2 border-t border-white/20 mt-1">Montant encore à payer</div>
+          <div className="text-[10px] font-bold text-rose-100 pt-2 border-t border-white/20 mt-1">Solde global non réglé (tout historique)</div>
         </div>
       </div>
 

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Edit, ChevronDown, ChevronUp, Plus, Trash2, DollarSign, Check, XCircle } from 'lucide-react';
+import { Download, Edit, ChevronDown, ChevronUp, Plus, Trash2, DollarSign, Check, XCircle, Printer } from 'lucide-react';
 import Button from '../common/Button';
 import Input from '../common/Input';
+import { missionExportService } from '../../services/missionExportService';
+import { formatWilaya } from '../../constants/wilayas';
 
 const MissionDetailsModal = ({ mission, tab = 'technique', onClose, onValidate, onClosure, onRemove, isAdmin }) => {
   const [activeTab, setActiveTab] = useState(tab);
@@ -54,7 +56,7 @@ const MissionDetailsModal = ({ mission, tab = 'technique', onClose, onValidate, 
 
   const totalExpenses = expenses.reduce((sum, e) => sum + e.montant, 0);
   const budgetRemaining = mission.budgetInitial - totalExpenses;
-  const budgetUsagePercent = mission.budgetInitial > 0 
+  const budgetUsagePercent = mission.budgetInitial > 0
     ? Math.round((totalExpenses / mission.budgetInitial) * 100)
     : 0;
 
@@ -77,11 +79,10 @@ const MissionDetailsModal = ({ mission, tab = 'technique', onClose, onValidate, 
             setActiveTab('technique');
             setExpandedSections(prev => ({ ...prev, technique: true }));
           }}
-          className={`flex-1 py-2 px-4 rounded font-medium transition-colors whitespace-nowrap ${
-            activeTab === 'technique'
-              ? 'bg-white text-primary shadow-sm'
-              : 'text-gray-700 hover:text-gray-900'
-          }`}
+          className={`flex-1 py-2 px-4 rounded font-medium transition-colors whitespace-nowrap ${activeTab === 'technique'
+            ? 'bg-white text-primary shadow-sm'
+            : 'text-gray-700 hover:text-gray-900'
+            }`}
         >
           🔧 Technique
         </button>
@@ -90,11 +91,10 @@ const MissionDetailsModal = ({ mission, tab = 'technique', onClose, onValidate, 
             setActiveTab('financier');
             setExpandedSections(prev => ({ ...prev, financier: true }));
           }}
-          className={`flex-1 py-2 px-4 rounded font-medium transition-colors whitespace-nowrap ${
-            activeTab === 'financier'
-              ? 'bg-white text-primary shadow-sm'
-              : 'text-gray-700 hover:text-gray-900'
-          }`}
+          className={`flex-1 py-2 px-4 rounded font-medium transition-colors whitespace-nowrap ${activeTab === 'financier'
+            ? 'bg-white text-primary shadow-sm'
+            : 'text-gray-700 hover:text-gray-900'
+            }`}
         >
           💰 Financier
         </button>
@@ -103,11 +103,10 @@ const MissionDetailsModal = ({ mission, tab = 'technique', onClose, onValidate, 
             setActiveTab('cloture');
             setExpandedSections(prev => ({ ...prev, cloture: true }));
           }}
-          className={`flex-1 py-2 px-4 rounded font-medium transition-colors whitespace-nowrap ${
-            activeTab === 'cloture'
-              ? 'bg-white text-red-600 shadow-sm'
-              : 'text-gray-700 hover:text-gray-900'
-          }`}
+          className={`flex-1 py-2 px-4 rounded font-medium transition-colors whitespace-nowrap ${activeTab === 'cloture'
+            ? 'bg-white text-red-600 shadow-sm'
+            : 'text-gray-700 hover:text-gray-900'
+            }`}
         >
           🔴 Clôture
         </button>
@@ -125,6 +124,7 @@ const MissionDetailsModal = ({ mission, tab = 'technique', onClose, onValidate, 
                   <div>
                     <p className="text-sm text-gray-600">Client</p>
                     <p className="font-semibold text-gray-900">{mission.client?.raison_sociale}</p>
+                    <p className="text-xs text-blue-600 font-bold uppercase">{formatWilaya(mission.client?.wilaya)}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Type</p>
@@ -140,11 +140,11 @@ const MissionDetailsModal = ({ mission, tab = 'technique', onClose, onValidate, 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-gray-600">Début</p>
-                    <p className="font-semibold">{new Date(mission.dateDebut).toLocaleDateString('fr-FR')}</p>
+                    <p className="font-semibold">{new Date(mission.date_debut || mission.dateDebut || mission.date_creation).toLocaleDateString('fr-FR')}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Fin</p>
-                    <p className="font-semibold">{new Date(mission.dateFin).toLocaleDateString('fr-FR')}</p>
+                    <p className="font-semibold">{new Date(mission.date_fin_prevue || mission.dateFin).toLocaleDateString('fr-FR')}</p>
                   </div>
                 </div>
 
@@ -252,9 +252,8 @@ const MissionDetailsModal = ({ mission, tab = 'technique', onClose, onValidate, 
             </div>
             <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
               <div
-                className={`h-3 rounded-full transition-all ${
-                  budgetRemaining >= 0 ? 'bg-gradient-to-r from-green-500 to-green-400' : 'bg-gradient-to-r from-red-500 to-red-400'
-                }`}
+                className={`h-3 rounded-full transition-all ${budgetRemaining >= 0 ? 'bg-gradient-to-r from-green-500 to-green-400' : 'bg-gradient-to-r from-red-500 to-red-400'
+                  }`}
                 style={{ width: `${Math.min(budgetUsagePercent, 100)}%` }}
               ></div>
             </div>
@@ -320,7 +319,7 @@ const MissionDetailsModal = ({ mission, tab = 'technique', onClose, onValidate, 
           {/* Liste des Dépenses */}
           <div className="bg-white border-2 border-gray-200 p-4 rounded-lg">
             <h4 className="font-bold text-gray-900 mb-3">📋 Dépenses Enregistrées</h4>
-            
+
             {expenses.length === 0 ? (
               <p className="text-gray-600 text-center py-4">Aucune dépense enregistrée</p>
             ) : (
@@ -449,7 +448,7 @@ const MissionDetailsModal = ({ mission, tab = 'technique', onClose, onValidate, 
         >
           Fermer
         </Button>
-        
+
         {/* ✅ Bouton VALIDER - Admin uniquement, si statut !== 'validee' */}
         {isAdmin && onValidate && mission.statut !== 'validee' && (
           <Button
@@ -464,7 +463,7 @@ const MissionDetailsModal = ({ mission, tab = 'technique', onClose, onValidate, 
             Valider
           </Button>
         )}
-        
+
         {/* ✅ Bouton CLÔTURER - Admin uniquement, si statut !== 'cloturee' */}
         {isAdmin && onClosure && mission.statut !== 'cloturee' && (
           <Button
@@ -479,7 +478,7 @@ const MissionDetailsModal = ({ mission, tab = 'technique', onClose, onValidate, 
             Clôturer
           </Button>
         )}
-        
+
         {/* ✅ Bouton SUPPRIMER - Admin uniquement, TOUJOURS visible */}
         {isAdmin && onRemove && (
           <Button
@@ -494,7 +493,19 @@ const MissionDetailsModal = ({ mission, tab = 'technique', onClose, onValidate, 
             Supprimer
           </Button>
         )}
-        
+
+        {/* ✅ Bouton IMPRIMER ORDRE DE MISSION */}
+        <Button
+          onClick={() => {
+            missionExportService.printMission(mission);
+          }}
+          className="flex-1 bg-blue-600 text-white hover:bg-blue-700 rounded-lg py-2 font-medium flex items-center justify-center gap-2"
+          title="Imprimer l'Ordre de Mission (Modèle Algérien)"
+        >
+          <Printer size={18} />
+          Ordre de Mission
+        </Button>
+
         <Button
           className="flex-1 bg-gradient-to-r from-primary to-primary-dark text-white hover:opacity-90 rounded-lg py-2 font-medium flex items-center justify-center gap-2"
         >

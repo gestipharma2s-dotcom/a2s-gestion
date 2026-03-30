@@ -11,7 +11,7 @@ const MissionExport = ({ mission, onClose }) => {
     try {
       setExporting(true);
       const result = await missionExportService.exportMissionPDF(mission);
-      
+
       // Message informatif
       alert(
         `✅ ${result.message}\n\n` +
@@ -20,7 +20,7 @@ const MissionExport = ({ mission, onClose }) => {
         `npm install jspdf html2canvas\n\n` +
         `Ensuite, le PDF sera généré automatiquement.`
       );
-      
+
       setExportFormat('pdf');
     } catch (error) {
       alert('❌ Erreur lors de l\'export PDF: ' + error.message);
@@ -33,7 +33,7 @@ const MissionExport = ({ mission, onClose }) => {
     try {
       setExporting(true);
       const result = await missionExportService.exportMissionExcel(mission);
-      
+
       alert(
         `✅ ${result.message}\n\n` +
         `Les données sont prêtes pour Excel.\n\n` +
@@ -41,7 +41,7 @@ const MissionExport = ({ mission, onClose }) => {
         `npm install xlsx\n\n` +
         `Ensuite, le fichier Excel sera téléchargé automatiquement.`
       );
-      
+
       setExportFormat('excel');
     } catch (error) {
       alert('❌ Erreur lors de l\'export Excel: ' + error.message);
@@ -56,7 +56,7 @@ const MissionExport = ({ mission, onClose }) => {
 
   const handleExportText = () => {
     const textReport = missionExportService.generateTextReport(mission);
-    
+
     // Copier dans le presse-papiers
     navigator.clipboard.writeText(textReport).then(() => {
       alert('✅ Rapport texte copié dans le presse-papiers!');
@@ -79,11 +79,10 @@ const MissionExport = ({ mission, onClose }) => {
         <button
           onClick={handleExportPDF}
           disabled={exporting}
-          className={`p-4 rounded-lg border-2 transition-all cursor-pointer ${
-            exportFormat === 'pdf'
+          className={`p-4 rounded-lg border-2 transition-all cursor-pointer ${exportFormat === 'pdf'
               ? 'border-red-500 bg-red-50'
               : 'border-gray-300 hover:border-red-500 hover:bg-red-50'
-          }`}
+            }`}
         >
           <div className="flex flex-col items-center gap-2">
             <FileText size={32} className="text-red-600" />
@@ -96,11 +95,10 @@ const MissionExport = ({ mission, onClose }) => {
         <button
           onClick={handleExportExcel}
           disabled={exporting}
-          className={`p-4 rounded-lg border-2 transition-all cursor-pointer ${
-            exportFormat === 'excel'
+          className={`p-4 rounded-lg border-2 transition-all cursor-pointer ${exportFormat === 'excel'
               ? 'border-green-500 bg-green-50'
               : 'border-gray-300 hover:border-green-500 hover:bg-green-50'
-          }`}
+            }`}
         >
           <div className="flex flex-col items-center gap-2">
             <Sheet size={32} className="text-green-600" />
@@ -118,7 +116,7 @@ const MissionExport = ({ mission, onClose }) => {
           <div className="flex flex-col items-center gap-2">
             <Printer size={32} className="text-blue-600" />
             <span className="font-semibold text-gray-900">Imprimer</span>
-            <span className="text-xs text-gray-600">Rapport imprimable</span>
+            <span className="text-xs text-gray-600">Ordre de mission</span>
           </div>
         </button>
 

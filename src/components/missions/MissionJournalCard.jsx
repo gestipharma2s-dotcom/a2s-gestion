@@ -1,6 +1,8 @@
 import React from 'react';
-import { ChevronDown, ChevronUp, Eye, Edit, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { ChevronDown, ChevronUp, Eye, Edit, AlertCircle, CheckCircle, Clock, Printer } from 'lucide-react';
 import Button from '../common/Button';
+import { missionExportService } from '../../services/missionExportService';
+import { formatWilaya } from '../../constants/wilayas';
 
 const MissionJournalCard = ({ mission, onDetails, onEdit, onClosure, getStatusColor, getStatusLabel, hasEditPermission, isChef, isAdmin, isAccompagnateur }) => {
   const getDaysUntilDue = () => {
@@ -44,6 +46,7 @@ const MissionJournalCard = ({ mission, onDetails, onEdit, onClosure, getStatusCo
           <div className="text-right ml-4">
             <p className="text-xs text-gray-500">ID: {mission.id}</p>
             <p className="text-sm font-semibold text-gray-900 mt-1">{mission.client?.raison_sociale}</p>
+            <p className="text-xs text-blue-600 font-bold uppercase">{formatWilaya(mission.client?.wilaya)}</p>
             <p className="text-xs text-gray-600">{mission.type}</p>
           </div>
         </div>
@@ -78,12 +81,11 @@ const MissionJournalCard = ({ mission, onDetails, onEdit, onClosure, getStatusCo
           </div>
           <div className="bg-gray-50 p-2 rounded">
             <p className="text-gray-600 text-xs">Priorité</p>
-            <p className={`font-semibold ${
-              mission.priorite === 'critique' ? 'text-red-600' :
+            <p className={`font-semibold ${mission.priorite === 'critique' ? 'text-red-600' :
               mission.priorite === 'haute' ? 'text-orange-600' :
-              mission.priorite === 'moyenne' ? 'text-blue-600' :
-              'text-green-600'
-            }`}>
+                mission.priorite === 'moyenne' ? 'text-blue-600' :
+                  'text-green-600'
+              }`}>
               {mission.priorite?.toUpperCase()}
             </p>
           </div>
@@ -123,7 +125,7 @@ const MissionJournalCard = ({ mission, onDetails, onEdit, onClosure, getStatusCo
               Détails Technique
             </Button>
           )}
-          
+
           {/* Détails Financier - Uniquement Chef de Mission et Admin (PAS accompagnateurs) */}
           {(isChef || isAdmin) && (
             <Button
@@ -134,7 +136,7 @@ const MissionJournalCard = ({ mission, onDetails, onEdit, onClosure, getStatusCo
               Détails Financier
             </Button>
           )}
-          
+
           {/* Bouton clôture - Chef de Mission ou Admin */}
           {(isChef || isAdmin) && !mission?.cloturee_definitive && (
             <Button
@@ -149,10 +151,21 @@ const MissionJournalCard = ({ mission, onDetails, onEdit, onClosure, getStatusCo
             <Button
               onClick={() => onEdit(mission)}
               className="bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200 px-4 py-2 rounded font-medium"
+              title="Modifier"
             >
               <Edit size={16} />
             </Button>
           )}
+
+          {/* Bouton Impression Ordre Mission */}
+          <Button
+            onClick={() => missionExportService.printMission(mission)}
+            className="bg-purple-50 text-purple-600 hover:bg-purple-100 border border-purple-200 px-4 py-2 rounded font-medium flex items-center gap-2"
+            title="Imprimer Ordre de Mission"
+          >
+            <Printer size={16} />
+            <span className="hidden sm:inline">Ordre Mission</span>
+          </Button>
         </div>
       </div>
     </div>

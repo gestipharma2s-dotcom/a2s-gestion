@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Eye, Phone, Mail, Zap, Thermometer, Flame, Snowflake, Cloud, CheckCircle, RefreshCw } from 'lucide-react';
+import { Plus, Edit2, Trash2, Eye, Phone, Mail, Zap, Thermometer, Flame, Snowflake, Cloud, CheckCircle, RefreshCw, Archive, ArchiveRestore } from 'lucide-react';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
 import SearchBar from '../common/SearchBar';
@@ -12,6 +12,8 @@ import ProspectActionForm from './ProspectActionForm';
 import InstallationPlanningList from './InstallationPlanningList';
 import { prospectService } from '../../services/prospectService';
 import { userService } from '../../services/userService';
+import { installationService } from '../../services/installationService';
+import { missionService } from '../../services/missionService';
 import { formatDate, formatMontant } from '../../utils/helpers';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
@@ -23,7 +25,7 @@ const ProspectsList = () => {
   const [filteredProspects, setFilteredProspects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('prospect');
   const [dateStart, setDateStart] = useState('');
   const [dateEnd, setDateEnd] = useState('');
   const [creatorId, setCreatorId] = useState('');
@@ -97,6 +99,11 @@ const ProspectsList = () => {
 
   const filterProspects = () => {
     let filtered = [...prospects];
+
+    // Cacher les archivés par défaut, sauf si on sélectionne spécifiquement ce filtre
+    if (filterStatus !== 'archive') {
+      filtered = filtered.filter(p => p.statut !== 'archive');
+    }
 
     if (filterStatus !== 'all') {
       filtered = filtered.filter(p => p.statut === filterStatus);
@@ -214,6 +221,34 @@ const ProspectsList = () => {
     }
   };
 
+  const handleArchiveToggle = async (prospect) => {
+    try {
+      if (!hasEditPermission && !(profile?.role === 'admin' || profile?.role === 'super_admin')) {
+        addNotification({ type: 'error', message: 'Permission refusée' });
+        return;
+      }
+      const newStatus = prospect.statut === 'archive' ? 'prospect' : 'archive';
+      const alertMsg = newStatus === 'archive'
+        ? `Voulez-vous vraiment archiver "${prospect.raison_sociale}" ? (Il sera masqué de la liste principale)`
+        : `Voulez-vous désarchiver "${prospect.raison_sociale}" ?`;
+
+      if (!window.confirm(alertMsg)) return;
+
+      await prospectService.update(prospect.id, { statut: newStatus });
+      addNotification({
+        type: 'success',
+        message: `Client ${newStatus === 'archive' ? 'archivé' : 'désarchivé'} avec succès`
+      });
+      loadProspects();
+    } catch (error) {
+      console.error('Erreur archivage:', error);
+      addNotification({
+        type: 'error',
+        message: "Erreur lors de la mise à jour du statut d'archive."
+      });
+    }
+  };
+
   const handleViewHistory = (prospect) => {
     setSelectedProspect(prospect);
     setShowHistoryModal(true);
@@ -292,37 +327,96 @@ const ProspectsList = () => {
       // Préparer les métadonnées pour l'historique
       const metadata = {
         date_action: formData.date_action,
-        details_supplementaires: formData.details
+        details_supplementaires: formData.details || formData.details_action
       };
 
-      // Ajouter les champs spécifiques à l'installation
+      // ✅ CAS particulier: INSTALLATION (Formulaire complet)
       if (formData.type_action === 'installation') {
-        metadata.application = formData.application;
-        metadata.chef_mission = formData.chef_mission;
-        metadata.date_debut = formData.date_debut;
-        metadata.date_fin = formData.date_fin;
-        metadata.conversion = formData.conversion;
+        // 1) Créer l'historique d'action (comme avant)
+        metadata.application = formData.application_installee;
+        metadata.chef_mission = formData.chef_mission_id;
+        metadata.date_debut = formData.date_installation;
+        metadata.date_fin = formData.date_fin_installation;
+        metadata.conversion = formData.conversion_bdd;
         metadata.anciens_logiciels = formData.anciens_logiciels;
+        metadata.montant = formData.montant;
+
+        await prospectService.addHistorique(
+          selectedProspect.id,
+          'installation',
+          formData.resume_action || `Installation de ${formData.application_installee}`,
+          metadata
+        );
+
+        // 2) Créer la VRAIE installation dans la table 'installations'
+        const installationData = {
+          client_id: selectedProspect.id,
+          application_installee: formData.application_installee,
+          montant: formData.montant,
+          montant_abonnement: formData.montant_abonnement,
+          date_installation: formData.date_installation,
+          type: formData.type,
+          statut: formData.statut,
+          created_by: user?.id || null
+        };
+
+        const newInstallation = await installationService.create(installationData);
+
+        // 3) Créer la MISSION si demandé
+        if (formData.creer_mission && newInstallation?.id) {
+          const createdMission = await missionService.create({
+            titre: `Installation ${formData.application_installee} - ${selectedProspect.raison_sociale}`,
+            clientId: selectedProspect.id,
+            dateDebut: formData.date_installation,
+            dateFin: formData.date_fin_installation,
+            chefMissionId: formData.chef_mission_id,
+            accompagnateurIds: formData.accompagnateurs_ids || [],
+            type: 'installation',
+            budgetInitial: formData.budget_mission ? parseFloat(formData.budget_mission) : undefined,
+            description: [
+              formData.resume_action,
+              formData.details_action ? `\nDétails : ${formData.details_action}` : '',
+              formData.anciens_logiciels?.length ? `\nAnciens logiciels : ${formData.anciens_logiciels.join(', ')}` : '',
+              formData.conversion_bdd === 'oui' ? '\nConversion BDD : Oui' : ''
+            ].filter(Boolean).join(''),
+            priorite: 'normale'
+          });
+
+          // Lier la mission en base
+          if (createdMission?.id) {
+            await installationService.update(newInstallation.id, { mission_id: createdMission.id });
+          }
+        }
+
+        addNotification({
+          type: 'success',
+          message: formData.creer_mission
+            ? '✅ Action, Installation et Mission créées avec succès'
+            : '✅ Action et Installation créées avec succès'
+        });
+
+      } else {
+        // ✅ CAS standard: AUTRES ACTIONS (appel, email, etc.)
+        await prospectService.addHistorique(
+          selectedProspect.id,
+          formData.type_action,
+          formData.description,
+          metadata
+        );
+
+        addNotification({
+          type: 'success',
+          message: 'Action enregistrée avec succès'
+        });
       }
 
-      // ✅ Enregistrer dans l'historique
-      await prospectService.addHistorique(
-        selectedProspect.id,
-        formData.type_action,
-        formData.description,
-        metadata
-      );
-
-      addNotification({
-        type: 'success',
-        message: 'Action enregistrée avec succès'
-      });
       setShowActionModal(false);
       loadProspects();
     } catch (error) {
+      console.error('Erreur lors de l\'enregistrement de l\'action:', error);
       addNotification({
         type: 'error',
-        message: 'Erreur lors de l\'enregistrement de l\'action'
+        message: error.message || 'Erreur lors de l\'enregistrement de l\'action'
       });
     }
   };
@@ -358,13 +452,14 @@ const ProspectsList = () => {
 
 
 
+  const activeProspectsForStats = prospects.filter(p => p.statut !== 'archive');
   const stats = {
-    total: prospects.length,
-    prospects: prospects.filter(p => p.statut === 'prospect').length,
-    actifs: prospects.filter(p => p.statut === 'actif').length,
-    inactifs: prospects.filter(p => p.statut === 'inactif').length,
-    tauxConversion: prospects.length > 0
-      ? ((prospects.filter(p => p.statut === 'actif').length / prospects.length) * 100).toFixed(0)
+    total: activeProspectsForStats.length,
+    prospects: activeProspectsForStats.filter(p => p.statut === 'prospect').length,
+    actifs: activeProspectsForStats.filter(p => p.statut === 'actif').length,
+    inactifs: activeProspectsForStats.filter(p => p.statut === 'inactif').length,
+    tauxConversion: activeProspectsForStats.length > 0
+      ? ((activeProspectsForStats.filter(p => p.statut === 'actif').length / activeProspectsForStats.length) * 100).toFixed(0)
       : 0
   };
 
@@ -501,6 +596,15 @@ const ProspectsList = () => {
                 >
                   Inactifs
                 </button>
+                <button
+                  onClick={() => setFilterStatus('archive')}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${filterStatus === 'archive'
+                    ? 'bg-gray-600 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                >
+                  Boîte Archive
+                </button>
               </div>
             </div>
           </div>
@@ -560,7 +664,9 @@ const ProspectsList = () => {
                       ? 'bg-green-100 text-green-800'
                       : row.statut === 'prospect'
                         ? 'bg-blue-100 text-blue-800'
-                        : 'bg-red-100 text-red-800'
+                        : row.statut === 'archive'
+                          ? 'bg-gray-100 text-gray-800'
+                          : 'bg-red-100 text-red-800'
                       }`}>
                       {row.statut?.toUpperCase() || 'N/A'}
                     </span>
@@ -652,6 +758,15 @@ const ProspectsList = () => {
                   disabled: !hasEditPermission,
                   title: !hasEditPermission ? 'Permission refusée: Modifier' : 'Modifier ce prospect',
                   className: hasEditPermission ? 'bg-amber-600 hover:bg-amber-700 text-white px-3 py-1' : 'bg-gray-400 cursor-not-allowed text-white px-3 py-1'
+                },
+                {
+                  key: 'archive',
+                  label: (row) => row.statut === 'archive' ? 'Désarchiver' : 'Archiver',
+                  icon: (row) => row.statut === 'archive' ? <ArchiveRestore size={18} /> : <Archive size={18} />,
+                  onClick: (row) => handleArchiveToggle(row),
+                  disabled: !hasEditPermission,
+                  title: !hasEditPermission ? 'Permission refusée' : (row) => row.statut === 'archive' ? 'Remettre dans la liste principale' : 'Masquer ce client/prospect (sans le supprimer)',
+                  className: hasEditPermission ? 'bg-gray-600 hover:bg-gray-700 text-white px-3 py-1' : 'bg-gray-400 cursor-not-allowed text-white px-3 py-1'
                 },
                 {
                   key: 'delete',

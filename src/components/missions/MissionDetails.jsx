@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Download, Edit, ChevronDown, ChevronUp } from 'lucide-react';
 import Button from '../common/Button';
+import { formatWilaya } from '../../constants/wilayas';
 
 const MissionDetails = ({ mission, onEdit, onClose, getStatusLabel }) => {
   const [expandedSections, setExpandedSections] = useState({
@@ -41,11 +42,10 @@ const MissionDetails = ({ mission, onEdit, onClose, getStatusLabel }) => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-gray-600">Statut</p>
-                <span className={`inline-block px-2 py-1 rounded text-sm font-semibold ${
-                  mission.statut === 'validee' ? 'bg-green-100 text-green-800' :
+                <span className={`inline-block px-2 py-1 rounded text-sm font-semibold ${mission.statut === 'validee' ? 'bg-green-100 text-green-800' :
                   mission.statut === 'en_cours' ? 'bg-blue-100 text-blue-800' :
-                  'bg-gray-100 text-gray-800'
-                }`}>
+                    'bg-gray-100 text-gray-800'
+                  }`}>
                   {getStatusLabel(mission.statut)}
                 </span>
               </div>
@@ -58,6 +58,7 @@ const MissionDetails = ({ mission, onEdit, onClose, getStatusLabel }) => {
             <div>
               <p className="text-sm text-gray-600">Client</p>
               <p className="font-semibold text-gray-900">{mission.client?.raison_sociale}</p>
+              <p className="text-xs text-blue-600 font-bold uppercase">{formatWilaya(mission.client?.wilaya)}</p>
             </div>
 
             <div>
@@ -69,13 +70,13 @@ const MissionDetails = ({ mission, onEdit, onClose, getStatusLabel }) => {
               <div>
                 <p className="text-sm text-gray-600">Date de début</p>
                 <p className="font-semibold text-gray-900">
-                  {new Date(mission.dateDebut).toLocaleDateString('fr-FR')}
+                  {new Date(mission.date_debut || mission.dateDebut || mission.date_creation).toLocaleDateString('fr-FR')}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-gray-600">Date de fin</p>
                 <p className="font-semibold text-gray-900">
-                  {new Date(mission.dateFin).toLocaleDateString('fr-FR')}
+                  {new Date(mission.date_fin_prevue || mission.dateFin).toLocaleDateString('fr-FR')}
                 </p>
               </div>
             </div>
@@ -161,7 +162,7 @@ const MissionDetails = ({ mission, onEdit, onClose, getStatusLabel }) => {
               <div className="flex items-center gap-2">
                 <div className="flex-1 bg-gray-200 rounded-full h-2">
                   <div
-                    className={mission.dépenses > mission.budgetInitial ? 'bg-red-500' : 'bg-green-500'} 
+                    className={mission.dépenses > mission.budgetInitial ? 'bg-red-500' : 'bg-green-500'}
                     style={{
                       width: `${Math.min((mission.dépenses / mission.budgetInitial) * 100, 100)}%`,
                       height: '100%',

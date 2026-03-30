@@ -12,7 +12,9 @@ import InstallationCard from './InstallationCard';
 import { installationService } from '../../services/installationService';
 import { userService } from '../../services/userService';
 import { paiementService } from '../../services/paiementService';
+import { missionService } from '../../services/missionService';
 import { formatWilaya } from '../../constants/wilayas';
+import { prospectService } from '../../services/prospectService';
 import PaymentQuickForm from './PaymentQuickForm';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
@@ -110,13 +112,13 @@ const InstallationsList = () => {
     try {
       setLoadingPermissions(true);
       if (user?.id && profile) {
-        const canCreate = profile?.role === 'admin' || profile?.role === 'super_admin' || 
-                         await userService.hasCreatePermission(user.id, 'installations');
-        const canEdit = profile?.role === 'admin' || profile?.role === 'super_admin' || 
-                       await userService.hasEditPermission(user.id, 'installations');
-        const canDelete = profile?.role === 'admin' || profile?.role === 'super_admin' || 
-                         await userService.hasDeletePermission(user.id, 'installations');
-        
+        const canCreate = profile?.role === 'admin' || profile?.role === 'super_admin' ||
+          await userService.hasCreatePermission(user.id, 'installations');
+        const canEdit = profile?.role === 'admin' || profile?.role === 'super_admin' ||
+          await userService.hasEditPermission(user.id, 'installations');
+        const canDelete = profile?.role === 'admin' || profile?.role === 'super_admin' ||
+          await userService.hasDeletePermission(user.id, 'installations');
+
         setHasCreatePermission(canCreate);
         setHasEditPermission(canEdit);
         setHasDeletePermission(canDelete);
@@ -186,12 +188,12 @@ const InstallationsList = () => {
   const handleDelete = async (installation) => {
     // ✅ Extraire l'ID si c'est un objet (du DataTable)
     const installationId = installation?.id || installation;
-    
+
     // ✅ Vérifier la permission AVANT de supprimer (silencieusement, sans message)
     if (!hasDeletePermission) {
       return;
     }
-    
+
     // ✅ Vérifier d'abord s'il y a des paiements
     try {
       const hasPaiements = await installationService.hasPaiements(installationId);
@@ -209,12 +211,14 @@ const InstallationsList = () => {
       console.error('Erreur vérification paiements:', error);
     }
 
+    const missionId = installation?.mission_id;
+
     const confirmMessage = `⚠️ ATTENTION ⚠️
 
 Cette action va supprimer:
 - L'installation
 - Tous les abonnements liés
-
+${missionId ? "- L'ordre de mission associé\n" : ""}
 Cette action est IRRÉVERSIBLE !
 
 Êtes-vous absolument sûr de vouloir continuer ?`;
@@ -236,10 +240,25 @@ Cette action est IRRÉVERSIBLE !
     }
 
     try {
+      // ✅ 1) Supprimer la mission si elle existe
+      if (missionId) {
+        try {
+          await missionService.delete(missionId);
+          console.log("✅ Mission liée supprimée:", missionId);
+        } catch (missionError) {
+          console.error("⚠️ Erreur lors de la suppression de la mission liée:", missionError);
+          // On continue quand même la suppression de l'installation
+        }
+      }
+
+      // ✅ 2) Supprimer l'installation
       await installationService.delete(installationId);
+
       addNotification({
         type: 'success',
-        message: 'Installation supprimée avec succès'
+        message: missionId
+          ? '🏠 Installation et 📋 mission supprimées avec succès'
+          : 'Installation supprimée avec succès'
       });
       loadInstallations();
     } catch (error) {
@@ -268,18 +287,70 @@ Cette action est IRRÉVERSIBLE !
   const handleFormSubmit = async (formData) => {
     try {
       if (modalMode === 'create') {
-        // Ajouter l'ID de l'utilisateur courant comme créateur
-        const dataWithCreator = {
-          ...formData,
+        // ✅ 1) Créer l'installation (seulement les champs installation)
+        const installationData = {
+          client_id: formData.client_id,
+          application_installee: formData.application_installee,
+          montant: formData.montant,
+          montant_abonnement: formData.montant_abonnement,
+          date_installation: formData.date_installation,
+          type: formData.type,
+          statut: formData.statut,
           created_by: user?.id || null
         };
-        await installationService.create(dataWithCreator);
-        addNotification({
-          type: 'success',
-          message: 'Installation créée avec succès'
-        });
+        const newInstallation = await installationService.create(installationData);
+
+        // ✅ 2) Créer la mission automatiquement si demandé
+        if (formData.creer_mission && newInstallation?.id) {
+          const clients = await prospectService.getAll();
+          const client = clients.find(c => c.id === formData.client_id);
+          const clientNom = client?.raison_sociale || 'Client';
+
+          const createdMission = await missionService.create({
+            titre: `Installation ${formData.application_installee} - ${clientNom}`,
+            clientId: formData.client_id,
+            dateDebut: formData.date_installation,
+            dateFin: formData.date_fin_installation,
+            chefMissionId: formData.chef_mission_id,
+            accompagnateurIds: formData.accompagnateurs_ids || [],
+            type: 'installation',
+            budgetInitial: formData.budget_mission ? parseFloat(formData.budget_mission) : undefined,
+            description: [
+              formData.resume_action,
+              formData.details_action ? `\nDétails : ${formData.details_action}` : '',
+              formData.anciens_logiciels?.length ? `\nAnciens logiciels : ${formData.anciens_logiciels.join(', ')}` : '',
+              formData.conversion_bdd === 'oui' ? '\nConversion BDD : Oui' : ''
+            ].filter(Boolean).join(''),
+            priorite: 'normale'
+          });
+
+          // ✅ 3) Lier la mission à l'installation en base
+          if (createdMission?.id) {
+            await installationService.update(newInstallation.id, { mission_id: createdMission.id });
+          }
+
+          addNotification({
+            type: 'success',
+            message: `✅ Installation créée + Ordre de Mission généré automatiquement !`
+          });
+        } else {
+          addNotification({
+            type: 'success',
+            message: 'Installation créée avec succès'
+          });
+        }
       } else {
-        await installationService.update(selectedInstallation.id, formData);
+        // Mode édition : mettre à jour l'installation uniquement
+        const installationData = {
+          client_id: formData.client_id,
+          application_installee: formData.application_installee,
+          montant: formData.montant,
+          montant_abonnement: formData.montant_abonnement,
+          date_installation: formData.date_installation,
+          type: formData.type,
+          statut: formData.statut
+        };
+        await installationService.update(selectedInstallation.id, installationData);
         addNotification({
           type: 'success',
           message: 'Installation modifiée avec succès'
@@ -288,9 +359,10 @@ Cette action est IRRÉVERSIBLE !
       setShowModal(false);
       loadInstallations();
     } catch (error) {
+      console.error('Erreur soumission installation:', error);
       addNotification({
         type: 'error',
-        message: error.message || 'Erreur lors de l\'enregistrement'
+        message: error.message || "Erreur lors de l'enregistrement"
       });
     }
   };
@@ -299,7 +371,7 @@ Cette action est IRRÉVERSIBLE !
     // Protéger contre les double-clicks
     if (isSubmittingPayment) return;
     setIsSubmittingPayment(true);
-    
+
     try {
       await paiementService.create({
         ...formData,
@@ -312,7 +384,7 @@ Cette action est IRRÉVERSIBLE !
         message: 'Paiement enregistré avec succès'
       });
       setShowPaymentModal(false);
-      
+
       await loadInstallations();
       triggerRefresh();
     } catch (error) {
@@ -454,11 +526,10 @@ Cette action est IRRÉVERSIBLE !
               label: 'Statut',
               width: '120px',
               render: (row) => (
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                  row.statut === 'en_cours' 
-                    ? 'bg-amber-100 text-amber-800' 
-                    : 'bg-green-100 text-green-800'
-                }`}>
+                <span className={`px-3 py-1 rounded-full text-xs font-medium ${row.statut === 'en_cours'
+                  ? 'bg-amber-100 text-amber-800'
+                  : 'bg-green-100 text-green-800'
+                  }`}>
                   {row.statut === 'en_cours' ? 'En cours' : 'Terminée'}
                 </span>
               )
@@ -468,11 +539,10 @@ Cette action est IRRÉVERSIBLE !
               label: 'Type',
               width: '120px',
               render: (row) => (
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                  row.type === 'acquisition' 
-                    ? 'bg-purple-100 text-purple-800' 
-                    : 'bg-indigo-100 text-indigo-800'
-                }`}>
+                <span className={`px-3 py-1 rounded-full text-xs font-medium ${row.type === 'acquisition'
+                  ? 'bg-purple-100 text-purple-800'
+                  : 'bg-indigo-100 text-indigo-800'
+                  }`}>
                   {row.type === 'acquisition' ? 'Acquisition' : 'Abonnement'}
                 </span>
               )
@@ -484,7 +554,7 @@ Cette action est IRRÉVERSIBLE !
               render: (row) => {
                 const montantPaye = calculateMontantPaye(row.id);
                 const reste = calculateResteAPayer(row);
-                
+
                 let statut, couleur, code;
                 if (reste === row.montant) {
                   // 0 = Aucun paiement
@@ -502,7 +572,7 @@ Cette action est IRRÉVERSIBLE !
                   couleur = 'bg-green-100 text-green-700';
                   code = 2;
                 }
-                
+
                 return (
                   <span className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${couleur}`}>
                     {code} ({statut})

@@ -198,7 +198,8 @@ const MissionsList = () => {
       const usersData = await userService.getAll();
       setUsers(usersData || []);
 
-      const missionsToSet = mockMissions.map(mission => {
+      const missionsData = await missionService.getAll();
+      const missionsToSet = missionsData.map(mission => {
         const clientId = mission.prospect_id || mission.clientId || mission.client?.id;
         const clientInfo = clientId ? activeClients.find(c => c.id === clientId) : null;
         const clientDisplay = {

@@ -1,4 +1,3 @@
-// Liste complète des 58 wilayas d'Algérie avec leurs codes
 export const WILAYAS = [
   { code: '01', name: 'Adrar' },
   { code: '02', name: 'Chlef' },
@@ -7,7 +6,7 @@ export const WILAYAS = [
   { code: '05', name: 'Batna' },
   { code: '06', name: 'Béjaïa' },
   { code: '07', name: 'Biskra' },
-  { code: '08', name: 'Bechar' },
+  { code: '08', name: 'Béchar' },
   { code: '09', name: 'Blida' },
   { code: '10', name: 'Bouira' },
   { code: '11', name: 'Tamanrasset' },
@@ -26,68 +25,73 @@ export const WILAYAS = [
   { code: '24', name: 'Guelma' },
   { code: '25', name: 'Constantine' },
   { code: '26', name: 'Médéa' },
-  { code: '27', name: 'Mostaghanem' },
-  { code: '28', name: 'Mascara' },
-  { code: '29', name: 'Ouargla' },
-  { code: '30', name: 'Oran' },
-  { code: '31', name: 'El Asnam' },
-  { code: '32', name: 'Aïn Défla' },
-  { code: '33', name: 'Boumédes' },
-  { code: '34', name: 'Boumerdès' },
-  { code: '35', name: 'El Tarf' },
-  { code: '36', name: 'Tindouf' },
-  { code: '37', name: 'Tissemsilt' },
-  { code: '38', name: 'El Oued' },
-  { code: '39', name: 'Khenchela' },
-  { code: '40', name: 'Souk Ahras' },
-  { code: '41', name: 'Tipaza' },
-  { code: '42', name: 'Mila' },
-  { code: '43', name: 'Aïn Temouchent' },
-  { code: '44', name: 'Ghardaïa' },
-  { code: '45', name: 'Relizane' },
-  { code: '46', name: 'Draa Ben Khedda' },
-  { code: '47', name: 'Draa Ben Khelouf' },
-  { code: '48', name: 'Khemis Miliana' },
-  { code: '49', name: 'Laghouat' },
-  { code: '50', name: 'Naâma' },
+  { code: '27', name: 'Mostaganem' },
+  { code: '28', name: 'M\'Sila' },
+  { code: '29', name: 'Mascara' },
+  { code: '30', name: 'Ouargla' },
+  { code: '31', name: 'Oran' },
+  { code: '32', name: 'El Bayadh' },
+  { code: '33', name: 'Illizi' },
+  { code: '34', name: 'Bordj Bou Arreridj' },
+  { code: '35', name: 'Boumerdès' },
+  { code: '36', name: 'El Tarf' },
+  { code: '37', name: 'Tindouf' },
+  { code: '38', name: 'Tissemsilt' },
+  { code: '39', name: 'El Oued' },
+  { code: '40', name: 'Khenchela' },
+  { code: '41', name: 'Souk Ahras' },
+  { code: '42', name: 'Tipaza' },
+  { code: '43', name: 'Mila' },
+  { code: '44', name: 'Aïn Defla' },
+  { code: '45', name: 'Naâma' },
+  { code: '46', name: 'Aïn Témouchent' },
+  { code: '47', name: 'Ghardaïa' },
+  { code: '48', name: 'Relizane' },
+  { code: '49', name: 'El M\'Ghair' },
+  { code: '50', name: 'El Meniaa' },
   { code: '51', name: 'Ouled Djellal' },
-  { code: '52', name: 'Bordj Baji Mokhtar' },
-  { code: '53', name: 'Ouled Béni Sghir' },
-  { code: '54', name: 'Éni Abbès' },
-  { code: '55', name: 'In Salah' },
-  { code: '56', name: 'In Guezzam' },
-  { code: '57', name: 'Touggourt' },
-  { code: '58', name: 'Djanet' }
+  { code: '52', name: 'Bordj Badji Mokhtar' },
+  { code: '53', name: 'Béni Abbès' },
+  { code: '54', name: 'Timimoun' },
+  { code: '55', name: 'Touggourt' },
+  { code: '56', name: 'Djanet' },
+  { code: '57', name: 'In Salah' },
+  { code: '58', name: 'In Guezzam' },
+  { code: '59', name: 'Aflou' },
+  { code: '60', name: 'Barika' },
+  { code: '61', name: 'Bir El Ater' },
+  { code: '62', name: 'Bou Saâda' },
+  { code: '63', name: 'Aïn Oussera' },
+  { code: '64', name: 'Messaad' },
+  { code: '65', name: 'Ksar El Boukhari' },
+  { code: '66', name: 'Ksar Chellala' },
+  { code: '67', name: 'El Abiodh Sidi Cheikh' },
+  { code: '68', name: 'El Aricha' },
+  { code: '69', name: 'El Kantara' }
 ];
 
-// Fonction utilitaire pour obtenir le code d'une wilaya par son nom
 export const getWilayaCode = (name) => {
-  const wilaya = WILAYAS.find(w => w.name.toLowerCase() === name?.toLowerCase());
+  if (!name) return null;
+  const wilaya = WILAYAS.find(w => w.name.toLowerCase() === name.trim().toLowerCase());
   return wilaya?.code || null;
 };
 
-// Fonction utilitaire pour obtenir le nom d'une wilaya par son code
 export const getWilayaName = (code) => {
-  const wilaya = WILAYAS.find(w => w.code === code);
+  if (!code) return null;
+  const padded = String(code).trim().padStart(2, '0');
+  const wilaya = WILAYAS.find(w => w.code === padded);
   return wilaya?.name || null;
 };
 
-// Fonction utilitaire pour formater "code - nom"
 export const formatWilaya = (nameOrCode) => {
-  if (!nameOrCode) return null;
-  
-  // Si c'est déjà au format "code - nom", retourner tel quel
-  if (nameOrCode.includes(' - ')) {
-    return nameOrCode;
+  if (!nameOrCode) return '';
+  const strValue = String(nameOrCode).trim();
+  if (strValue.includes(' - ')) return strValue;
+  if (/^\d{1,2}$/.test(strValue)) {
+    const paddedCode = strValue.padStart(2, '0');
+    const name = getWilayaName(paddedCode);
+    return name ? `${paddedCode} - ${name}` : strValue;
   }
-  
-  // Si c'est un code (2 chiffres), chercher le nom
-  if (/^\d{2}$/.test(nameOrCode)) {
-    const name = getWilayaName(nameOrCode);
-    return name ? `${nameOrCode} - ${name}` : nameOrCode;
-  }
-  
-  // Si c'est un nom, chercher le code
-  const code = getWilayaCode(nameOrCode);
-  return code ? `${code} - ${nameOrCode}` : nameOrCode;
+  const code = getWilayaCode(strValue);
+  return code ? `${code} - ${strValue}` : strValue;
 };

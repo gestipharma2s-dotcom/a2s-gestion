@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import {
   Briefcase, TrendingUp, AlertTriangle, CheckCircle, Clock, DollarSign,
   BarChart3, PieChart, TrendingDown, Users, CalendarDays, Zap, Plus,
-  Filter, Download, RefreshCw, Target, AlertCircle, Sparkles, X
+  Filter, Download, RefreshCw, Target, AlertCircle, Sparkles, X, Printer
 } from 'lucide-react';
 import Button from '../common/Button';
 import SearchBar from '../common/SearchBar';
@@ -18,6 +18,9 @@ import { installationService } from '../../services/installationService';
 import { installationPlanningService } from '../../services/installationPlanningService';
 import generateMissionAnalysis from '../../services/missionAnalysisService';
 import generateCompleteInsights from '../../services/enhancedAiAnalysisService';
+import { missionExportService } from '../../services/missionExportService';
+import { formatDate } from '../../utils/helpers';
+import { formatWilaya } from '../../constants/wilayas';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 
@@ -206,8 +209,7 @@ const MissionsDashboard = () => {
       console.log('Missions table access test:', tableTest);
 
       const clientsData = await prospectService.getAll();
-      const activeClients = clientsData.filter(p => p.statut === 'actif');
-      setClients(activeClients);
+      setClients(clientsData.filter(p => p.statut === 'actif'));
 
       // Charger les utilisateurs
       try {
@@ -226,7 +228,7 @@ const MissionsDashboard = () => {
         const transformedMissions = (missionsData || []).map(mission => {
           // Get client info from clients list
           const clientId = mission.prospect_id || mission.clientId;
-          const clientInfo = clientId ? activeClients.find(c => c.id === clientId) : null;
+          const clientInfo = clientId ? clientsData.find(c => c.id === clientId) : null;
           const clientDisplay = mission.client || clientInfo || { id: clientId, raison_sociale: 'Client' };
 
           return {
@@ -1206,7 +1208,8 @@ const MissionsDashboard = () => {
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600">Titre</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600">Client</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600">Client / Wilaya</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600">Dates (Début / Fin)</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600">Type</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600">Statut</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600">Chef de Mission</th>
@@ -1221,7 +1224,20 @@ const MissionsDashboard = () => {
                     {filteredMissions.map((mission) => (
                       <tr key={mission.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4 text-sm font-medium text-gray-900">{mission.titre}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{mission.client?.raison_sociale || 'N/A'}</td>
+                        <td className="px-6 py-4 text-sm">
+                          <p className="font-medium text-gray-900">{mission.client?.raison_sociale || 'N/A'}</p>
+                          <p className="text-xs text-blue-600 font-bold uppercase">{formatWilaya(mission.client?.wilaya) || 'N/A'}</p>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600">
+                          <div className="flex flex-col gap-1">
+                            <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold border border-blue-100">
+                              📅 {formatDate(mission.date_debut || mission.dateDebut)}
+                            </span>
+                            <span className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded text-[10px] font-bold border border-amber-100">
+                              🏁 {formatDate(mission.date_fin_prevue || mission.dateFin)}
+                            </span>
+                          </div>
+                        </td>
                         <td className="px-6 py-4 text-sm text-gray-600">{mission.type || mission.type_mission || 'N/A'}</td>
                         <td className="px-6 py-4">
                           <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(mission.statut)}`}>
@@ -1241,9 +1257,9 @@ const MissionsDashboard = () => {
                               return (
                                 <div className="flex items-center gap-2">
                                   <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-600">
-                                    {(chef.full_name || chef.email)?.[0]?.toUpperCase()}
+                                    {(chef.nom || chef.email)?.[0]?.toUpperCase()}
                                   </div>
-                                  <span className="text-gray-900 font-medium">{chef.full_name || chef.email}</span>
+                                  <span className="text-gray-900 font-medium">{chef.nom || chef.email}</span>
                                 </div>
                               );
                             }
@@ -1262,7 +1278,7 @@ const MissionsDashboard = () => {
                             const accomps = accompIds
                               .map(id => {
                                 const user = users.find(u => u.id === id);
-                                return user?.full_name || user?.email || null;
+                                return user?.nom || user?.email || null;
                               })
                               .filter(Boolean);
 
@@ -1310,15 +1326,25 @@ const MissionsDashboard = () => {
                                   const chefId = mission.chef_mission_id || mission.chefMissionId;
                                   if (!chefId) return 'Non assigné';
                                   const chef = users.find(u => u.id === chefId);
-                                  return chef?.full_name || chef?.email || 'Non assigné';
+                                  return chef?.nom || chef?.email || 'Non assigné';
                                 })()
                               };
                               setSelectedMission(enhancedMission);
                               setShowDetailsModal(true);
                             }}
-                            className="text-primary hover:bg-primary hover:text-white px-3 py-1 rounded text-sm"
+                            className="bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center gap-2 px-3 py-1 rounded text-sm w-full mb-2"
                           >
                             Détails
+                          </Button>
+
+                          {/* Bouton Impression Ordre Mission */}
+                          <Button
+                            onClick={() => missionExportService.printMission(mission)}
+                            className="bg-purple-50 text-purple-600 hover:bg-purple-100 flex items-center justify-center gap-2 px-3 py-1 rounded text-sm w-full"
+                            title="Imprimer Ordre de Mission"
+                          >
+                            <Printer size={16} />
+                            Ordre de Mission
                           </Button>
                         </td>
                       </tr>
@@ -1397,6 +1423,17 @@ const MissionsDashboard = () => {
               >
                 Fermer
               </Button>
+
+              {/* ✅ Bouton IMPRIMER ORDRE DE MISSION */}
+              <Button
+                onClick={() => missionExportService.printMission(selectedMission)}
+                className="bg-purple-600 text-white hover:bg-purple-700 flex items-center gap-2"
+                title="Imprimer l'Ordre de Mission (Modèle Algérien)"
+              >
+                <Printer size={18} />
+                Ordre de Mission
+              </Button>
+
               {canEditMission(selectedMission) && (
                 <Button
                   onClick={() => handleEditMission(selectedMission)}
