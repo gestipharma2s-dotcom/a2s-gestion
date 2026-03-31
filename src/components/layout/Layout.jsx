@@ -16,6 +16,7 @@ import ApplicationsList from '../applications/ApplicationsList';
 import UsersList from '../utilisateurs/UsersList';
 import ProtectedRoute from '../auth/ProtectedRoute';
 import WelcomePage from './WelcomePage';
+import ChangePassword from '../auth/ChangePassword';
 import { PAGES } from '../../utils/constants';
 import { useAuth } from '../../context/AuthContext';
 
@@ -116,6 +117,11 @@ const Layout = () => {
       title: 'Utilisateurs',
       subtitle: 'Gestion des comptes',
       component: UsersList
+    },
+    [PAGES.CHANGE_PASSWORD]: {
+      title: 'Mon Compte',
+      subtitle: 'Changer mon mot de passe',
+      component: ChangePassword
     }
   };
 
@@ -130,10 +136,10 @@ const Layout = () => {
         <div className="flex h-screen bg-gray-50">
           <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} />
 
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 flex flex-col h-full w-full overflow-x-hidden relative">
             <Header title={config.title} subtitle={config.subtitle} />
 
-            <main className="flex-1 overflow-y-auto p-6">
+            <main className="flex-1 overflow-y-auto p-3 md:p-6 bg-gray-50">
               <PageComponent />
             </main>
           </div>
@@ -142,8 +148,8 @@ const Layout = () => {
     );
   }
 
-  // ✅ Vérifier l'accès à la page actuelle pour les autres rôles
-  if (!hasAccess(currentPage)) {
+  // ✅ Vérifier l'accès à la page actuelle pour les autres rôles (Accès libre pour changer le mot de passe)
+  if (!hasAccess(currentPage) && currentPage !== PAGES.CHANGE_PASSWORD) {
     // Si on est sur le Dashboard et qu'on n'y a pas accès, on affiche la page de Bienvenue
     if (currentPage === PAGES.DASHBOARD) {
       return (
@@ -151,7 +157,7 @@ const Layout = () => {
           <NotificationContainer />
           <div className="flex h-screen bg-gray-50">
             <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} />
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 flex flex-col h-full w-full overflow-x-hidden relative">
               <Header title="Bienvenue" subtitle="Modules A2S Gestion" />
               <main className="flex-1 overflow-y-auto bg-gray-50">
                 <WelcomePage setCurrentPage={setCurrentPage} />
@@ -169,7 +175,7 @@ const Layout = () => {
         <div className="flex h-screen bg-gray-50">
           <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} />
 
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 flex flex-col h-full w-full overflow-x-hidden relative">
             <Header title="Accès Refusé" subtitle="Vous n'avez pas accès à cette page" />
 
             <main className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
@@ -209,10 +215,10 @@ const Layout = () => {
       <div className="flex h-screen bg-gray-50">
         <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} />
 
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col h-full w-full overflow-x-hidden relative">
           <Header title={config.title} subtitle={config.subtitle} />
 
-          <main className="flex-1 overflow-y-auto p-6">
+          <main className="flex-1 overflow-y-auto p-3 md:p-6 bg-gray-50">
             <PageComponent />
           </main>
         </div>

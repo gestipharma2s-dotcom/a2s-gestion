@@ -18,7 +18,7 @@ export const userService = {
     if (!authService.canManageUsers(currentUserProfile)) {
       return false;
     }
-    
+
     // Un admin ne peut pas modifier un super_admin
     if (currentUserProfile?.role === 'admin') {
       try {
@@ -31,7 +31,7 @@ export const userService = {
         return false;
       }
     }
-    
+
     return true;
   },
 
@@ -40,57 +40,57 @@ export const userService = {
     if (!authService.canManageUsers(currentUserProfile)) {
       return false;
     }
-    
+
     // Récupérer l'utilisateur cible
     try {
       const targetUser = await this.getById(targetUserId);
-      
+
       // Seul un super_admin peut supprimer un super_admin
       if (targetUser?.role === 'super_admin') {
         return currentUserProfile?.role === 'super_admin';
       }
-      
+
       // ✅ Vérifier si l'utilisateur a créé des pièces
       // Vérifier les prospects
       const { count: prospectCount } = await supabase
         .from(TABLES.PROSPECTS)
         .select('id', { count: 'exact', head: true })
         .eq('created_by', targetUserId);
-      
+
       if (prospectCount > 0) {
         return false; // Ne pas supprimer s'il y a des prospects créés
       }
-      
+
       // Vérifier les installations
       const { count: installationCount } = await supabase
         .from(TABLES.INSTALLATIONS)
         .select('id', { count: 'exact', head: true })
         .eq('created_by', targetUserId);
-      
+
       if (installationCount > 0) {
         return false; // Ne pas supprimer s'il y a des installations créées
       }
-      
+
       // Vérifier les paiements
       const { count: paiementCount } = await supabase
         .from(TABLES.PAIEMENTS)
         .select('id', { count: 'exact', head: true })
         .eq('created_by', targetUserId);
-      
+
       if (paiementCount > 0) {
         return false; // Ne pas supprimer s'il y a des paiements créés
       }
-      
+
       // Vérifier les interventions
       const { count: interventionCount } = await supabase
         .from(TABLES.INTERVENTIONS)
         .select('id', { count: 'exact', head: true })
         .eq('created_by', targetUserId);
-      
+
       if (interventionCount > 0) {
         return false; // Ne pas supprimer s'il y a des interventions créées
       }
-      
+
       // Un admin peut supprimer n'importe qui sauf un super_admin et sauf s'il a créé des pièces
       return true;
     } catch (error) {
@@ -110,7 +110,7 @@ export const userService = {
         .from(TABLES.USERS)
         .select('*')
         .order('nom', { ascending: true });
-      
+
       if (error) throw error;
       return data;
     } catch (error) {
@@ -127,7 +127,7 @@ export const userService = {
         .select('*')
         .eq('id', id)
         .single();
-      
+
       if (error) throw error;
       return data;
     } catch (error) {
@@ -144,7 +144,7 @@ export const userService = {
         .select('*')
         .eq('role', role)
         .order('nom', { ascending: true });
-      
+
       if (error) throw error;
       return data;
     } catch (error) {
@@ -178,7 +178,7 @@ export const userService = {
         .from(TABLES.USERS)
         .select('id, email')
         .ilike('email', userData.email);
-      
+
       if (existingUser && existingUser.length > 0) {
         const error = new Error(`Un utilisateur avec l'email ${userData.email} existe déjà`);
         error.code = 'DUPLICATE_EMAIL';
@@ -188,26 +188,26 @@ export const userService = {
       // Valider que le rôle est un rôle valide
       const validRoles = Object.values(ROLES);
       const trimmedRole = userData.role?.trim().toLowerCase();
-      
+
       if (!trimmedRole || !validRoles.includes(trimmedRole)) {
         const error = new Error(`Rôle invalide: "${userData.role}". Rôles valides: ${validRoles.join(', ')}`);
         error.code = 'INVALID_ROLE';
         throw error;
       }
-      
+
       // Utiliser le rôle nettoyé et validé
       userData.role = trimmedRole;
 
       // 🔐 Créer l'utilisateur avec authentification locale via la fonction SQL
       // IMPORTANT: Cette nouvelle approche ne passe plus par Supabase Auth
       // On utilise la fonction create_user_local() qui gère tout
-      
+
       let userId = null;
       let createdUser = null;
 
       try {
         console.log(`🔐 Création d'utilisateur locale avec email: ${userData.email}`);
-        
+
         // Appeler la fonction SQL create_user_local()
         const { data: createResult, error: createError } = await supabase
           .rpc('create_user_local', {
@@ -217,7 +217,7 @@ export const userService = {
             p_role: userData.role,
             p_pages_visibles: Array.isArray(userData.pages_visibles) ? userData.pages_visibles : []
           });
-        
+
         if (createError) {
           console.error('❌ Erreur création authentification locale:', createError);
           if (createError.message?.includes('duplicate') || createError.message?.includes('existe')) {
@@ -239,19 +239,19 @@ export const userService = {
             role: result.role,
             pages_visibles: Array.isArray(userData.pages_visibles) ? userData.pages_visibles : []
           };
-          
-          console.log('✅ Utilisateur créé avec authentification locale:', { 
-            userId, 
+
+          console.log('✅ Utilisateur créé avec authentification locale:', {
+            userId,
             email: userData.email,
             nom: userData.nom,
-            role: userData.role 
+            role: userData.role
           });
 
           // ✅ Sauvegarder les permissions granulaires après création
           if (userId) {
             try {
               const permissionsToUpdate = {};
-              
+
               // Lister les colonnes connues de permissions que la table supporte
               const validPermissionFields = [
                 'can_create_prospects', 'can_edit_prospects', 'can_delete_prospects',
@@ -264,7 +264,7 @@ export const userService = {
                 'can_create_alertes', 'can_edit_alertes', 'can_delete_alertes',
                 'can_create_applications', 'can_edit_applications', 'can_delete_applications'
               ];
-              
+
               // Ajouter uniquement les permissions qui existent dans userData et sont dans la liste des valides
               validPermissionFields.forEach(field => {
                 if (userData.hasOwnProperty(field) && (userData[field] === true || userData[field] === false)) {
@@ -278,7 +278,7 @@ export const userService = {
                   .from(TABLES.USERS)
                   .update(permissionsToUpdate)
                   .eq('id', userId);
-                
+
                 if (permError) {
                   console.error('Erreur sauvegarde permissions:', permError);
                 } else {
@@ -289,7 +289,7 @@ export const userService = {
               console.error('Erreur lors de la sauvegarde des permissions:', permErr);
             }
           }
-          
+
           return createdUser;
         } else {
           throw new Error('Impossible de créer l\'utilisateur - pas de réponse du serveur');
@@ -318,16 +318,16 @@ export const userService = {
       // Préparer les données à mettre à jour
       // ⚠️ NE mettre à jour QUE les champs essentiels
       const dataToUpdate = {};
-      
+
       // Ajouter uniquement les champs qui doivent être modifiés
       if (userData.nom) dataToUpdate.nom = userData.nom;
       if (userData.email) dataToUpdate.email = userData.email;
-      
+
       // Gérer le rôle
       if (userData.role) {
         const trimmedRole = userData.role.trim().toLowerCase();
         const validRoles = Object.values(ROLES);
-        
+
         if (!validRoles.includes(trimmedRole)) {
           const error = new Error(`Rôle invalide: "${userData.role}". Rôles valides: ${validRoles.join(', ')}`);
           error.code = 'INVALID_ROLE';
@@ -335,7 +335,7 @@ export const userService = {
         }
         dataToUpdate.role = trimmedRole;
       }
-      
+
       // Gérer pages_visibles - s'assurer que c'est un tableau
       if (userData.pages_visibles) {
         if (Array.isArray(userData.pages_visibles)) {
@@ -362,7 +362,7 @@ export const userService = {
         'can_create_alertes', 'can_edit_alertes', 'can_delete_alertes',
         'can_create_applications', 'can_edit_applications', 'can_delete_applications'
       ];
-      
+
       // Ajouter uniquement les permissions qui existent dans userData et sont dans la liste des valides
       let permissionCount = 0;
       validPermissionFields.forEach(field => {
@@ -371,30 +371,83 @@ export const userService = {
           permissionCount++;
         }
       });
-      
+
       if (permissionCount > 0) {
         console.log(`✅ ${permissionCount} permission(s) sera(ont) mise(s) à jour`);
       }
-      
+
       console.log('dataToUpdate final:', JSON.stringify(dataToUpdate, null, 2));
 
-      // Mettre à jour le profil utilisateur
+      // 🔐 Mise à jour du mot de passe si fourni
+      if (userData.password) {
+        console.log(`🔐 Mise à jour du mot de passe pour l'utilisateur ID: ${id}`);
+        const { error: passError } = await supabase.rpc('update_user_password_local', {
+          p_user_id: id,
+          p_password: userData.password
+        });
+
+        if (passError) {
+          console.error('❌ Erreur RPC mise à jour mot de passe:', passError);
+          // On continue quand même la mise à jour du profil, ou on throw ? 
+          // Généralement, si le mot de passe échoue, c'est une erreur critique.
+          throw new Error(`Erreur lors de la mise à jour du mot de passe: ${passError.message}`);
+        }
+        console.log('✅ Mot de passe mis à jour avec succès');
+      }
+
+      // 🔐 Mise à jour du profil utilisateur
       const { data, error } = await supabase
         .from(TABLES.USERS)
         .update(dataToUpdate)
         .eq('id', id)
         .select()
         .single();
-      
+
       if (error) {
         console.error('Erreur détaillée Supabase:', error);
         console.error('Données envoyées:', dataToUpdate);
         throw error;
       }
-      
+
+      // ✅ NOUVEAU: Si l'email a changé, le mettre à jour aussi dans la table users_auth
+      // pour que l'utilisateur puisse se connecter avec son nouvel email.
+      if (userData.email) {
+        try {
+          console.log(`🔐 Mise à jour de l'email d'authentification pour l'ID: ${id}`);
+          const { error: authError } = await supabase
+            .from('users_auth')
+            .update({ email: userData.email.toLowerCase() })
+            .eq('id', id);
+
+          if (authError) {
+            console.warn('⚠️ Impossible de mettre à jour l\'email dans users_auth (peut nécessiter des droits admin):', authError.message);
+          }
+        } catch (authErr) {
+          console.warn('Erreur lors de la mise à jour de l\'email d\'authentification:', authErr);
+        }
+      }
+
       return data;
     } catch (error) {
       console.error('Erreur mise à jour utilisateur:', error);
+      throw error;
+    }
+  },
+
+  // ✅ Changer expressément UNIQUEMENT le mot de passe
+  async updatePassword(id, newPassword) {
+    try {
+      const { error: passError } = await supabase.rpc('update_user_password_local', {
+        p_user_id: id,
+        p_password: newPassword
+      });
+
+      if (passError) {
+        throw new Error(`Erreur lors de la mise à jour du mot de passe: ${passError.message}`);
+      }
+      return true;
+    } catch (error) {
+      console.error('Erreur mise à jour mot de passe:', error);
       throw error;
     }
   },
@@ -404,7 +457,7 @@ export const userService = {
     try {
       // ✅ Vérifier si l'utilisateur a créé des pièces (prospects, installations, paiements, interventions)
       const createdPieces = await this.getUserCreatedPieces(id);
-      
+
       if (createdPieces.hasCreatedPieces) {
         const error = new Error(
           `❌ Impossible de supprimer cet utilisateur.\n\n` +
@@ -417,7 +470,7 @@ export const userService = {
         error.details = createdPieces.details;
         throw error;
       }
-      
+
       // Vérifier les permissions
       const canDelete = await this.canDelete(currentUserProfile, id);
       if (!canDelete) {
@@ -428,7 +481,7 @@ export const userService = {
 
       // ✅ VÉRIFIER LES RÉFÉRENCES avant suppression
       const referencesFound = await this.checkUserReferences(id);
-      
+
       if (referencesFound.hasReferences) {
         const error = new Error(
           `❌ Impossible de supprimer cet utilisateur.\n\n` +
@@ -446,7 +499,7 @@ export const userService = {
         .from(TABLES.USERS)
         .delete()
         .eq('id', id);
-      
+
       if (deleteUserError) {
         console.error('Erreur suppression table users:', deleteUserError);
         throw deleteUserError;
@@ -562,7 +615,7 @@ export const userService = {
         .select('id', { count: 'exact', head: false })
         .eq('created_by', userId)
         .limit(5);
-      
+
       if (!err1 && prospects?.length > 0) {
         hasCreatedPieces = true;
         details.push(`• ${prospects.length} prospect(s) créé(s)`);
@@ -574,7 +627,7 @@ export const userService = {
         .select('id', { count: 'exact', head: false })
         .eq('created_by', userId)
         .limit(5);
-      
+
       if (!err2 && installations?.length > 0) {
         hasCreatedPieces = true;
         details.push(`• ${installations.length} installation(s) créée(s)`);
@@ -586,7 +639,7 @@ export const userService = {
         .select('id', { count: 'exact', head: false })
         .eq('created_by', userId)
         .limit(5);
-      
+
       if (!err3 && paiements?.length > 0) {
         hasCreatedPieces = true;
         details.push(`• ${paiements.length} paiement(s) créé(s)`);
@@ -598,7 +651,7 @@ export const userService = {
         .select('id', { count: 'exact', head: false })
         .eq('created_by', userId)
         .limit(5);
-      
+
       if (!err4 && interventions?.length > 0) {
         hasCreatedPieces = true;
         details.push(`• ${interventions.length} intervention(s) créée(s)`);
@@ -624,7 +677,7 @@ export const userService = {
         .select('id', { count: 'exact', head: false })
         .eq('technicien_id', userId)
         .limit(5);
-      
+
       if (!err1 && interventions?.length > 0) {
         hasReferences = true;
         details.push(`• ${interventions.length} intervention(s) assignée(s)`);

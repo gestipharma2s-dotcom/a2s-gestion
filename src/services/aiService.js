@@ -157,9 +157,19 @@ RÉPONDS UNIQUEMENT EN JSON, RIEN D'AUTRE.`;
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Erreur API OpenAI:', errorData);
-        throw new Error('Erreur API OpenAI');
+        if (response.status === 401) {
+          console.error('❌ Erreur API IA (401): Clé API invalide ou expirée pour le provider:', provider);
+          return null;
+        }
+
+        try {
+          const errorData = await response.json();
+          console.error('❌ Erreur API IA détaillée:', errorData);
+        } catch (e) {
+          const errorText = await response.text();
+          console.error('❌ Erreur API IA (texte):', errorText);
+        }
+        return null;
       }
 
       const data = await response.json();

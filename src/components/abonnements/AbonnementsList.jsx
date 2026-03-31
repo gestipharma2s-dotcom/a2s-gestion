@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, AlertCircle, CheckCircle, Eye, Edit2, Trash2 } from 'lucide-react';
+import { Calendar, AlertCircle, CheckCircle, Eye, Edit2, Trash2, Plus } from 'lucide-react';
 import Button from '../common/Button';
 import SearchBar from '../common/SearchBar';
 import Modal from '../common/Modal';
@@ -13,6 +13,7 @@ import { supabase } from '../../services/supabaseClient';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { formatMontant, formatPriceDisplay } from '../../utils/helpers';
+import AbonnementForm from './AbonnementForm';
 
 const AbonnementsList = () => {
   const [abonnements, setAbonnements] = useState([]);
@@ -21,8 +22,12 @@ const AbonnementsList = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [showPaiementModal, setShowPaiementModal] = useState(false);
+  const [showAbonnementModal, setShowAbonnementModal] = useState(false);
+  const [modalMode, setModalMode] = useState('create');
   const [selectedAbonnement, setSelectedAbonnement] = useState(null);
   const [hasDeletePermission, setHasDeletePermission] = useState(false);
+  const [hasEditPermission, setHasEditPermission] = useState(false);
+  const [hasCreatePermission, setHasCreatePermission] = useState(false);
   const [hasCreatePaiementPermission, setHasCreatePaiementPermission] = useState(false);
   const [isSubmittingPaiement, setIsSubmittingPaiement] = useState(false);
   const { addNotification } = useApp();
@@ -63,10 +68,20 @@ const AbonnementsList = () => {
         const canDelete = profile?.role === 'admin' || profile?.role === 'super_admin' ||
           await userService.hasDeletePermission(user.id, 'abonnements');
 
+        // Permissions pour modifier
+        const canEdit = profile?.role === 'admin' || profile?.role === 'super_admin' ||
+          await userService.hasEditPermission(user.id, 'abonnements');
+
+        // Permissions pour créer
+        const canCreate = profile?.role === 'admin' || profile?.role === 'super_admin' ||
+          await userService.hasCreatePermission(user.id, 'abonnements');
+
         // ✅ Permissions pour créer des paiements - SEULEMENT pour les admins
         const canCreatePaiement = profile?.role === 'admin' || profile?.role === 'super_admin';
 
         setHasDeletePermission(canDelete);
+        setHasEditPermission(canEdit);
+        setHasCreatePermission(canCreate);
         setHasCreatePaiementPermission(canCreatePaiement);
       }
     } catch (error) {
@@ -131,6 +146,49 @@ const AbonnementsList = () => {
           message: error.message || 'Erreur lors de la suppression de l\'abonnement'
         });
       }
+    }
+  };
+
+  const handleCreate = () => {
+    if (!hasCreatePermission) {
+      addNotification({ type: 'error', message: 'Permission refusée' });
+      return;
+    }
+    setModalMode('create');
+    setSelectedAbonnement(null);
+    setShowAbonnementModal(true);
+  };
+
+  const handleEdit = (abonnement) => {
+    if (!hasEditPermission) {
+      addNotification({ type: 'error', message: 'Permission refusée' });
+      return;
+    }
+    setModalMode('edit');
+    setSelectedAbonnement(abonnement);
+    setShowAbonnementModal(true);
+  };
+
+  const handleFormSubmit = async (formData) => {
+    try {
+      if (modalMode === 'create') {
+        await abonnementService.create(formData);
+        addNotification({ type: 'success', message: 'Abonnement créé avec succès' });
+      } else {
+        await abonnementService.update(selectedAbonnement.id, {
+          date_debut: formData.date_debut,
+          date_fin: formData.date_fin,
+          statut: formData.statut
+        });
+        addNotification({ type: 'success', message: 'Abonnement mis à jour' });
+      }
+      setShowAbonnementModal(false);
+      loadAbonnements();
+    } catch (error) {
+      addNotification({
+        type: 'error',
+        message: error.message || 'Erreur lors de l\'enregistrement'
+      });
     }
   };
 
@@ -279,7 +337,7 @@ const AbonnementsList = () => {
   return (
     <div className="space-y-6">
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
           <p className="text-sm opacity-90 mb-1">Total Abonnements</p>
           <h3 className="text-3xl font-bold">{stats.total}</h3>
@@ -300,6 +358,17 @@ const AbonnementsList = () => {
           <p className="text-sm opacity-90 mb-1">Expirés</p>
           <h3 className="text-3xl font-bold">{stats.expires}</h3>
           <p className="text-sm opacity-90 mt-1">Action requise</p>
+        </div>
+        <div className="card flex items-center justify-center">
+          <Button
+            variant="primary"
+            icon={Plus}
+            onClick={handleCreate}
+            disabled={!hasCreatePermission}
+            className="w-full h-full py-4 shadow-lg hover:shadow-xl transition-all"
+          >
+            Nouveau
+          </Button>
         </div>
       </div>
 
@@ -473,7 +542,6 @@ const AbonnementsList = () => {
               onClick: handleOpenPaiement,
               disabled: !hasCreatePaiementPermission,
               title: !hasCreatePaiementPermission ? 'Permission refusée: Ajouter un paiement' : 'Ajouter un paiement',
-              className: hasCreatePaiementPermission ? 'bg-green-600 hover:bg-green-700 text-white px-3 py-1' : 'bg-gray-400 cursor-not-allowed text-white px-3 py-1'
             },
             {
               key: 'renew',
@@ -486,9 +554,26 @@ const AbonnementsList = () => {
                 const endDate = new Date(row.date_fin);
                 const isExpired = endDate < today;
                 const daysLeft = Math.ceil((endDate - today) / (1000 * 60 * 60 * 24));
-                // Afficher le bouton seulement si expiré ou en alerte (≤30 jours)
                 return isExpired || daysLeft <= 30;
               }
+            },
+            {
+              key: 'edit',
+              label: 'Modifier',
+              icon: <Edit2 size={18} />,
+              onClick: handleEdit,
+              disabled: !hasEditPermission,
+              title: !hasEditPermission ? 'Permission refusée' : 'Modifier cet abonnement',
+              className: hasEditPermission ? 'bg-amber-600 hover:bg-amber-700 text-white px-3 py-1' : 'bg-gray-400 cursor-not-allowed text-white px-3 py-1'
+            },
+            {
+              key: 'delete',
+              label: 'Supprimer',
+              icon: <Trash2 size={18} />,
+              onClick: handleDelete,
+              disabled: !hasDeletePermission,
+              title: !hasDeletePermission ? 'Permission refusée' : 'Supprimer cet abonnement',
+              className: hasDeletePermission ? 'bg-red-600 hover:bg-red-700 text-white px-3 py-1' : 'bg-gray-400 cursor-not-allowed text-white px-3 py-1'
             }
           ]}
           loading={loading}
@@ -523,6 +608,20 @@ const AbonnementsList = () => {
             onCancel={() => setShowPaiementModal(false)}
           />
         )}
+      </Modal>
+
+      {/* Modal Abonnement (Créer/Modifier) */}
+      <Modal
+        isOpen={showAbonnementModal}
+        onClose={() => setShowAbonnementModal(false)}
+        title={modalMode === 'create' ? 'Nouvel Abonnement' : 'Modifier Abonnement'}
+        size="lg"
+      >
+        <AbonnementForm
+          abonnement={selectedAbonnement}
+          onSubmit={handleFormSubmit}
+          onCancel={() => setShowAbonnementModal(false)}
+        />
       </Modal>
     </div>
   );

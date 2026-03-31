@@ -8,7 +8,7 @@ const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
     } else {
       document.body.style.overflow = 'unset';
     }
-    
+
     return () => {
       document.body.style.overflow = 'unset';
     };
@@ -32,24 +32,24 @@ const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
       />
 
       {/* Modal */}
-      <div className="flex min-h-full items-center justify-center p-4">
+      <div className="flex min-h-full items-center justify-center p-2 sm:p-4 mt-8 mb-8">
         <div
-          className={`relative bg-white rounded-xl shadow-2xl w-full ${sizeClasses[size]} transform transition-all`}
+          className={`relative bg-white rounded-xl shadow-2xl w-full ${sizeClasses[size]} transform transition-all flex flex-col max-h-[90vh]`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200">
-            <h2 className="text-2xl font-bold text-gray-800">{title}</h2>
+          <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 shrink-0">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-800 pr-4">{title}</h2>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="text-gray-400 hover:text-gray-600 transition-colors p-1"
             >
               <X size={24} />
             </button>
           </div>
 
           {/* Content */}
-          <div className="p-6">
+          <div className="p-4 sm:p-6 overflow-y-auto">
             {children}
           </div>
         </div>

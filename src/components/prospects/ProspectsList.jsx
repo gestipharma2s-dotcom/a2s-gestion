@@ -9,7 +9,7 @@ import ProspectForm from './ProspectForm';
 import ProspectCard from './ProspectCard';
 import ProspectHistory from './ProspectHistory';
 import ProspectActionForm from './ProspectActionForm';
-import InstallationPlanningList from './InstallationPlanningList';
+
 import { prospectService } from '../../services/prospectService';
 import { userService } from '../../services/userService';
 import { installationService } from '../../services/installationService';
@@ -473,325 +473,298 @@ const ProspectsList = () => {
 
   return (
     <div className="space-y-6">
-      {/* Onglets Principal */}
-      <div className="flex gap-2 border-b border-gray-200 items-center justify-between pb-0">
-        <div className="flex gap-2">
-          <button
-            onClick={() => setCurrentPage('prospects')}
-            className={`px-4 py-2 font-medium transition-colors ${currentPage === 'prospects'
-              ? 'text-primary border-b-2 border-primary -mb-0.5'
-              : 'text-gray-600 hover:text-gray-800'
-              }`}
-          >
-            👥 Gestion des Prospects <small className="text-[10px] opacity-20">v2.2</small>
-          </button>
-          <button
-            onClick={() => setCurrentPage('installations')}
-            className={`px-4 py-2 font-medium transition-colors ${currentPage === 'installations'
-              ? 'text-primary border-b-2 border-primary -mb-0.5'
-              : 'text-gray-600 hover:text-gray-800'
-              }`}
-          >
-            🏢 Planification des Installations
-          </button>
-        </div>
-      </div>
+
 
       {/* Contenu: Gestion Prospects */}
-      {currentPage === 'prospects' && (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-            <div className="card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-              <p className="text-sm opacity-90 mb-1">Total Prospects</p>
-              <h3 className="text-3xl font-bold">{stats.total}</h3>
-            </div>
-            <div className="card bg-gradient-to-br from-green-500 to-green-600 text-white">
-              <p className="text-sm opacity-90 mb-1">Convertis</p>
-              <h3 className="text-3xl font-bold">{stats.actifs}</h3>
-            </div>
-            <div className="card bg-gradient-to-br from-purple-500 to-purple-600 text-white">
-              <p className="text-sm opacity-90 mb-1">En attente</p>
-              <h3 className="text-3xl font-bold">{stats.prospects}</h3>
-            </div>
-            <div className="card bg-gradient-to-br from-orange-500 to-orange-600 text-white">
-              <p className="text-sm opacity-90 mb-1">Taux Conversion</p>
-              <h3 className="text-3xl font-bold">{stats.tauxConversion}%</h3>
-            </div>
-            <div className="card space-y-2">
-              <Button
-                variant="primary"
-                icon={Plus}
-                onClick={handleCreate}
-                disabled={!hasCreatePermission}
-                className="w-full h-full"
-                title={!hasCreatePermission ? 'Permission refusée: Créer un prospect' : 'Créer un nouveau prospect'}
+      <div className="mt-4">
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+          <div className="card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+            <p className="text-sm opacity-90 mb-1">Total Prospects</p>
+            <h3 className="text-3xl font-bold">{stats.total}</h3>
+          </div>
+          <div className="card bg-gradient-to-br from-green-500 to-green-600 text-white">
+            <p className="text-sm opacity-90 mb-1">Convertis</p>
+            <h3 className="text-3xl font-bold">{stats.actifs}</h3>
+          </div>
+          <div className="card bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+            <p className="text-sm opacity-90 mb-1">En attente</p>
+            <h3 className="text-3xl font-bold">{stats.prospects}</h3>
+          </div>
+          <div className="card bg-gradient-to-br from-orange-500 to-orange-600 text-white">
+            <p className="text-sm opacity-90 mb-1">Taux Conversion</p>
+            <h3 className="text-3xl font-bold">{stats.tauxConversion}%</h3>
+          </div>
+          <div className="card space-y-2">
+            <Button
+              variant="primary"
+              icon={Plus}
+              onClick={handleCreate}
+              disabled={!hasCreatePermission}
+              className="w-full h-full"
+              title={!hasCreatePermission ? 'Permission refusée: Créer un prospect' : 'Créer un nouveau prospect'}
+            >
+              Nouveau
+            </Button>
+
+          </div>
+        </div>
+
+        {/* Filtres */}
+        <div className="space-y-4">
+          {/* Filtre avancé avec date et utilisateur */}
+          <FilterBar
+            onSearchChange={setSearchTerm}
+            onDateStartChange={setDateStart}
+            onDateEndChange={setDateEnd}
+            onCreatorChange={setCreatorId}
+            searchValue={searchTerm}
+            dateStart={dateStart}
+            dateEnd={dateEnd}
+            creatorId={creatorId}
+          />
+
+          <div className="card">
+            <div className="flex flex-col md:flex-row gap-2 items-center justify-end">
+              <button
+                onClick={handleAnalyzeProspects}
+                disabled={analysisLoading || filteredProspects.length === 0}
+                className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-gray-400 disabled:to-gray-400 text-white rounded-lg font-medium transition-all flex items-center gap-2 whitespace-nowrap text-sm"
               >
-                Nouveau
-              </Button>
+                <Zap size={18} />
+                ANALYSE
+              </button>
+            </div>
 
+            {/* Filtres par statut */}
+            <div className="flex gap-2 flex-wrap mt-4">
+              <button
+                onClick={() => setFilterStatus('all')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${filterStatus === 'all'
+                  ? 'bg-primary text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+              >
+                Tous
+              </button>
+              <button
+                onClick={() => setFilterStatus('prospect')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${filterStatus === 'prospect'
+                  ? 'bg-primary text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+              >
+                Prospects
+              </button>
+              <button
+                onClick={() => setFilterStatus('actif')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${filterStatus === 'actif'
+                  ? 'bg-success text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+              >
+                Actifs
+              </button>
+              <button
+                onClick={() => setFilterStatus('inactif')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${filterStatus === 'inactif'
+                  ? 'bg-danger text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+              >
+                Inactifs
+              </button>
+              <button
+                onClick={() => setFilterStatus('archive')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${filterStatus === 'archive'
+                  ? 'bg-gray-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+              >
+                Boîte Archive
+              </button>
             </div>
           </div>
+        </div>
 
-          {/* Filtres */}
-          <div className="space-y-4">
-            {/* Filtre avancé avec date et utilisateur */}
-            <FilterBar
-              onSearchChange={setSearchTerm}
-              onDateStartChange={setDateStart}
-              onDateEndChange={setDateEnd}
-              onCreatorChange={setCreatorId}
-              searchValue={searchTerm}
-              dateStart={dateStart}
-              dateEnd={dateEnd}
-              creatorId={creatorId}
-            />
-
-            <div className="card">
-              <div className="flex flex-col md:flex-row gap-2 items-center justify-end">
-                <button
-                  onClick={handleAnalyzeProspects}
-                  disabled={analysisLoading || filteredProspects.length === 0}
-                  className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-gray-400 disabled:to-gray-400 text-white rounded-lg font-medium transition-all flex items-center gap-2 whitespace-nowrap text-sm"
-                >
-                  <Zap size={18} />
-                  ANALYSE
-                </button>
-              </div>
-
-              {/* Filtres par statut */}
-              <div className="flex gap-2 flex-wrap mt-4">
-                <button
-                  onClick={() => setFilterStatus('all')}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${filterStatus === 'all'
-                    ? 'bg-primary text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                >
-                  Tous
-                </button>
-                <button
-                  onClick={() => setFilterStatus('prospect')}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${filterStatus === 'prospect'
-                    ? 'bg-primary text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                >
-                  Prospects
-                </button>
-                <button
-                  onClick={() => setFilterStatus('actif')}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${filterStatus === 'actif'
-                    ? 'bg-success text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                >
-                  Actifs
-                </button>
-                <button
-                  onClick={() => setFilterStatus('inactif')}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${filterStatus === 'inactif'
-                    ? 'bg-danger text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                >
-                  Inactifs
-                </button>
-                <button
-                  onClick={() => setFilterStatus('archive')}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${filterStatus === 'archive'
-                    ? 'bg-gray-600 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                >
-                  Boîte Archive
-                </button>
-              </div>
-            </div>
+        {filteredProspects.length === 0 ? (
+          <div className="card text-center py-12">
+            <p className="text-gray-500 text-lg">Aucun prospect trouvé</p>
           </div>
+        ) : (
+          <DataTable
+            data={filteredProspects}
+            columns={[
+              {
+                key: 'raison_sociale',
+                label: 'Prospect',
+                width: '200px',
+                render: (row) => (
+                  <div>
+                    <p className="font-semibold text-gray-900">{row.raison_sociale}</p>
+                    <p className="text-xs text-gray-500">{row.forme_juridique || row.email || 'N/A'}</p>
+                  </div>
+                )
+              },
+              {
+                key: 'created_at',
+                label: 'Date Création',
+                width: '120px',
+                render: (row) => (
+                  <span className={`text-xs font-bold ${row.created_at?.includes('2025-12-31') ? 'text-red-600 bg-red-50 p-1 rounded' : 'text-gray-600'}`}>
+                    {row.created_at ? formatDate(row.created_at) : 'Sans date'}
+                  </span>
+                )
+              },
+              {
+                key: 'contact',
+                label: 'Contact',
+                width: '150px',
+                render: (row) => (
+                  <div>
+                    <p className="text-sm text-gray-900">{row.contact || 'N/A'}</p>
+                    <p className="text-xs text-gray-500">{row.telephone || 'N/A'}</p>
+                  </div>
+                )
+              },
+              {
+                key: 'secteur',
+                label: 'Secteur',
+                width: '120px',
+                render: (row) => <span>{row.secteur || 'N/A'}</span>
+              },
+              {
+                key: 'statut',
+                label: 'Statut',
+                width: '100px',
+                render: (row) => (
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${row.statut === 'actif'
+                    ? 'bg-green-100 text-green-800'
+                    : row.statut === 'prospect'
+                      ? 'bg-blue-100 text-blue-800'
+                      : row.statut === 'archive'
+                        ? 'bg-gray-100 text-gray-800'
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                    {row.statut?.toUpperCase() || 'N/A'}
+                  </span>
+                )
+              },
+              {
+                key: 'wilaya',
+                label: 'Wilaya / Ville',
+                width: '180px',
+                render: (row) => (
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{row.wilaya || 'N/A'}</p>
+                    <p className="text-xs text-gray-500">{row.ville || ''}</p>
+                  </div>
+                )
+              },
+              {
+                key: 'temperature',
+                label: 'Intérêt',
+                width: '130px',
+                render: (row) => {
+                  const temp = row.temperature || 'froid';
+                  const config = {
+                    froid: { icon: Snowflake, label: 'FROID', color: 'text-blue-500 bg-blue-50 border-blue-100' },
+                    tiede: { icon: Cloud, label: 'TIÈDE', color: 'text-gray-500 bg-gray-50 border-gray-100' },
+                    chaud: { icon: Flame, label: 'CHAUD', color: 'text-orange-500 bg-orange-50 border-orange-100' },
+                    brulant: { icon: Thermometer, label: 'BRÛLANT', color: 'text-red-600 bg-red-50 border-red-200 shadow-sm animate-pulse' },
+                    acquis: { icon: CheckCircle, label: 'ACQUIS', color: 'text-gray-400 bg-gray-100 border-gray-200' }
+                  }[temp] || { icon: Snowflake, label: 'FROID', color: 'text-blue-500 bg-blue-50 border-blue-100' };
 
-          {filteredProspects.length === 0 ? (
-            <div className="card text-center py-12">
-              <p className="text-gray-500 text-lg">Aucun prospect trouvé</p>
-            </div>
-          ) : (
-            <DataTable
-              data={filteredProspects}
-              columns={[
-                {
-                  key: 'raison_sociale',
-                  label: 'Prospect',
-                  width: '200px',
-                  render: (row) => (
-                    <div>
-                      <p className="font-semibold text-gray-900">{row.raison_sociale}</p>
-                      <p className="text-xs text-gray-500">{row.forme_juridique || row.email || 'N/A'}</p>
-                    </div>
-                  )
-                },
-                {
-                  key: 'created_at',
-                  label: 'Date Création',
-                  width: '120px',
-                  render: (row) => (
-                    <span className={`text-xs font-bold ${row.created_at?.includes('2025-12-31') ? 'text-red-600 bg-red-50 p-1 rounded' : 'text-gray-600'}`}>
-                      {row.created_at ? formatDate(row.created_at) : 'Sans date'}
-                    </span>
-                  )
-                },
-                {
-                  key: 'contact',
-                  label: 'Contact',
-                  width: '150px',
-                  render: (row) => (
-                    <div>
-                      <p className="text-sm text-gray-900">{row.contact || 'N/A'}</p>
-                      <p className="text-xs text-gray-500">{row.telephone || 'N/A'}</p>
-                    </div>
-                  )
-                },
-                {
-                  key: 'secteur',
-                  label: 'Secteur',
-                  width: '120px',
-                  render: (row) => <span>{row.secteur || 'N/A'}</span>
-                },
-                {
-                  key: 'statut',
-                  label: 'Statut',
-                  width: '100px',
-                  render: (row) => (
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${row.statut === 'actif'
-                      ? 'bg-green-100 text-green-800'
-                      : row.statut === 'prospect'
-                        ? 'bg-blue-100 text-blue-800'
-                        : row.statut === 'archive'
-                          ? 'bg-gray-100 text-gray-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                      {row.statut?.toUpperCase() || 'N/A'}
-                    </span>
-                  )
-                },
-                {
-                  key: 'wilaya',
-                  label: 'Wilaya / Ville',
-                  width: '180px',
-                  render: (row) => (
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{row.wilaya || 'N/A'}</p>
-                      <p className="text-xs text-gray-500">{row.ville || ''}</p>
-                    </div>
-                  )
-                },
-                {
-                  key: 'temperature',
-                  label: 'Intérêt',
-                  width: '130px',
-                  render: (row) => {
-                    const temp = row.temperature || 'froid';
-                    const config = {
-                      froid: { icon: Snowflake, label: 'FROID', color: 'text-blue-500 bg-blue-50 border-blue-100' },
-                      tiede: { icon: Cloud, label: 'TIÈDE', color: 'text-gray-500 bg-gray-50 border-gray-100' },
-                      chaud: { icon: Flame, label: 'CHAUD', color: 'text-orange-500 bg-orange-50 border-orange-100' },
-                      brulant: { icon: Thermometer, label: 'BRÛLANT', color: 'text-red-600 bg-red-50 border-red-200 shadow-sm animate-pulse' },
-                      acquis: { icon: CheckCircle, label: 'ACQUIS', color: 'text-gray-400 bg-gray-100 border-gray-200' }
-                    }[temp] || { icon: Snowflake, label: 'FROID', color: 'text-blue-500 bg-blue-50 border-blue-100' };
+                  const Icon = config.icon;
 
-                    const Icon = config.icon;
-
-                    return (
-                      <div
-                        className={`flex items-center gap-1.5 px-2 py-1 rounded-md border text-[10px] font-bold ${config.color} cursor-pointer hover:brightness-95 transition-all`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const levels = ['froid', 'tiede', 'chaud', 'brulant'];
-                          const nextIdx = (levels.indexOf(temp) + 1) % levels.length;
-                          handleUpdateTemperature(row, levels[nextIdx]);
-                        }}
-                        title="Cliquez pour changer le niveau d'intérêt"
-                      >
-                        <Icon size={14} />
-                        {config.label}
-                      </div>
-                    );
+                  return (
+                    <div
+                      className={`flex items-center gap-1.5 px-2 py-1 rounded-md border text-[10px] font-bold ${config.color} cursor-pointer hover:brightness-95 transition-all`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const levels = ['froid', 'tiede', 'chaud', 'brulant'];
+                        const nextIdx = (levels.indexOf(temp) + 1) % levels.length;
+                        handleUpdateTemperature(row, levels[nextIdx]);
+                      }}
+                      title="Cliquez pour changer le niveau d'intérêt"
+                    >
+                      <Icon size={14} />
+                      {config.label}
+                    </div>
+                  );
+                }
+              }
+            ]}
+            actions={[
+              {
+                key: 'view',
+                label: 'Détails',
+                icon: <Eye size={18} />,
+                onClick: (row) => {
+                  setSelectedProspect(row);
+                  setShowHistoryModal(true);
+                },
+                className: 'bg-blue-600 hover:bg-blue-700 text-white px-3 py-1'
+              },
+              {
+                key: 'action',
+                label: 'Afficher',
+                icon: <Zap size={18} />,
+                onClick: (row) => {
+                  // ✅ Vérifier la permission et le statut AVANT d'ouvrir le modal (silencieusement)
+                  if (!hasEditPermission || row.statut === 'actif') {
+                    return;
                   }
-                }
-              ]}
-              actions={[
-                {
-                  key: 'view',
-                  label: 'Détails',
-                  icon: <Eye size={18} />,
-                  onClick: (row) => {
-                    setSelectedProspect(row);
-                    setShowHistoryModal(true);
-                  },
-                  className: 'bg-blue-600 hover:bg-blue-700 text-white px-3 py-1'
+                  setSelectedProspect(row);
+                  setShowActionModal(true);
                 },
-                {
-                  key: 'action',
-                  label: 'Afficher',
-                  icon: <Zap size={18} />,
-                  onClick: (row) => {
-                    // ✅ Vérifier la permission et le statut AVANT d'ouvrir le modal (silencieusement)
-                    if (!hasEditPermission || row.statut === 'actif') {
-                      return;
-                    }
-                    setSelectedProspect(row);
-                    setShowActionModal(true);
-                  },
-                  disabled: (row) => !hasEditPermission || row.statut === 'actif',
-                  title: (row) => row.statut === 'actif'
-                    ? 'Actions désactivées: Ce prospect est devenu client actif'
-                    : !hasEditPermission
-                      ? 'Permission refusée: Ajouter une action'
-                      : 'Ajouter une action',
-                  className: (row) => (!hasEditPermission || row.statut === 'actif')
-                    ? 'bg-gray-400 cursor-not-allowed text-white px-3 py-1'
-                    : 'bg-purple-600 hover:bg-purple-700 text-white px-3 py-1'
-                },
-                {
-                  key: 'edit',
-                  label: 'Modifier',
-                  icon: <Edit2 size={18} />,
-                  onClick: (row) => handleEdit(row),
-                  disabled: !hasEditPermission,
-                  title: !hasEditPermission ? 'Permission refusée: Modifier' : 'Modifier ce prospect',
-                  className: hasEditPermission ? 'bg-amber-600 hover:bg-amber-700 text-white px-3 py-1' : 'bg-gray-400 cursor-not-allowed text-white px-3 py-1'
-                },
-                {
-                  key: 'archive',
-                  label: (row) => row.statut === 'archive' ? 'Désarchiver' : 'Archiver',
-                  icon: (row) => row.statut === 'archive' ? <ArchiveRestore size={18} /> : <Archive size={18} />,
-                  onClick: (row) => handleArchiveToggle(row),
-                  disabled: !hasEditPermission,
-                  title: !hasEditPermission ? 'Permission refusée' : (row) => row.statut === 'archive' ? 'Remettre dans la liste principale' : 'Masquer ce client/prospect (sans le supprimer)',
-                  className: hasEditPermission ? 'bg-gray-600 hover:bg-gray-700 text-white px-3 py-1' : 'bg-gray-400 cursor-not-allowed text-white px-3 py-1'
-                },
-                {
-                  key: 'delete',
-                  label: 'Supprimer',
-                  icon: <Trash2 size={18} />,
-                  onClick: (row) => handleDelete(row),
-                  disabled: !hasDeletePermission,
-                  title: !hasDeletePermission ? 'Permission refusée: Supprimer' : 'Supprimer ce prospect',
-                  className: hasDeletePermission ? 'bg-red-600 hover:bg-red-700 text-white px-3 py-1' : 'bg-gray-400 cursor-not-allowed text-white px-3 py-1'
-                }
-              ]}
-              loading={loading}
-              emptyMessage="Aucun client trouvé"
-              rowStyle={(row) => row.temperature === 'acquis' ? { opacity: 0.5, filter: 'grayscale(100%)', backgroundColor: '#F9FAFB' } : {}}
-            />
-          )}
-        </>
-      )}
+                disabled: (row) => !hasEditPermission || row.statut === 'actif',
+                title: (row) => row.statut === 'actif'
+                  ? 'Actions désactivées: Ce prospect est devenu client actif'
+                  : !hasEditPermission
+                    ? 'Permission refusée: Ajouter une action'
+                    : 'Ajouter une action',
+                className: (row) => (!hasEditPermission || row.statut === 'actif')
+                  ? 'bg-gray-400 cursor-not-allowed text-white px-3 py-1'
+                  : 'bg-purple-600 hover:bg-purple-700 text-white px-3 py-1'
+              },
+              {
+                key: 'edit',
+                label: 'Modifier',
+                icon: <Edit2 size={18} />,
+                onClick: (row) => handleEdit(row),
+                disabled: !hasEditPermission,
+                title: !hasEditPermission ? 'Permission refusée: Modifier' : 'Modifier ce prospect',
+                className: hasEditPermission ? 'bg-amber-600 hover:bg-amber-700 text-white px-3 py-1' : 'bg-gray-400 cursor-not-allowed text-white px-3 py-1'
+              },
+              {
+                key: 'archive',
+                label: (row) => row.statut === 'archive' ? 'Désarchiver' : 'Archiver',
+                icon: (row) => row.statut === 'archive' ? <ArchiveRestore size={18} /> : <Archive size={18} />,
+                onClick: (row) => handleArchiveToggle(row),
+                disabled: !hasEditPermission,
+                title: !hasEditPermission ? 'Permission refusée' : (row) => row.statut === 'archive' ? 'Remettre dans la liste principale' : 'Masquer ce client/prospect (sans le supprimer)',
+                className: hasEditPermission ? 'bg-gray-600 hover:bg-gray-700 text-white px-3 py-1' : 'bg-gray-400 cursor-not-allowed text-white px-3 py-1'
+              },
+              {
+                key: 'delete',
+                label: 'Supprimer',
+                icon: <Trash2 size={18} />,
+                onClick: (row) => handleDelete(row),
+                disabled: !hasDeletePermission,
+                title: !hasDeletePermission ? 'Permission refusée: Supprimer' : 'Supprimer ce prospect',
+                className: hasDeletePermission ? 'bg-red-600 hover:bg-red-700 text-white px-3 py-1' : 'bg-gray-400 cursor-not-allowed text-white px-3 py-1'
+              }
+            ]}
+            loading={loading}
+            emptyMessage="Aucun client trouvé"
+            rowStyle={(row) => row.temperature === 'acquis' ? { opacity: 0.5, filter: 'grayscale(100%)', backgroundColor: '#F9FAFB' } : {}}
+          />
+        )}
+      </div>
       {/* Fin contenu Gestion Prospects */}
 
-      {/* Contenu: Journal des Installations */}
-      {currentPage === 'installations' && (
-        <InstallationPlanningList />
-      )}
-      {/* Fin contenu Journal Installations */}
+
 
       {/* Modal Formulaire Prospect */}
       <Modal

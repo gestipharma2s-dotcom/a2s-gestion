@@ -9,7 +9,7 @@ const Header = ({ title, subtitle }) => {
 
   return (
     <>
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
+      <header className="bg-white border-b border-gray-200 px-4 py-3 md:px-6 md:py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
@@ -18,11 +18,11 @@ const Header = ({ title, subtitle }) => {
             >
               <Menu size={24} />
             </button>
-            
+
             <div>
-              <h1 className="text-2xl font-bold text-gray-800">{title}</h1>
+              <h1 className="text-xl md:text-2xl font-bold text-gray-800">{title}</h1>
               {subtitle && (
-                <p className="text-sm text-gray-600 mt-1">{subtitle}</p>
+                <p className="text-xs md:text-sm text-gray-600 mt-1">{subtitle}</p>
               )}
             </div>
           </div>
@@ -39,7 +39,7 @@ const Header = ({ title, subtitle }) => {
             </div>
 
             {/* Bouton Notifications avec Badge */}
-            <button 
+            <button
               onClick={() => setShowAlerts(!showAlerts)}
               className="relative p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
             >
@@ -49,7 +49,7 @@ const Header = ({ title, subtitle }) => {
           </div>
         </div>
       </header>
-      
+
       {/* Widget Alertes */}
       {showAlerts && <AbonnementAlerts onClose={() => setShowAlerts(false)} />}
     </>

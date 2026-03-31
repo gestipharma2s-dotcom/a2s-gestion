@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   LayoutDashboard, Target, Users, Calendar, CreditCard,
-  Download, Package, Settings, LogOut, Menu, X, HelpCircle, CheckCircle
+  Download, Package, Settings, LogOut, Menu, X, HelpCircle, CheckCircle, KeyRound
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
@@ -38,14 +38,6 @@ const Sidebar = ({ currentPage, onPageChange }) => {
 
   return (
     <>
-      {/* Bouton menu mobile */}
-      <button
-        onClick={toggleSidebar}
-        className="lg:hidden fixed top-4 left-4 z-50 bg-primary text-white p-2 rounded-lg shadow-lg"
-      >
-        {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
-      </button>
-
       {/* Overlay mobile */}
       {sidebarOpen && (
         <div
@@ -66,11 +58,13 @@ const Sidebar = ({ currentPage, onPageChange }) => {
       >
         {/* Header */}
         <div
-          onClick={() => onPageChange(PAGES.DASHBOARD)}
-          className="p-6 border-b border-primary-light cursor-pointer hover:bg-white/5 transition-colors"
+          className="p-6 border-b border-primary-light flex items-center justify-between"
         >
-          <div className="flex items-center gap-3">
-            <div className="bg-white w-12 h-12 rounded-xl flex items-center justify-center">
+          <div
+            className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => onPageChange(PAGES.DASHBOARD)}
+          >
+            <div className="bg-white w-12 h-12 rounded-xl flex items-center justify-center border border-white/20 shadow-sm">
               <span className="text-primary text-xl font-bold">A2S</span>
             </div>
             <div>
@@ -78,6 +72,13 @@ const Sidebar = ({ currentPage, onPageChange }) => {
               <p className="text-sm text-blue-200">{profile?.role}</p>
             </div>
           </div>
+
+          <button
+            className="lg:hidden text-white/70 hover:text-white p-2 rounded-lg hover:bg-white/10"
+            onClick={toggleSidebar}
+          >
+            <X size={24} />
+          </button>
         </div>
 
         {/* Menu */}
@@ -121,13 +122,26 @@ const Sidebar = ({ currentPage, onPageChange }) => {
             </div>
           </div>
 
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white bg-opacity-10 hover:bg-opacity-20 rounded-lg transition-colors"
-          >
-            <LogOut size={18} />
-            <span>Déconnexion</span>
-          </button>
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={() => {
+                onPageChange(PAGES.CHANGE_PASSWORD);
+                if (window.innerWidth < 1024) toggleSidebar();
+              }}
+              className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors ${currentPage === PAGES.CHANGE_PASSWORD ? 'bg-white bg-opacity-30' : 'bg-white bg-opacity-10 hover:bg-opacity-20'
+                }`}
+            >
+              <KeyRound size={18} />
+              <span>Changer mot de passe</span>
+            </button>
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-500 bg-opacity-30 hover:bg-opacity-50 text-white rounded-lg transition-colors"
+            >
+              <LogOut size={18} />
+              <span>Déconnexion</span>
+            </button>
+          </div>
         </div>
       </aside>
     </>

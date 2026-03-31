@@ -96,11 +96,19 @@ const DataTable = ({
 
                         const buttonTitle = typeof action.title === 'function'
                           ? action.title(row)
-                          : action.title || action.label;
+                          : action.title || (typeof action.label === 'function' ? action.label(row) : action.label);
 
                         const buttonClassName = typeof action.className === 'function'
                           ? action.className(row)
                           : action.className || 'bg-blue-600 hover:bg-blue-700 text-white px-4 py-2';
+
+                        const buttonLabel = typeof action.label === 'function'
+                          ? action.label(row)
+                          : action.label;
+
+                        const buttonIcon = typeof action.icon === 'function'
+                          ? action.icon(row)
+                          : action.icon;
 
                         return (
                           <Button
@@ -110,7 +118,7 @@ const DataTable = ({
                             className={buttonClassName}
                             title={buttonTitle}
                           >
-                            {action.icon ? action.icon : action.label}
+                            {buttonIcon ? buttonIcon : buttonLabel}
                           </Button>
                         );
                       })}

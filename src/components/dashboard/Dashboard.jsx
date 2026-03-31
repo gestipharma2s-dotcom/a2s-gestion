@@ -439,25 +439,29 @@ const Dashboard = () => {
         </div>
 
         {/* Filtre Du / Au */}
-        <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-2xl px-5 py-3 shadow-sm">
-          <Filter size={16} className="text-primary shrink-0" />
-          <span className="text-sm font-semibold text-gray-600 whitespace-nowrap">Du</span>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={e => setDateFrom(e.target.value)}
-            className="text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary/30"
-          />
-          <span className="text-sm font-semibold text-gray-600 whitespace-nowrap">Au</span>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={e => setDateTo(e.target.value)}
-            className="text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary/30"
-          />
+        <div className="flex flex-wrap items-center gap-2 md:gap-3 bg-white border border-gray-200 rounded-2xl px-4 py-3 md:px-5 md:py-3 shadow-sm w-full md:w-auto overflow-x-auto">
+          <Filter size={16} className="text-primary shrink-0 hidden md:block" />
+          <div className="flex items-center gap-2 flex-1 md:flex-none justify-between">
+            <span className="text-xs md:text-sm font-semibold text-gray-600 whitespace-nowrap">Du</span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={e => setDateFrom(e.target.value)}
+              className="text-xs md:text-sm border border-gray-200 rounded-lg px-2 py-1.5 w-[110px] md:w-auto focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
+          <div className="flex items-center gap-2 flex-1 md:flex-none justify-between">
+            <span className="text-xs md:text-sm font-semibold text-gray-600 whitespace-nowrap">Au</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={e => setDateTo(e.target.value)}
+              className="text-xs md:text-sm border border-gray-200 rounded-lg px-2 py-1.5 w-[110px] md:w-auto focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
           <button
             onClick={() => { setDateFrom(`${currentYear}-01-01`); setDateTo(`${currentYear}-12-31`); }}
-            className="ml-1 p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-primary transition-colors"
+            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-primary transition-colors shrink-0"
             title="Réinitialiser au filtre annuel"
           >
             <RefreshCw size={14} />

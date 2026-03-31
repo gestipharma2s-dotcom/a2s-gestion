@@ -176,7 +176,8 @@ export const PAGES = {
   MISSIONS: 'missions',
   ALERTES: 'alertes',
   APPLICATIONS: 'applications',
-  UTILISATEURS: 'utilisateurs'
+  UTILISATEURS: 'utilisateurs',
+  CHANGE_PASSWORD: 'change-password'
 };
 
 // Configuration des permissions par page
