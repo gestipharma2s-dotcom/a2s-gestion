@@ -65,18 +65,20 @@ export const installationService = {
   // Utilisé pour les clients qui démarrent directement en abonnement
   async createSimple(installationData) {
     try {
+      const insertData = {
+        client_id: installationData.client_id,
+        application_installee: installationData.application_installee,
+        montant: parseFloat(installationData.montant) || 0,
+        montant_abonnement: parseFloat(installationData.montant_abonnement) || 0,
+        date_installation: installationData.date_installation,
+        type: installationData.type || 'abonnement',
+        statut: 'en_cours',
+        created_by: installationData.created_by || null
+      };
+      console.log('DEBUG [createSimple]: Insertion installation avec statut:', insertData.statut);
       const { data, error } = await supabase
         .from(TABLES.INSTALLATIONS)
-        .insert([{
-          client_id: installationData.client_id,
-          application_installee: installationData.application_installee,
-          montant: parseFloat(installationData.montant) || 0,
-          montant_abonnement: parseFloat(installationData.montant_abonnement) || 0,
-          date_installation: installationData.date_installation,
-          type: installationData.type || 'abonnement',
-          statut: installationData.statut || 'en_cours',
-          created_by: installationData.created_by || null
-        }])
+        .insert([insertData])
         .select()
         .single();
 
@@ -119,18 +121,20 @@ export const installationService = {
   // Créer une installation
   async create(installationData) {
     try {
+      const insertData = {
+        client_id: installationData.client_id,
+        application_installee: installationData.application_installee,
+        montant: parseFloat(installationData.montant) || 0,
+        montant_abonnement: parseFloat(installationData.montant_abonnement) || 0,
+        date_installation: installationData.date_installation,
+        type: installationData.type || 'acquisition',
+        statut: 'en_cours',
+        created_by: installationData.created_by || null
+      };
+      console.log('DEBUG [create]: Insertion installation avec statut:', insertData.statut);
       const { data, error } = await supabase
         .from(TABLES.INSTALLATIONS)
-        .insert([{
-          client_id: installationData.client_id,
-          application_installee: installationData.application_installee,
-          montant: parseFloat(installationData.montant) || 0,
-          montant_abonnement: parseFloat(installationData.montant_abonnement) || 0,
-          date_installation: installationData.date_installation,
-          type: installationData.type || 'acquisition',
-          statut: installationData.statut || 'en_cours',
-          created_by: installationData.created_by || null
-        }])
+        .insert([insertData])
         .select();
 
       if (error) throw error;
@@ -347,7 +351,7 @@ export const installationService = {
 
       const stats = {
         total: data.length,
-        enCours: data.filter(i => i.statut === 'en cours').length,
+        enCours: data.filter(i => i.statut === 'en_cours' || i.statut === 'en cours').length,
         terminees: data.filter(i => i.statut === 'terminee').length,
         revenuTotal: data.reduce((sum, i) => sum + (i.montant || 0), 0)
       };
