@@ -61,6 +61,33 @@ export const installationService = {
     }
   },
 
+  // Créer une installation simple (sans créer abonnement auto, sans convertir prospect)
+  // Utilisé pour les clients qui démarrent directement en abonnement
+  async createSimple(installationData) {
+    try {
+      const { data, error } = await supabase
+        .from(TABLES.INSTALLATIONS)
+        .insert([{
+          client_id: installationData.client_id,
+          application_installee: installationData.application_installee,
+          montant: parseFloat(installationData.montant) || 0,
+          montant_abonnement: parseFloat(installationData.montant_abonnement) || 0,
+          date_installation: installationData.date_installation,
+          type: installationData.type || 'abonnement',
+          statut: installationData.statut || 'en cours',
+          created_by: installationData.created_by || null
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Erreur création installation simple:', error);
+      throw error;
+    }
+  },
+
   // Vérifier si une installation a des paiements
   async hasPaiements(installationId) {
     try {
