@@ -333,13 +333,14 @@ const ProspectHistory = ({ prospectId, prospect }) => {
               {firstInstallation && <span className="text-[10px] bg-gray-200 text-gray-600 px-2 py-0.5 rounded font-bold uppercase">Phase terminée</span>}
             </h3>
             {history.map((item, index) => {
-              const isProspectAction = firstInstallation && new Date(item.created_at) < new Date(firstInstallation.date_installation);
+              // ✅ Toute action sous ce titre "Phase prospect" est verrouillée si client actif
+              const isLocked = !!firstInstallation || prospect?.statut === 'acquis' || prospect?.statut === 'client';
               const Icon = getActionIcon(item.action);
               return (
                 <div key={item.id || `history-${index}`} className="flex gap-4">
                   <div className="flex flex-col items-center">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white ${item.action === 'acquis' ? 'bg-gray-400' : 'bg-blue-500'
-                      } ${isProspectAction ? 'opacity-40' : ''}`}>
+                      } ${isLocked ? 'opacity-40' : ''}`}>
                       <Icon size={20} />
                     </div>
                     {index < history.length - 1 || firstInstallation ? (
@@ -351,7 +352,7 @@ const ProspectHistory = ({ prospectId, prospect }) => {
                     <div className={`rounded-lg p-4 border transition-all duration-300 ${item.action === 'acquis'
                       ? 'bg-gray-50 border-gray-200'
                       : 'bg-blue-50 border-blue-200'
-                      } ${isProspectAction ? 'opacity-50 grayscale hover:opacity-100 hover:grayscale-0' : 'shadow-sm border-blue-300'}`}>
+                      } ${isLocked ? 'opacity-50 grayscale hover:opacity-100 hover:grayscale-0' : 'shadow-sm border-blue-300'}`}>
                       <div className="flex items-start justify-between mb-2">
                         <h4 className="font-semibold text-gray-800">
                           {/* ✅ CORRIGÉ: Affiche 'action' correctement */}
@@ -374,9 +375,10 @@ const ProspectHistory = ({ prospectId, prospect }) => {
                       <div className="flex gap-2 mt-3 border-t border-blue-200 pt-3">
                         <button
                           onClick={() => openEditModal(item)}
-                          disabled={item.mission_id && item.mission_id !== "null" && item.mission_id !== 0 && item.mission_id !== "0"}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold transition-colors ${item.mission_id && item.mission_id !== "null" && item.mission_id !== 0 && item.mission_id !== "0"
-                            ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                          disabled={isLocked || (item.mission_id && item.mission_id !== "null" && item.mission_id !== 0 && item.mission_id !== "0")}
+                          title={isLocked ? "Action verrouillée (Phase Prospect terminée)" : ""}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold transition-colors ${isLocked || (item.mission_id && item.mission_id !== "null" && item.mission_id !== 0 && item.mission_id !== "0")
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
                             : 'bg-blue-600 text-white hover:bg-blue-700'
                             }`}
                         >
@@ -385,9 +387,10 @@ const ProspectHistory = ({ prospectId, prospect }) => {
                         </button>
                         <button
                           onClick={() => handleDeleteAction(item)}
-                          disabled={item.mission_id && item.mission_id !== "null" && item.mission_id !== 0 && item.mission_id !== "0"}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold transition-colors ${item.mission_id && item.mission_id !== "null" && item.mission_id !== 0 && item.mission_id !== "0"
-                            ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                          disabled={isLocked || (item.mission_id && item.mission_id !== "null" && item.mission_id !== 0 && item.mission_id !== "0")}
+                          title={isLocked ? "Action verrouillée (Phase Prospect terminée)" : ""}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold transition-colors ${isLocked || (item.mission_id && item.mission_id !== "null" && item.mission_id !== 0 && item.mission_id !== "0")
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
                             : 'bg-red-600 text-white hover:bg-red-700'
                             }`}
                         >
