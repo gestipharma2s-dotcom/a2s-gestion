@@ -117,40 +117,37 @@ const PaiementForm = ({ paiement, onSubmit, onCancel, isAbonnement = false, isSu
           try {
             const paiements = await paiementService.getByInstallation(value);
 
-            if (typePaiement === 'abonnement' || isAbonnement) {
-              // Pour un abonnement, utiliser montant_abonnement
-              const amtAbo = inst.montant_abonnement || 0;
-              const totalPayeAbo = paiements
-                .filter(p => p.type === 'abonnement')
-                .reduce((sum, p) => sum + (p.montant || 0), 0);
+            // Charger les deux: Abonnement ET Acquisition pour permettre de permuter via le SELECT "Type"
 
-              setAbonnementMontant(amtAbo);
-              setAbonnementResteAPayer(Math.max(0, amtAbo - totalPayeAbo));
-              console.log(`✅ Abonnement - Montant: ${amtAbo}, Payé (Abo): ${totalPayeAbo}`);
-            } else {
-              // Pour une acquisition, utiliser montant
-              const totalPayeAcq = paiements
-                .filter(p => p.type === 'acquisition')
-                .reduce((sum, p) => sum + (p.montant || 0), 0);
-              setPaiementsExistants(totalPayeAcq);
+            // 1. Calcul Abonnement
+            const amtAbo = inst.montant_abonnement || 0;
+            const totalPayeAbo = paiements
+              .filter(p => p.type === 'abonnement')
+              .reduce((sum, p) => sum + (p.montant || 0), 0);
 
-              setMontantInstallation(inst.montant || 0);
-              const reste = Math.max(0, (inst.montant || 0) - totalPayeAcq);
-              setRestAPayer(reste);
-              setMontantInstallationCalcule(true);
-              console.log(`✅ Acquisition - Montant: ${inst.montant}, Payé (Acq): ${totalPayeAcq}, Reste: ${reste}`);
-            }
+            setAbonnementMontant(amtAbo);
+            setAbonnementResteAPayer(Math.max(0, amtAbo - totalPayeAbo));
+
+            // 2. Calcul Acquisition
+            const totalPayeAcq = paiements
+              .filter(p => typeof p.type === 'string' && p.type === 'acquisition')
+              .reduce((sum, p) => sum + (p.montant || 0), 0);
+
+            setPaiementsExistants(totalPayeAcq);
+            setMontantInstallation(inst.montant || 0);
+            const reste = Math.max(0, (inst.montant || 0) - totalPayeAcq);
+            setRestAPayer(reste);
+            setMontantInstallationCalcule(true);
+
+            console.log(`✅ Calculs croisés: Abo(${amtAbo}) / Acq(${inst.montant})`);
           } catch (error) {
             console.error('Erreur calcul reste à payer:', error);
-            // Fallback
-            if (typePaiement === 'abonnement' || isAbonnement) {
-              setAbonnementMontant(inst.montant_abonnement || 0);
-              setAbonnementResteAPayer(inst.montant_abonnement || 0);
-            } else {
-              setMontantInstallation(inst.montant || 0);
-              setRestAPayer(inst.montant || 0);
-              setMontantInstallationCalcule(true);
-            }
+            // Fallbacks
+            setAbonnementMontant(inst.montant_abonnement || 0);
+            setAbonnementResteAPayer(inst.montant_abonnement || 0);
+            setMontantInstallation(inst.montant || 0);
+            setRestAPayer(inst.montant || 0);
+            setMontantInstallationCalcule(true);
           }
         };
         calculerRestAPayer();
@@ -207,8 +204,8 @@ const PaiementForm = ({ paiement, onSubmit, onCancel, isAbonnement = false, isSu
         />
       )}
 
-      {/* ✅ NOUVEAU: Afficher le statut et le code de l'installation */}
-      {formData.installation_id && !isAbonnement && (montantInstallation > 0 || montantInstallationCalcule) && (
+      {/* ✅ Afficher le statut et le code de l'installation (Acquisition) */}
+      {formData.installation_id && formData.type === 'acquisition' && (montantInstallation > 0 || montantInstallationCalcule) && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
           <div className="grid grid-cols-3 gap-4">
             <div>
@@ -241,8 +238,9 @@ const PaiementForm = ({ paiement, onSubmit, onCancel, isAbonnement = false, isSu
         label="Type de Paiement"
         value={formData.type}
         onChange={(e) => handleChange('type', e.target.value)}
-        // Figer si une installation est sélectionnée OU si c'est un paiement d'abonnement
-        disabled={!!formData.installation_id || isAbonnement}
+        // Figer si une installation est sélectionnée (historiquement on bloquait)
+        // Mais nous voulons le permettre pour changer le type
+        disabled={isAbonnement}
         options={[
           { value: 'acquisition', label: 'Acquisition' },
           { value: 'abonnement', label: 'Abonnement' }
@@ -251,7 +249,8 @@ const PaiementForm = ({ paiement, onSubmit, onCancel, isAbonnement = false, isSu
         required
       />
 
-      {isAbonnement && abonnementMontant > 0 && (
+      {/* ✅ Afficher le statut et le code de l'abonnement */}
+      {formData.installation_id && formData.type === 'abonnement' && abonnementMontant > 0 && (
         <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
           <div className="grid grid-cols-3 gap-4">
             <div>

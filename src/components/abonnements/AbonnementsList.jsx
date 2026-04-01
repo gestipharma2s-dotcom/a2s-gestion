@@ -602,7 +602,7 @@ const AbonnementsList = () => {
               mode_paiement: 'especes',
               montant: '',
               date_paiement: new Date().toISOString().split('T')[0],
-              abonnement_montant: selectedAbonnement.installation?.montant || 0
+              abonnement_montant: selectedAbonnement.installation?.montant_abonnement || 0
             }}
             onSubmit={handlePaiementSubmit}
             onCancel={() => setShowPaiementModal(false)}

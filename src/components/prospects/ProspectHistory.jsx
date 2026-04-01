@@ -195,32 +195,124 @@ const ProspectHistory = ({ prospectId, prospect }) => {
         <h3 className="text-lg font-bold text-gray-800">📋 Historique Actions</h3>
       </div>
 
-      {/* ✅ NOUVEAU: Situation Financière (Fiche Client) */}
+      {/* ✅ SITUATION FINANCIÈRE DÉTAILLÉE */}
       {balance && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white border-l-4 border-blue-500 rounded-lg p-4 shadow-sm border">
-            <p className="text-xs text-blue-600 font-bold uppercase mb-1">Dette Totale</p>
-            <p className="text-xl font-bold text-gray-800">
-              {profile?.role === 'admin' || profile?.role === 'super_admin' ? formatMontant(balance.totalDu) : '🔐'}
-            </p>
-          </div>
-          <div className="bg-white border-l-4 border-green-500 rounded-lg p-4 shadow-sm border">
-            <p className="text-xs text-green-600 font-bold uppercase mb-1">Total Payé</p>
-            <p className="text-xl font-bold text-gray-800">
-              {profile?.role === 'admin' || profile?.role === 'super_admin' ? formatMontant(balance.totalPaye) : '🔐'}
-            </p>
-          </div>
-          <div className={`bg-white border-l-4 ${balance.resteAPayer > 0 ? 'border-red-500' : 'border-green-500'} rounded-lg p-4 shadow-sm border`}>
-            <p className={`text-xs ${balance.resteAPayer > 0 ? 'text-red-600' : 'text-green-600'} font-bold uppercase mb-1`}>Reste à Payer</p>
-            <p className={`text-xl font-bold ${balance.resteAPayer > 0 ? 'text-red-700' : 'text-green-700'}`}>
-              {profile?.role === 'admin' || profile?.role === 'super_admin' ? formatMontant(balance.resteAPayer) : '🔐'}
-            </p>
-          </div>
-          <div className="bg-gray-50 border-l-4 border-gray-400 rounded-lg p-4 shadow-sm border">
-            <p className="text-xs text-gray-600 font-bold uppercase mb-1">Abonnements</p>
-            <p className="text-xl font-bold text-gray-700">
-              {profile?.role === 'admin' || profile?.role === 'super_admin' ? formatMontant(balance.totalAbonnements) : '🔐'}
-            </p>
+        <div className="space-y-4">
+          {/* Titre section */}
+          <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+            💰 Situation Financière
+          </h3>
+
+          {/* Détail par installation */}
+          {balance.installationsDetail && balance.installationsDetail.length > 0 && (
+            <div className="space-y-3">
+              {balance.installationsDetail.map((inst, idx) => (
+                <div key={inst.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                  {/* En-tête de l'installation */}
+                  <div className="bg-blue-600 text-white px-4 py-2.5 flex items-center justify-between">
+                    <span className="font-bold text-sm">🖥️ {inst.application || `Installation #${idx + 1}`}</span>
+                    <span className="text-blue-200 text-xs">{inst.date ? new Date(inst.date).toLocaleDateString('fr-FR') : ''}</span>
+                  </div>
+
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Bloc Acquisition */}
+                    <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                      <p className="text-xs font-bold text-gray-500 uppercase mb-2">📦 Acquisition</p>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Montant dû</span>
+                          <span className="font-bold text-gray-800">
+                            {profile?.role === 'admin' || profile?.role === 'super_admin'
+                              ? formatMontant(inst.montantAcquisition) : '🔐'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Total payé</span>
+                          <span className="font-bold text-green-600">
+                            {profile?.role === 'admin' || profile?.role === 'super_admin'
+                              ? formatMontant(inst.totalPayeAcq) : '🔐'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between border-t border-gray-200 pt-1 mt-1">
+                          <span className="font-semibold text-gray-700">Reste</span>
+                          <span className={`font-bold ${inst.resteAcq > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                            {profile?.role === 'admin' || profile?.role === 'super_admin'
+                              ? formatMontant(inst.resteAcq) : '🔐'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bloc Abonnements */}
+                    <div className="bg-indigo-50 rounded-lg p-3 border border-indigo-200">
+                      <p className="text-xs font-bold text-indigo-500 uppercase mb-2">
+                        🔄 Abonnements ({inst.nbAbonnements} période{inst.nbAbonnements > 1 ? 's' : ''})
+                      </p>
+                      {inst.nbAbonnements > 0 ? (
+                        <div className="space-y-1 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Montant dû</span>
+                            <span className="font-bold text-gray-800">
+                              {profile?.role === 'admin' || profile?.role === 'super_admin'
+                                ? formatMontant(inst.montantAboDu) : '🔐'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Total payé</span>
+                            <span className="font-bold text-green-600">
+                              {profile?.role === 'admin' || profile?.role === 'super_admin'
+                                ? formatMontant(inst.totalPayeAbo) : '🔐'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between border-t border-indigo-200 pt-1 mt-1">
+                            <span className="font-semibold text-gray-700">Reste</span>
+                            <span className={`font-bold ${inst.resteAbo > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                              {profile?.role === 'admin' || profile?.role === 'super_admin'
+                                ? formatMontant(inst.resteAbo) : '🔐'}
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-400 italic">Aucun abonnement facturé</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Barre de synthèse globale */}
+          <div className="bg-gradient-to-r from-gray-800 to-gray-900 text-white rounded-xl p-5 shadow-lg">
+            <p className="text-xs font-bold text-gray-400 uppercase mb-4">📊 Synthèse Globale</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {balance.soldeInitial > 0 && (
+                <div>
+                  <p className="text-xs text-gray-400">Solde Initial</p>
+                  <p className="text-lg font-bold text-yellow-400">
+                    {profile?.role === 'admin' || profile?.role === 'super_admin' ? formatMontant(balance.soldeInitial) : '🔐'}
+                  </p>
+                </div>
+              )}
+              <div>
+                <p className="text-xs text-gray-400">Total Chargé</p>
+                <p className="text-lg font-bold text-white">
+                  {profile?.role === 'admin' || profile?.role === 'super_admin' ? formatMontant(balance.totalDu) : '🔐'}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400">Total Payé</p>
+                <p className="text-lg font-bold text-green-400">
+                  {profile?.role === 'admin' || profile?.role === 'super_admin' ? formatMontant(balance.totalPaye) : '🔐'}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400">Reste à Payer</p>
+                <p className={`text-2xl font-black ${balance.resteAPayer > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                  {profile?.role === 'admin' || profile?.role === 'super_admin' ? formatMontant(balance.resteAPayer) : '🔐'}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}

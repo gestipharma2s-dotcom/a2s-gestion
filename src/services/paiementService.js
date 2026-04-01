@@ -11,7 +11,7 @@ export const paiementService = {
           *,
           created_by,
           client:prospects!client_id(raison_sociale, contact),
-          installation:installations(application_installee, montant, type, created_by)
+          installation:installations(application_installee, montant, montant_abonnement, type, created_by)
         `)
         .order('date_paiement', { ascending: false });
 
@@ -19,9 +19,13 @@ export const paiementService = {
 
       // Calculer le reste à payer pour chaque paiement
       const dataWithReste = data.map(paiement => {
-        const montantInstallation = paiement.installation?.montant || 0;
+        // Le montant à payer dépend si c'est une acquisition ou un abonnement
+        const montantDu = paiement.type === 'abonnement'
+          ? (paiement.installation?.montant_abonnement || 0)
+          : (paiement.installation?.montant || 0);
+
         const montantPaye = paiement.montant || 0;
-        const resteAPayer = Math.max(0, montantInstallation - montantPaye);
+        const resteAPayer = Math.max(0, montantDu - montantPaye);
 
         // Si created_by est NULL, utiliser le created_by de l'installation (fallback)
         const creator = paiement.created_by || paiement.installation?.created_by || null;
@@ -29,6 +33,7 @@ export const paiementService = {
         return {
           ...paiement,
           created_by: creator,
+          montantTotal: montantDu, // ✅ Ajouter le montant total réel attendu pour l'affichage
           resteAPayer: resteAPayer
         };
       });
@@ -54,7 +59,7 @@ export const paiementService = {
           type,
           date_paiement,
           created_by,
-          installation:installations(montant, type, created_by, application_installee)
+          installation:installations(montant, montant_abonnement, type, created_by, application_installee)
         `)
         .eq('client_id', clientId)
         .order('date_paiement', { ascending: false });
@@ -63,9 +68,12 @@ export const paiementService = {
 
       // Calculer le reste à payer pour chaque paiement
       const dataWithReste = data.map(paiement => {
-        const montantInstallation = paiement.installation?.montant || 0;
+        const montantDu = paiement.type === 'abonnement'
+          ? (paiement.installation?.montant_abonnement || 0)
+          : (paiement.installation?.montant || 0);
+
         const montantPaye = paiement.montant || 0;
-        const resteAPayer = Math.max(0, montantInstallation - montantPaye);
+        const resteAPayer = Math.max(0, montantDu - montantPaye);
 
         // Si created_by est NULL, utiliser le created_by de l'installation (fallback)
         const creator = paiement.created_by || paiement.installation?.created_by || null;
@@ -73,6 +81,7 @@ export const paiementService = {
         return {
           ...paiement,
           created_by: creator,
+          montantTotal: montantDu,
           resteAPayer: resteAPayer
         };
       });
@@ -101,7 +110,7 @@ export const paiementService = {
     }
   },
 
-  // Calculer le reste total à payer pour un client
+  // Calculer le reste total à payer pour un client avec détail par installation
   async getResteTotalClient(clientId) {
     try {
       // 1. Récupérer le solde initial du client
@@ -114,52 +123,95 @@ export const paiementService = {
       if (clientError) throw clientError;
       const soldeInitial = client?.solde_initial || 0;
 
-      // 2. Récupérer les installations du client
+      // 2. Récupérer les installations du client avec leur nom d'application
       const { data: installations, error: instError } = await supabase
         .from(TABLES.INSTALLATIONS)
-        .select('id, montant, montant_abonnement')
-        .eq('client_id', clientId);
+        .select('id, montant, montant_abonnement, application_installee, date_installation, type')
+        .eq('client_id', clientId)
+        .order('date_installation', { ascending: true });
 
       if (instError) throw instError;
 
-      const totalMontantInstallations = installations.reduce((sum, inst) => sum + (inst.montant || 0), 0);
-
-      // 3. Récupérer les abonnements (périodes facturées)
       const installationIds = installations.map(i => i.id);
-      let totalAbonnements = 0;
 
-      if (installationIds.length > 0) {
-        const { data: abonnements } = await supabase
-          .from(TABLES.ABONNEMENTS)
-          .select('installation_id')
-          .in('installation_id', installationIds);
-
-        totalAbonnements = (abonnements || []).reduce((sum, abo) => {
-          const inst = installations.find(i => i.id === abo.installation_id);
-          return sum + (inst?.montant_abonnement || 0);
-        }, 0);
-      }
-
-      const totalDu = totalMontantInstallations + soldeInitial + totalAbonnements;
-
-      // 4. Récupérer tous les paiements du client
-      const { data: paiements, error: paiError } = await supabase
+      // 3. Récupérer TOUS les paiements du client avec le type et l'installation
+      const { data: allPaiements, error: paiError } = await supabase
         .from(TABLES.PAIEMENTS)
-        .select('montant')
-        .eq('client_id', clientId);
+        .select('montant, type, installation_id, date_paiement')
+        .eq('client_id', clientId)
+        .order('date_paiement', { ascending: true });
 
       if (paiError) throw paiError;
 
-      const totalPaye = (paiements || []).reduce((sum, p) => sum + (p.montant || 0), 0);
+      // 4. Récupérer les abonnements actifs pour savoir quelle installation a des abonnements
+      let abonnementsByInstallation = {};
+      if (installationIds.length > 0) {
+        const { data: abonnements } = await supabase
+          .from(TABLES.ABONNEMENTS)
+          .select('installation_id, statut, date_debut, date_fin')
+          .in('installation_id', installationIds)
+          .order('date_debut', { ascending: false });
+
+        (abonnements || []).forEach(abo => {
+          if (!abonnementsByInstallation[abo.installation_id]) {
+            abonnementsByInstallation[abo.installation_id] = [];
+          }
+          abonnementsByInstallation[abo.installation_id].push(abo);
+        });
+      }
+
+      // 5. Calculer le détail par installation
+      const installationsDetail = installations.map(inst => {
+        const paiementsAcq = (allPaiements || []).filter(p =>
+          p.installation_id === inst.id && p.type === 'acquisition'
+        );
+        const paiementsAbo = (allPaiements || []).filter(p =>
+          p.installation_id === inst.id && p.type === 'abonnement'
+        );
+
+        const totalPayeAcq = paiementsAcq.reduce((s, p) => s + (p.montant || 0), 0);
+        const totalPayeAbo = paiementsAbo.reduce((s, p) => s + (p.montant || 0), 0);
+
+        const abos = abonnementsByInstallation[inst.id] || [];
+        const nbAbonnements = abos.length;
+        // Montant total dû pour les abonnements = montant_abonnement * nombre de périodes facturées
+        const montantAboDu = (inst.montant_abonnement || 0) * nbAbonnements;
+
+        return {
+          id: inst.id,
+          application: inst.application_installee,
+          date: inst.date_installation,
+          montantAcquisition: inst.montant || 0,
+          montantAbonnement: inst.montant_abonnement || 0,
+          nbAbonnements: nbAbonnements,
+          montantAboDu: montantAboDu,
+          totalPayeAcq: totalPayeAcq,
+          totalPayeAbo: totalPayeAbo,
+          resteAcq: Math.max(0, (inst.montant || 0) - totalPayeAcq),
+          resteAbo: Math.max(0, montantAboDu - totalPayeAbo),
+          abonnements: abos
+        };
+      });
+
+      // 6. Totaux globaux
+      const totalMontantInstallations = installations.reduce((s, i) => s + (i.montant || 0), 0);
+      const totalAbonnementsDu = installationsDetail.reduce((s, i) => s + i.montantAboDu, 0);
+      const totalPaye = (allPaiements || []).reduce((s, p) => s + (p.montant || 0), 0);
+      const totalPayeAcqGlobal = (allPaiements || []).filter(p => p.type === 'acquisition').reduce((s, p) => s + (p.montant || 0), 0);
+      const totalPayeAboGlobal = (allPaiements || []).filter(p => p.type === 'abonnement').reduce((s, p) => s + (p.montant || 0), 0);
+      const totalDu = totalMontantInstallations + soldeInitial + totalAbonnementsDu;
       const resteTotal = Math.max(0, totalDu - totalPaye);
 
       return {
-        soldeInitial: soldeInitial,
+        soldeInitial,
         totalInstallations: totalMontantInstallations,
-        totalAbonnements: totalAbonnements,
-        totalPaye: totalPaye,
-        totalDu: totalDu,
-        resteAPayer: resteTotal
+        totalAbonnements: totalAbonnementsDu,
+        totalPaye,
+        totalPayeAcq: totalPayeAcqGlobal,
+        totalPayeAbo: totalPayeAboGlobal,
+        totalDu,
+        resteAPayer: resteTotal,
+        installationsDetail
       };
     } catch (error) {
       console.error('Erreur calcul reste total:', error);
