@@ -4,9 +4,149 @@ import { paiementService } from '../../services/paiementService';
 import { interventionService } from '../../services/interventionService';
 import { prospectService } from '../../services/prospectService';
 import { formatDate, formatMontant, getStatutPaiement } from '../../utils/helpers';
-import { Building, Calendar, CreditCard, Settings, ChevronDown, ChevronUp, History, RefreshCw } from 'lucide-react';
+import { Building, CreditCard, Settings, ChevronDown, ChevronUp, History, RefreshCw } from 'lucide-react';
 import PaiementHistory from '../paiements/PaiementHistory';
 import ProspectHistory from '../prospects/ProspectHistory';
+
+/* ─── Win2000 palette ─── */
+const W = {
+  silver: '#D4D0C8',
+  silverDark: '#A8A098',
+  silverLight: '#FFFFFF',
+  titleBar: 'linear-gradient(to right, #000080, #1084D0)',
+  text: '#000000',
+  textDisabled: '#808080',
+  highlight: '#000080',
+  highlightText: '#FFFFFF',
+  btnFace: '#D4D0C8',
+  btnShadow: '#808080',
+  btnDkShadow: '#404040',
+  btnHilight: '#FFFFFF',
+};
+
+const raisedBox = {
+  background: W.silver,
+  border: '2px solid',
+  borderColor: `${W.btnHilight} ${W.btnDkShadow} ${W.btnDkShadow} ${W.btnHilight}`,
+  boxShadow: `inset -1px -1px 0 ${W.btnShadow}, inset 1px 1px 0 ${W.silverLight}`,
+};
+
+const sunkenBox = {
+  background: W.silverLight,
+  border: '2px solid',
+  borderColor: `${W.btnDkShadow} ${W.btnHilight} ${W.btnHilight} ${W.btnDkShadow}`,
+  boxShadow: `inset 1px 1px 0 ${W.btnShadow}, inset -1px -1px 0 ${W.silverLight}`,
+};
+
+const TitleBar = ({ title, icon, active = true }) => (
+  <div style={{
+    background: active ? W.titleBar : 'linear-gradient(to right, #7A7A7A, #B0B0B0)',
+    color: W.highlightText,
+    fontFamily: "'Tahoma', 'MS Sans Serif', sans-serif",
+    fontSize: '11px',
+    fontWeight: 'bold',
+    padding: '3px 6px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    userSelect: 'none',
+  }}>
+    {icon && <span style={{ fontSize: '13px' }}>{icon}</span>}
+    {title}
+  </div>
+);
+
+const SectionPanel = ({ title, icon, children, defaultOpen = true }) => {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{ ...raisedBox, marginBottom: '8px' }}>
+      <div
+        style={{
+          background: W.silver,
+          borderBottom: open ? `1px solid ${W.btnShadow}` : 'none',
+          padding: '3px 8px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          cursor: 'pointer',
+          userSelect: 'none',
+          fontFamily: "'Tahoma', 'MS Sans Serif', sans-serif",
+          fontSize: '11px',
+          fontWeight: 'bold',
+        }}
+        onClick={() => setOpen(o => !o)}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {icon} {title}
+        </span>
+        {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+      </div>
+      {open && (
+        <div style={{ padding: '8px', background: W.silver }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const Win2kButton = ({ children, onClick, style }) => {
+  const [pressed, setPressed] = React.useState(false);
+  return (
+    <button
+      style={{
+        fontFamily: "'Tahoma', 'MS Sans Serif', sans-serif",
+        fontSize: '11px',
+        padding: '2px 10px',
+        cursor: 'pointer',
+        userSelect: 'none',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '3px',
+        background: W.btnFace,
+        color: W.text,
+        border: '2px solid',
+        borderColor: pressed
+          ? `${W.btnDkShadow} ${W.btnHilight} ${W.btnHilight} ${W.btnDkShadow}`
+          : `${W.btnHilight} ${W.btnDkShadow} ${W.btnDkShadow} ${W.btnHilight}`,
+        boxShadow: pressed
+          ? `inset 1px 1px 0 ${W.btnShadow}`
+          : `inset -1px -1px 0 ${W.btnShadow}, inset 1px 1px 0 ${W.silverLight}`,
+        ...style,
+      }}
+      onClick={onClick}
+      onMouseDown={() => setPressed(true)}
+      onMouseUp={() => setPressed(false)}
+      onMouseLeave={() => setPressed(false)}
+    >
+      {children}
+    </button>
+  );
+};
+
+const DataRow = ({ label, value, highlight }) => (
+  <tr>
+    <td style={{
+      padding: '2px 8px',
+      fontSize: '11px',
+      fontFamily: "'Tahoma', 'MS Sans Serif', sans-serif",
+      fontWeight: 'bold',
+      background: W.silver,
+      borderBottom: `1px solid ${W.silverDark}`,
+      whiteSpace: 'nowrap',
+      width: '40%',
+    }}>{label}</td>
+    <td style={{
+      padding: '2px 8px',
+      fontSize: '11px',
+      fontFamily: "'Tahoma', 'MS Sans Serif', sans-serif",
+      background: highlight ? '#FFFFE0' : W.silverLight,
+      borderBottom: `1px solid ${W.silverDark}`,
+      color: highlight ? '#CC0000' : W.text,
+      fontWeight: highlight ? 'bold' : 'normal',
+    }}>{value || 'N/A'}</td>
+  </tr>
+);
 
 const ClientDetails = ({ client }) => {
   const [installations, setInstallations] = useState([]);
@@ -18,94 +158,59 @@ const ClientDetails = ({ client }) => {
   const [showFullPaiements, setShowFullPaiements] = useState(false);
   const [showProspectHistory, setShowProspectHistory] = useState(false);
 
-  useEffect(() => {
-    if (client) {
-      loadClientData();
-    }
-  }, [client]);
+  useEffect(() => { if (client) loadClientData(); }, [client]);
 
   const loadClientData = async () => {
     try {
       setLoading(true);
-
-      // Récupérer les installations et paiements
       const installData = await installationService.getByClient(client.id);
       const paiementData = await paiementService.getByClient(client.id);
-
       setInstallations(installData || []);
       setPaiements(paiementData || []);
 
-      // Récupérer les abonnements renouvelés à partir de l'historique
       try {
         const historyData = await prospectService.getHistorique(client.id);
         const renouvellementsList = (historyData || [])
           .filter(action => action.action === 'abonnement_auto_renew')
           .map((action, idx) => {
-            // Extraire le nom de l'application depuis la description
-            // Format: "Abonnement auto-renouvelé pour [APPLICATION_NAME]"
             let applicationName = 'Application inconnue';
             if (action.description) {
               const match = action.description.match(/pour\s+(.+?)(?:\n|$)/);
               applicationName = match ? match[1].trim() : 'Application inconnue';
             }
-
-            return {
-              id: `renew-${action.id}-${idx}`,
-              application: applicationName,
-              date: action.date || action.created_at,
-              montant: action.details?.montant,
-              description: action.description
-            };
+            return { id: `renew-${action.id}-${idx}`, application: applicationName, date: action.date || action.created_at, montant: action.details?.montant, description: action.description };
           });
         setRenouvellements(renouvellementsList);
-      } catch (error) {
-        console.warn('Renouvellements non disponibles:', error);
-        setRenouvellements([]);
-      }
+      } catch { setRenouvellements([]); }
 
-      // ✅ CORRIGÉ: Calculer le reste au lieu d'appeler une méthode qui n'existe pas
       const totalInstallations = (installData || []).reduce((sum, i) => sum + (i.montant || 0), 0);
       const soldeInitial = client.solde_initial || 0;
       const totalDu = totalInstallations + soldeInitial;
       const totalPaye = (paiementData || []).reduce((sum, p) => sum + (p.montant || 0), 0);
       const resteAPayer = Math.max(0, totalDu - totalPaye);
+      setResteTotal({ soldeInitial, totalInstallations, totalPaye, resteAPayer });
 
-      setResteTotal({
-        soldeInitial: soldeInitial,
-        totalInstallations: totalInstallations,
-        totalPaye: totalPaye,
-        resteAPayer: resteAPayer
-      });
-
-      // Récupérer les interventions (si le service existe)
       try {
         const interventionData = await interventionService.getByClient(client.id);
         setInterventions(interventionData || []);
-      } catch (error) {
-        console.warn('Interventions non disponibles:', error);
-        setInterventions([]);
-      }
-    } catch (error) {
-      console.error('Erreur chargement données client:', error);
-      setInstallations([]);
-      setPaiements([]);
-      setInterventions([]);
-      setRenouvellements([]);
-      setResteTotal({
-        totalInstallations: 0,
-        totalPaye: 0,
-        resteAPayer: 0
-      });
-    } finally {
-      setLoading(false);
-    }
+      } catch { setInterventions([]); }
+    } catch {
+      setInstallations([]); setPaiements([]); setInterventions([]); setRenouvellements([]);
+      setResteTotal({ totalInstallations: 0, totalPaye: 0, resteAPayer: 0 });
+    } finally { setLoading(false); }
   };
 
   if (loading) {
     return (
-      <div className="text-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-        <p className="text-gray-600 mt-2">Chargement...</p>
+      <div style={{ ...raisedBox, padding: 0, fontFamily: "'Tahoma', 'MS Sans Serif', sans-serif" }}>
+        <TitleBar title={`Propriétés de : ${client?.raison_sociale || '...'}`} icon="👤" />
+        <div style={{ padding: '30px', textAlign: 'center', fontSize: '12px' }}>
+          <div style={{ marginBottom: '8px' }}>⏳ Chargement des propriétés...</div>
+          <div style={{ ...sunkenBox, width: '200px', height: '16px', margin: '0 auto', overflow: 'hidden', position: 'relative' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: '40%', background: W.highlight, animation: 'win2k-progress 1.2s linear infinite' }} />
+          </div>
+        </div>
+        <style>{`@keyframes win2k-progress { 0%{left:-40%} 100%{left:100%} }`}</style>
       </div>
     );
   }
@@ -113,222 +218,229 @@ const ClientDetails = ({ client }) => {
   const totalPaiements = paiements.reduce((sum, p) => sum + (p.montant || 0), 0);
 
   return (
-    <div className="space-y-6">
-      {/* Informations Client */}
-      <div className="bg-gradient-to-br from-primary to-primary-dark text-white rounded-lg p-6 relative overflow-hidden">
-        <div className="relative z-10">
-          <h3 className="text-2xl font-bold mb-2">{client.raison_sociale}</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 text-blue-100">
-            <p>Contact: {client.contact}</p>
-            <p>Téléphone: {client.telephone}</p>
-            {client.email && <p>Email: {client.email}</p>}
-            {client.solde_initial > 0 && (
-              <p className="font-bold text-yellow-300">
-                Solde Initial: {formatMontant(client.solde_initial)}
-              </p>
-            )}
-            {client.secteur && (
-              <p className="flex items-center gap-2">
-                <span>Secteur:</span>
-                <span className={`px-3 py-1 rounded-full text-xs font-bold ${client.secteur === 'GROSSISTE PHARM' ? 'bg-blue-500' :
-                  client.secteur === 'GROSSISTE PARA' ? 'bg-green-500' :
-                    client.secteur === 'PARA SUPER GROS' ? 'bg-purple-500' :
-                      client.secteur === 'LABO PROD' ? 'bg-orange-500' :
-                        'bg-gray-500'
-                  } text-white`}>
-                  {client.secteur}
-                </span>
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
+    <div style={{ background: W.silver, fontFamily: "'Tahoma', 'MS Sans Serif', sans-serif", fontSize: '12px', color: W.text }}>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="card text-center hover:shadow-lg transition-shadow bg-gradient-to-br from-yellow-50 to-yellow-100 border border-yellow-200">
-          <History className="mx-auto mb-2 text-yellow-600" size={32} />
-          <h4 className="text-2xl font-bold text-yellow-700">{formatMontant(client.solde_initial || 0)}</h4>
-          <p className="text-sm text-yellow-600 font-semibold">Solde Initial</p>
-        </div>
-        <div className="card text-center hover:shadow-lg transition-shadow">
-          <Building className="mx-auto mb-2 text-primary" size={32} />
-          <h4 className="text-2xl font-bold text-gray-800">{installations.length}</h4>
-          <p className="text-sm text-gray-600">Installations</p>
-        </div>
-        <div className="card text-center hover:shadow-lg transition-shadow bg-gradient-to-br from-green-50 to-green-100">
-          <CreditCard className="mx-auto mb-2 text-green-600" size={32} />
-          <h4 className="text-2xl font-bold text-green-700">{formatMontant(totalPaiements)}</h4>
-          <p className="text-sm text-green-600">Total Payé</p>
-        </div>
-        <div className="card text-center hover:shadow-lg transition-shadow bg-gradient-to-br from-red-50 to-red-100 border border-red-200">
-          <CreditCard className="mx-auto mb-2 text-red-600" size={32} />
-          <h4 className="text-2xl font-bold text-red-700">{formatMontant(resteTotal?.resteAPayer || 0)}</h4>
-          <p className="text-sm text-red-600 font-bold underline">Reste Global</p>
-        </div>
-      </div>
-
-      {/* Historique Complet */}
-      <div className="card border-l-4 border-blue-500 bg-blue-50">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-            <History size={20} className="text-blue-600" />
-            📜 Historique Complet du Client
-          </h3>
-          <button
-            onClick={() => setShowProspectHistory(!showProspectHistory)}
-            className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors"
-          >
-            {showProspectHistory ? (
-              <>
-                <span>Masquer</span>
-                <ChevronUp size={16} />
-              </>
-            ) : (
-              <>
-                <span>Voir l'historique</span>
-                <ChevronDown size={16} />
-              </>
-            )}
-          </button>
-        </div>
-
-        {showProspectHistory ? (
-          <div className="bg-white rounded-lg p-4">
-            <ProspectHistory prospectId={client.id} />
-          </div>
-        ) : (
-          <div className="text-sm text-gray-700">
-            <p className="mb-2">ℹ️ Cet historique contient:</p>
-            <ul className="list-disc list-inside space-y-1 ml-2 mb-3">
-              <li><strong>Actions de suivi</strong></li>
-              <li><strong>Conversion en client</strong></li>
-              <li><strong>Installations</strong></li>
-              <li><strong>Abonnements</strong></li>
-            </ul>
-          </div>
-        )}
-      </div>
-
-      {/* Installations */}
-      <div className="card">
-        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-          <Building size={20} className="text-primary" />
-          Installations
-        </h3>
-        {installations.length === 0 ? (
-          <div className="text-center py-8">
-            <Building className="mx-auto text-gray-300 mb-2" size={48} />
-            <p className="text-gray-500 text-sm">Aucune installation</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {installations.map((inst) => {
-              const totalPayeInst = paiements
-                .filter(p => p.installation_id === inst.id)
-                .reduce((sum, p) => sum + (p.montant || 0), 0);
-              const statusPaiement = getStatutPaiement(inst.montant, totalPayeInst);
-
-              return (
-                <div key={inst.id} className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-semibold text-gray-800">{inst.application_installee}</h4>
-                      <p className="text-sm text-gray-600">Installé le {formatDate(inst.date_installation)}</p>
-                    </div>
-                    <div className="text-right">
-                      <div className={`rounded-lg p-2 text-center font-bold text-xl ${statusPaiement.couleur}`}>
-                        {statusPaiement.code}
-                        <div className="text-xs">{statusPaiement.icon}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Abonnements Renouvelés */}
-      {renouvellements.length > 0 && (
-        <div className="card">
-          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <RefreshCw size={20} className="text-blue-600" />
-            🔄 Abonnements Renouvelés
-          </h3>
-          <div className="space-y-3">
-            {renouvellements.map((renew) => (
-              <div key={renew.id} className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-semibold text-gray-800">{renew.application}</h4>
-                    <p className="text-sm text-gray-600">Renouvelé le {formatDate(renew.date)}</p>
-                  </div>
-                  <div className="text-right font-bold text-blue-600">
-                    {renew.montant && formatMontant(renew.montant)}
-                  </div>
-                </div>
-              </div>
+      {/* ── Client Header Window ── */}
+      <div style={{ ...raisedBox, marginBottom: '8px', padding: 0 }}>
+        <TitleBar title={`Propriétés de : ${client.raison_sociale}`} icon="👤" />
+        <div style={{ padding: '8px', background: W.silver }}>
+          {/* Tab-like header bar */}
+          <div style={{ display: 'flex', gap: '2px', marginBottom: '6px' }}>
+            {['Général', 'Finances', 'Historique'].map((tab, i) => (
+              <div key={tab} style={{
+                ...raisedBox,
+                padding: '2px 12px',
+                fontSize: '11px',
+                fontWeight: i === 0 ? 'bold' : 'normal',
+                background: i === 0 ? W.silverLight : W.silver,
+                borderBottom: i === 0 ? 'none' : undefined,
+                cursor: 'default',
+                zIndex: i === 0 ? 1 : 0,
+              }}>{tab}</div>
             ))}
           </div>
+          {/* Client info table */}
+          <div style={{ ...sunkenBox, padding: 0, overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <tbody>
+                <DataRow label="Raison Sociale" value={client.raison_sociale} />
+                <DataRow label="Contact" value={client.contact} />
+                <DataRow label="Téléphone" value={client.telephone} />
+                <DataRow label="Email" value={client.email} />
+                <DataRow label="Secteur" value={client.secteur} />
+                <DataRow label="Wilaya" value={client.wilaya} />
+                {client.solde_initial > 0 && (
+                  <DataRow label="Solde Initial" value={formatMontant(client.solde_initial)} highlight />
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      )}
+      </div>
 
-      {/* Historique Paiements */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-            <CreditCard size={20} className="text-green-500" />
-            Historique Paiements
-          </h3>
-          {paiements.length > 5 && (
-            <button
-              onClick={() => setShowFullPaiements(!showFullPaiements)}
-              className="text-sm text-primary font-medium"
-            >
-              {showFullPaiements ? 'Voir résumé' : 'Voir tout'}
-            </button>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          {(showFullPaiements ? paiements : paiements.slice(0, 5)).map((paiement) => (
-            <div key={paiement.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-              <div>
-                <p className="font-medium text-gray-800">{paiement.installation?.application_installee || 'Paiement'}</p>
-                <p className="text-sm text-gray-500">{formatDate(paiement.date_paiement)} {paiement.mode_paiement && `- ${paiement.mode_paiement}`}</p>
+      {/* ── Financial Summary ── */}
+      <div style={{ ...raisedBox, marginBottom: '8px', padding: 0 }}>
+        <TitleBar title="Résumé Financier" icon="💰" />
+        <div style={{ padding: '8px', background: W.silver, display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+          {[
+            { label: 'Solde Initial', value: formatMontant(client.solde_initial || 0), icon: '📋', color: '#CC6600' },
+            { label: 'Installations', value: String(installations.length), icon: '🖥️', color: W.highlight },
+            { label: 'Total Payé', value: formatMontant(totalPaiements), icon: '✅', color: '#008000' },
+            { label: 'Reste Global', value: formatMontant(resteTotal?.resteAPayer || 0), icon: '⚠️', color: '#CC0000' },
+          ].map(item => (
+            <div key={item.label} style={{ ...raisedBox, flex: 1, minWidth: '120px', padding: 0 }}>
+              <div style={{ background: W.silver, borderBottom: `1px solid ${W.btnShadow}`, padding: '2px 6px', fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                {item.icon} {item.label}
               </div>
-              <p className="font-bold text-green-600">{formatMontant(paiement.montant)}</p>
+              <div style={{ ...sunkenBox, margin: '4px', padding: '4px 6px', fontSize: '16px', fontWeight: 'bold', color: item.color, textAlign: 'center' }}>
+                {item.value}
+              </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Interventions */}
-      {interventions.length > 0 && (
-        <div className="card">
-          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <Settings size={20} className="text-purple-500" />
-            Interventions Récentes
-          </h3>
-          <div className="space-y-3">
-            {interventions.slice(0, 5).map((inter) => (
-              <div key={inter.id} className="bg-gray-50 rounded-lg p-4">
-                <div className="flex justify-between mb-1">
-                  <h4 className="font-semibold text-gray-800 capitalize">{inter.type_intervention}</h4>
-                  <span className={inter.statut === 'cloturee' ? 'badge-success' : 'badge-warning'}>
-                    {inter.statut === 'cloturee' ? 'Clôturée' : 'En cours'}
-                  </span>
-                </div>
-                <div className="text-xs text-gray-500">
-                  {formatDate(inter.date_intervention)} {inter.technicien && `- Tech: ${inter.technicien.nom}`}
-                </div>
-              </div>
-            ))}
+      {/* ── Historique ── */}
+      <SectionPanel title="Historique Complet du Client" icon="📜">
+        <Win2kButton onClick={() => setShowProspectHistory(v => !v)}>
+          {showProspectHistory ? <><ChevronUp size={12} /> Masquer</> : <><ChevronDown size={12} /> Voir l&apos;historique</>}
+        </Win2kButton>
+        {showProspectHistory ? (
+          <div style={{ ...sunkenBox, marginTop: '6px', padding: '8px' }}>
+            <ProspectHistory prospectId={client.id} />
           </div>
-        </div>
+        ) : (
+          <div style={{ marginTop: '6px', fontSize: '11px' }}>
+            <p style={{ marginBottom: '4px' }}>ℹ️ Cet historique contient:</p>
+            <ul style={{ paddingLeft: '20px', lineHeight: '1.8' }}>
+              <li>Actions de suivi</li>
+              <li>Conversion en client</li>
+              <li>Installations</li>
+              <li>Abonnements</li>
+            </ul>
+          </div>
+        )}
+      </SectionPanel>
+
+      {/* ── Installations ── */}
+      <SectionPanel title={`Installations (${installations.length})`} icon="🖥️">
+        {installations.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '20px', color: W.textDisabled, fontSize: '11px' }}>
+            <div style={{ fontSize: '24px', marginBottom: '4px' }}>🖥️</div>
+            Aucune installation
+          </div>
+        ) : (
+          <div style={{ ...sunkenBox, padding: 0, overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: W.silver }}>
+                  {['Application', 'Date Installation', 'Statut Paiement'].map(h => (
+                    <th key={h} style={{ padding: '3px 8px', fontSize: '11px', fontWeight: 'bold', textAlign: 'left', borderBottom: `2px solid ${W.btnDkShadow}`, borderRight: `1px solid ${W.btnShadow}` }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {installations.map((inst, idx) => {
+                  const totalPayeInst = paiements.filter(p => p.installation_id === inst.id).reduce((sum, p) => sum + (p.montant || 0), 0);
+                  const statusPaiement = getStatutPaiement(inst.montant, totalPayeInst);
+                  return (
+                    <tr key={inst.id} style={{ background: idx % 2 === 0 ? W.silverLight : '#EAE8E0' }}>
+                      <td style={{ padding: '3px 8px', fontSize: '11px', borderBottom: `1px solid ${W.silverDark}`, borderRight: `1px solid ${W.silverDark}` }}>{inst.application_installee}</td>
+                      <td style={{ padding: '3px 8px', fontSize: '11px', borderBottom: `1px solid ${W.silverDark}`, borderRight: `1px solid ${W.silverDark}` }}>{formatDate(inst.date_installation)}</td>
+                      <td style={{ padding: '3px 8px', fontSize: '11px', borderBottom: `1px solid ${W.silverDark}` }}>
+                        <span style={{ background: statusPaiement.code === 2 ? '#008000' : statusPaiement.code === 1 ? '#CC6600' : '#CC0000', color: '#FFF', padding: '1px 6px', fontSize: '10px', fontWeight: 'bold', border: `1px solid ${W.btnDkShadow}` }}>
+                          {statusPaiement.code} {statusPaiement.icon}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </SectionPanel>
+
+      {/* ── Abonnements Renouvelés ── */}
+      {renouvellements.length > 0 && (
+        <SectionPanel title={`Abonnements Renouvelés (${renouvellements.length})`} icon="🔄">
+          <div style={{ ...sunkenBox, padding: 0, overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: W.silver }}>
+                  {['Application', 'Date Renouvellement', 'Montant'].map(h => (
+                    <th key={h} style={{ padding: '3px 8px', fontSize: '11px', fontWeight: 'bold', textAlign: 'left', borderBottom: `2px solid ${W.btnDkShadow}`, borderRight: `1px solid ${W.btnShadow}` }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {renouvellements.map((renew, idx) => (
+                  <tr key={renew.id} style={{ background: idx % 2 === 0 ? W.silverLight : '#EAE8E0' }}>
+                    <td style={{ padding: '3px 8px', fontSize: '11px', borderBottom: `1px solid ${W.silverDark}`, borderRight: `1px solid ${W.silverDark}` }}>{renew.application}</td>
+                    <td style={{ padding: '3px 8px', fontSize: '11px', borderBottom: `1px solid ${W.silverDark}`, borderRight: `1px solid ${W.silverDark}` }}>{formatDate(renew.date)}</td>
+                    <td style={{ padding: '3px 8px', fontSize: '11px', borderBottom: `1px solid ${W.silverDark}`, fontWeight: 'bold', color: W.highlight }}>{renew.montant ? formatMontant(renew.montant) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </SectionPanel>
       )}
+
+      {/* ── Historique Paiements ── */}
+      <SectionPanel title={`Historique Paiements (${paiements.length})`} icon="💳">
+        {paiements.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '12px', color: W.textDisabled, fontSize: '11px' }}>Aucun paiement enregistré</div>
+        ) : (
+          <>
+            <div style={{ ...sunkenBox, padding: 0, overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: W.silver }}>
+                    {['Application', 'Date', 'Mode', 'Montant'].map(h => (
+                      <th key={h} style={{ padding: '3px 8px', fontSize: '11px', fontWeight: 'bold', textAlign: 'left', borderBottom: `2px solid ${W.btnDkShadow}`, borderRight: `1px solid ${W.btnShadow}` }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(showFullPaiements ? paiements : paiements.slice(0, 5)).map((p, idx) => (
+                    <tr key={p.id} style={{ background: idx % 2 === 0 ? W.silverLight : '#EAE8E0' }}>
+                      <td style={{ padding: '3px 8px', fontSize: '11px', borderBottom: `1px solid ${W.silverDark}`, borderRight: `1px solid ${W.silverDark}` }}>{p.installation?.application_installee || 'Paiement'}</td>
+                      <td style={{ padding: '3px 8px', fontSize: '11px', borderBottom: `1px solid ${W.silverDark}`, borderRight: `1px solid ${W.silverDark}` }}>{formatDate(p.date_paiement)}</td>
+                      <td style={{ padding: '3px 8px', fontSize: '11px', borderBottom: `1px solid ${W.silverDark}`, borderRight: `1px solid ${W.silverDark}` }}>{p.mode_paiement || '—'}</td>
+                      <td style={{ padding: '3px 8px', fontSize: '11px', borderBottom: `1px solid ${W.silverDark}`, fontWeight: 'bold', color: '#008000' }}>{formatMontant(p.montant)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {paiements.length > 5 && (
+              <div style={{ marginTop: '6px' }}>
+                <Win2kButton onClick={() => setShowFullPaiements(v => !v)}>
+                  {showFullPaiements ? '▲ Voir résumé' : `▼ Voir tout (${paiements.length})`}
+                </Win2kButton>
+              </div>
+            )}
+          </>
+        )}
+      </SectionPanel>
+
+      {/* ── Interventions ── */}
+      {interventions.length > 0 && (
+        <SectionPanel title={`Interventions (${interventions.length})`} icon="🔧">
+          <div style={{ ...sunkenBox, padding: 0, overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: W.silver }}>
+                  {['Type', 'Date', 'Technicien', 'Statut'].map(h => (
+                    <th key={h} style={{ padding: '3px 8px', fontSize: '11px', fontWeight: 'bold', textAlign: 'left', borderBottom: `2px solid ${W.btnDkShadow}`, borderRight: `1px solid ${W.btnShadow}` }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {interventions.slice(0, 5).map((inter, idx) => (
+                  <tr key={inter.id} style={{ background: idx % 2 === 0 ? W.silverLight : '#EAE8E0' }}>
+                    <td style={{ padding: '3px 8px', fontSize: '11px', borderBottom: `1px solid ${W.silverDark}`, borderRight: `1px solid ${W.silverDark}`, textTransform: 'capitalize' }}>{inter.type_intervention}</td>
+                    <td style={{ padding: '3px 8px', fontSize: '11px', borderBottom: `1px solid ${W.silverDark}`, borderRight: `1px solid ${W.silverDark}` }}>{formatDate(inter.date_intervention)}</td>
+                    <td style={{ padding: '3px 8px', fontSize: '11px', borderBottom: `1px solid ${W.silverDark}`, borderRight: `1px solid ${W.silverDark}` }}>{inter.technicien?.nom || '—'}</td>
+                    <td style={{ padding: '3px 8px', fontSize: '11px', borderBottom: `1px solid ${W.silverDark}` }}>
+                      <span style={{ background: inter.statut === 'cloturee' ? '#008000' : '#CC6600', color: '#FFF', padding: '1px 6px', fontSize: '10px', fontWeight: 'bold', border: `1px solid ${W.btnDkShadow}` }}>
+                        {inter.statut === 'cloturee' ? 'Clôturée' : 'En cours'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </SectionPanel>
+      )}
+
+      {/* OK / Close buttons */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', paddingTop: '6px' }}>
+        <Win2kButton style={{ minWidth: '75px', justifyContent: 'center' }} onClick={() => {}}>OK</Win2kButton>
+        <Win2kButton style={{ minWidth: '75px', justifyContent: 'center' }} onClick={() => {}}>Annuler</Win2kButton>
+      </div>
     </div>
   );
 };
