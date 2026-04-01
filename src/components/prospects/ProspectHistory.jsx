@@ -327,8 +327,11 @@ const ProspectHistory = ({ prospectId, prospect }) => {
 
         {/* Actions de suivi (avant conversion) */}
         {history.length > 0 && (
-          <div className="space-y-4">
-            <h3 className="font-bold text-gray-800 text-sm">🕐 Phase PROSPECT - Actions de Suivi</h3>
+          <div className={`space-y-4 ${firstInstallation ? 'opacity-40 grayscale transition-all hover:grayscale-0 hover:opacity-100 duration-500' : ''}`}>
+            <h3 className="font-bold text-gray-800 text-sm flex items-center gap-2">
+              🕐 Phase PROSPECT - Actions de Suivi
+              {firstInstallation && <span className="text-[10px] bg-gray-200 text-gray-600 px-2 py-0.5 rounded font-bold uppercase">Phase terminée</span>}
+            </h3>
             {history.map((item, index) => {
               const isProspectAction = firstInstallation && new Date(item.created_at) < new Date(firstInstallation.date_installation);
               const Icon = getActionIcon(item.action);
@@ -346,8 +349,8 @@ const ProspectHistory = ({ prospectId, prospect }) => {
 
                   <div className="flex-1 pb-4">
                     <div className={`rounded-lg p-4 border transition-all duration-300 ${item.action === 'acquis'
-                        ? 'bg-gray-50 border-gray-200'
-                        : 'bg-blue-50 border-blue-200'
+                      ? 'bg-gray-50 border-gray-200'
+                      : 'bg-blue-50 border-blue-200'
                       } ${isProspectAction ? 'opacity-50 grayscale hover:opacity-100 hover:grayscale-0' : 'shadow-sm border-blue-300'}`}>
                       <div className="flex items-start justify-between mb-2">
                         <h4 className="font-semibold text-gray-800">
