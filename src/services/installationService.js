@@ -74,7 +74,7 @@ export const installationService = {
           montant_abonnement: parseFloat(installationData.montant_abonnement) || 0,
           date_installation: installationData.date_installation,
           type: installationData.type || 'abonnement',
-          statut: installationData.statut || 'en cours',
+          statut: installationData.statut || 'en_cours',
           created_by: installationData.created_by || null
         }])
         .select()
@@ -128,7 +128,7 @@ export const installationService = {
           montant_abonnement: parseFloat(installationData.montant_abonnement) || 0,
           date_installation: installationData.date_installation,
           type: installationData.type || 'acquisition',
-          statut: installationData.statut || 'en cours',
+          statut: installationData.statut || 'en_cours',
           created_by: installationData.created_by || null
         }])
         .select();
