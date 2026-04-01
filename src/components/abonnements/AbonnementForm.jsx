@@ -3,6 +3,7 @@ import Button from '../common/Button';
 import SearchableSelect from '../common/SearchableSelect';
 import { installationService } from '../../services/installationService';
 import { prospectService } from '../../services/prospectService';
+import { applicationService } from '../../services/applicationService';
 
 const AbonnementForm = ({ abonnement, onSubmit, onCancel }) => {
     const [formData, setFormData] = useState({
@@ -14,29 +15,59 @@ const AbonnementForm = ({ abonnement, onSubmit, onCancel }) => {
     });
 
     const [clients, setClients] = useState([]);
-    const [allInstallations, setAllInstallations] = useState([]);
-    const [filteredInstallations, setFilteredInstallations] = useState([]);
+    const [applications, setApplications] = useState([]);
+    const [clientInstallations, setClientInstallations] = useState([]);
+    const [selectedAppId, setSelectedAppId] = useState('');
+    const [matchedInstallation, setMatchedInstallation] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [selectedInstInfo, setSelectedInstInfo] = useState(null);
+    const [loadingInstallations, setLoadingInstallations] = useState(false);
+    const [error, setError] = useState('');
 
-    // Charger les clients ET toutes les installations dès l'ouverture
+    // Charger clients + catalogue d'applications
     useEffect(() => {
-        Promise.all([loadClients(), loadAllInstallations()]);
+        Promise.all([loadClients(), loadApplications()]);
     }, []);
 
-    // Quand le client change, filtrer les installations (ou afficher toutes si aucun client)
+    // Quand le client change, charger ses installations
     useEffect(() => {
         if (formData.client_id) {
-            setFilteredInstallations(
-                allInstallations.filter(i => String(i.client_id) === String(formData.client_id))
-            );
+            loadClientInstallations(formData.client_id);
         } else {
-            setFilteredInstallations(allInstallations);
+            setClientInstallations([]);
+            setMatchedInstallation(null);
         }
-    }, [formData.client_id, allInstallations]);
+        setSelectedAppId('');
+        setFormData(prev => ({ ...prev, installation_id: '' }));
+        setError('');
+    }, [formData.client_id]);
 
+    // Quand l'application change, trouver l'installation correspondante
     useEffect(() => {
-        if (abonnement && allInstallations.length > 0) {
+        if (selectedAppId && clientInstallations.length > 0) {
+            const app = applications.find(a => String(a.id) === String(selectedAppId));
+            const inst = clientInstallations.find(
+                i => i.application_installee?.toLowerCase() === app?.nom?.toLowerCase()
+            );
+            if (inst) {
+                setMatchedInstallation(inst);
+                setFormData(prev => ({ ...prev, installation_id: inst.id }));
+                setError('');
+            } else {
+                setMatchedInstallation(null);
+                setFormData(prev => ({ ...prev, installation_id: '' }));
+                setError(`⚠️ Ce client n'a pas d'installation pour "${app?.nom}". Vérifiez les installations existantes.`);
+            }
+        } else {
+            setMatchedInstallation(null);
+            if (!selectedAppId) {
+                setFormData(prev => ({ ...prev, installation_id: '' }));
+            }
+        }
+    }, [selectedAppId, clientInstallations]);
+
+    // Pré-remplir si modification
+    useEffect(() => {
+        if (abonnement) {
             setFormData({
                 installation_id: abonnement.installation_id || '',
                 client_id: abonnement.installation?.client_id || '',
@@ -44,10 +75,8 @@ const AbonnementForm = ({ abonnement, onSubmit, onCancel }) => {
                 date_fin: abonnement.date_fin ? new Date(abonnement.date_fin).toISOString().split('T')[0] : '',
                 statut: abonnement.statut || 'actif'
             });
-            const inst = allInstallations.find(i => i.id === abonnement.installation_id);
-            if (inst) setSelectedInstInfo(inst);
         }
-    }, [abonnement, allInstallations]);
+    }, [abonnement]);
 
     const loadClients = async () => {
         try {
@@ -58,36 +87,33 @@ const AbonnementForm = ({ abonnement, onSubmit, onCancel }) => {
         }
     };
 
-    const loadAllInstallations = async () => {
+    const loadApplications = async () => {
         try {
             setLoading(true);
-            const data = await installationService.getAll();
-            setAllInstallations(data || []);
-            setFilteredInstallations(data || []);
+            const data = await applicationService.getAll();
+            setApplications(data || []);
         } catch (error) {
-            console.error('Erreur chargement installations:', error);
+            console.error('Erreur chargement applications:', error);
         } finally {
             setLoading(false);
         }
     };
 
-    const handleClientChange = (clientId) => {
-        // Réinitialiser l'installation si on change de client
-        setFormData(prev => ({ ...prev, client_id: clientId, installation_id: '' }));
-        setSelectedInstInfo(null);
+    const loadClientInstallations = async (clientId) => {
+        try {
+            setLoadingInstallations(true);
+            const data = await installationService.getByClient(clientId);
+            setClientInstallations(data || []);
+        } catch (error) {
+            console.error('Erreur chargement installations client:', error);
+            setClientInstallations([]);
+        } finally {
+            setLoadingInstallations(false);
+        }
     };
 
-    const handleInstallationChange = (e) => {
-        const instId = e.target.value;
-        const inst = allInstallations.find(i => String(i.id) === String(instId));
-        // Auto-remplir le client si pas encore sélectionné
-        const clientId = inst?.client_id || inst?.client?.id || formData.client_id;
-        setFormData(prev => ({
-            ...prev,
-            installation_id: instId,
-            client_id: clientId
-        }));
-        setSelectedInstInfo(inst || null);
+    const handleClientChange = (clientId) => {
+        setFormData(prev => ({ ...prev, client_id: clientId, installation_id: '' }));
     };
 
     const handleChange = (e) => {
@@ -98,7 +124,7 @@ const AbonnementForm = ({ abonnement, onSubmit, onCancel }) => {
     const handleSubmit = (e) => {
         e.preventDefault();
         if (!formData.installation_id) {
-            alert('Veuillez sélectionner une installation');
+            alert('Impossible de créer l\'abonnement : aucune installation trouvée pour cette combinaison client/application.');
             return;
         }
         onSubmit(formData);
@@ -124,31 +150,54 @@ const AbonnementForm = ({ abonnement, onSubmit, onCancel }) => {
                     />
                 </div>
 
-                {/* 2. Sélection de l'Application (toutes les apps, filtrées par client si sélectionné) */}
+                {/* 2. Sélection de l'Application depuis le catalogue */}
                 <div className="md:col-span-2">
                     <SearchableSelect
-                        label={`🖥️ Application / Installation * ${formData.client_id ? `(${filteredInstallations.length} app${filteredInstallations.length > 1 ? 's' : ''} pour ce client)` : `(${filteredInstallations.length} apps au total)`}`}
-                        value={formData.installation_id}
-                        onChange={handleInstallationChange}
-                        options={filteredInstallations.map(inst => ({
-                            value: inst.id,
-                            label: inst.application_installee,
-                            description: `${inst.client?.raison_sociale || 'Client inconnu'} — Installée le : ${new Date(inst.date_installation).toLocaleDateString('fr-FR')}`
+                        label="📦 Application (depuis le catalogue) *"
+                        value={selectedAppId}
+                        onChange={(e) => setSelectedAppId(e.target.value)}
+                        options={applications.map(app => ({
+                            value: app.id,
+                            label: app.nom,
+                            description: `Abonnement : ${app.prix_abonnement ? Number(app.prix_abonnement).toLocaleString('fr-DZ') + ' DA/an' : 'N/D'} — Acquisition : ${app.prix_acquisition ? Number(app.prix_acquisition).toLocaleString('fr-DZ') + ' DA' : 'N/D'}`
                         }))}
-                        placeholder={loading ? "Chargement des applications..." : "Rechercher une application..."}
+                        placeholder={loading ? "Chargement du catalogue..." : "Rechercher une application..."}
                         required
-                        disabled={loading || !!abonnement}
+                        disabled={loading || !!abonnement || !formData.client_id}
                     />
+                    {!formData.client_id && (
+                        <p className="text-xs text-gray-400 mt-1">← Sélectionnez d'abord un client</p>
+                    )}
                 </div>
 
-                {/* Info montant abonnement */}
-                {selectedInstInfo && selectedInstInfo.montant_abonnement > 0 && (
-                    <div className="md:col-span-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 flex items-center gap-3">
-                        <span className="text-blue-600 text-xl">💰</span>
-                        <p className="text-sm text-blue-800">
-                            Montant abonnement :{' '}
-                            <strong>{Number(selectedInstInfo.montant_abonnement).toLocaleString('fr-DZ')} DA</strong>
-                        </p>
+                {/* Résultat : Installation trouvée ou erreur */}
+                {error && (
+                    <div className="md:col-span-2 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+                        {error}
+                    </div>
+                )}
+                {matchedInstallation && (
+                    <div className="md:col-span-2 bg-green-50 border border-green-200 rounded-lg px-4 py-3 flex items-start gap-3">
+                        <span className="text-green-600 text-xl mt-0.5">✅</span>
+                        <div>
+                            <p className="text-xs text-green-500 font-bold uppercase">Installation trouvée</p>
+                            <p className="font-bold text-gray-800">{matchedInstallation.application_installee}</p>
+                            <p className="text-xs text-gray-500">
+                                Montant abonnement :{' '}
+                                <strong>
+                                    {matchedInstallation.montant_abonnement
+                                        ? `${Number(matchedInstallation.montant_abonnement).toLocaleString('fr-DZ')} DA`
+                                        : 'Non défini'}
+                                </strong>
+                                {' — '}Installée le : {new Date(matchedInstallation.date_installation).toLocaleDateString('fr-FR')}
+                            </p>
+                        </div>
+                    </div>
+                )}
+                {loadingInstallations && (
+                    <div className="md:col-span-2 text-xs text-gray-400 flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-3 w-3 border-b border-primary"></div>
+                        Chargement des installations du client...
                     </div>
                 )}
 
@@ -195,7 +244,11 @@ const AbonnementForm = ({ abonnement, onSubmit, onCancel }) => {
                 <Button type="button" variant="secondary" onClick={onCancel}>
                     Annuler
                 </Button>
-                <Button type="submit" variant="primary" disabled={loading || !formData.installation_id}>
+                <Button
+                    type="submit"
+                    variant="primary"
+                    disabled={loading || !formData.installation_id || !!error}
+                >
                     {abonnement ? 'Mettre à jour' : 'Enregistrer'}
                 </Button>
             </div>
