@@ -330,12 +330,13 @@ const ProspectHistory = ({ prospectId, prospect }) => {
           <div className="space-y-4">
             <h3 className="font-bold text-gray-800 text-sm">🕐 Phase PROSPECT - Actions de Suivi</h3>
             {history.map((item, index) => {
-              // ✅ CORRIGÉ: Utilise 'action' au lieu de 'type_action'
+              const isProspectAction = firstInstallation && new Date(item.created_at) < new Date(firstInstallation.date_installation);
               const Icon = getActionIcon(item.action);
               return (
                 <div key={item.id || `history-${index}`} className="flex gap-4">
                   <div className="flex flex-col items-center">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white ${item.action === 'acquis' ? 'bg-gray-400' : 'bg-blue-500'}`}>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white ${item.action === 'acquis' ? 'bg-gray-400' : 'bg-blue-500'
+                      } ${isProspectAction ? 'opacity-40' : ''}`}>
                       <Icon size={20} />
                     </div>
                     {index < history.length - 1 || firstInstallation ? (
@@ -344,7 +345,10 @@ const ProspectHistory = ({ prospectId, prospect }) => {
                   </div>
 
                   <div className="flex-1 pb-4">
-                    <div className={`${item.action === 'acquis' ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'} rounded-lg p-4 border`}>
+                    <div className={`rounded-lg p-4 border transition-all duration-300 ${item.action === 'acquis'
+                        ? 'bg-gray-50 border-gray-200'
+                        : 'bg-blue-50 border-blue-200'
+                      } ${isProspectAction ? 'opacity-50 grayscale hover:opacity-100 hover:grayscale-0' : 'shadow-sm border-blue-300'}`}>
                       <div className="flex items-start justify-between mb-2">
                         <h4 className="font-semibold text-gray-800">
                           {/* ✅ CORRIGÉ: Affiche 'action' correctement */}
