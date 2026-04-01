@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Button from '../common/Button';
 import SearchableSelect from '../common/SearchableSelect';
 import { installationService } from '../../services/installationService';
+import { prospectService } from '../../services/prospectService';
 
 const AbonnementForm = ({ abonnement, onSubmit, onCancel }) => {
     const [formData, setFormData] = useState({
@@ -12,13 +13,27 @@ const AbonnementForm = ({ abonnement, onSubmit, onCancel }) => {
         statut: 'actif'
     });
 
+    const [clients, setClients] = useState([]);
     const [allInstallations, setAllInstallations] = useState([]);
+    const [filteredInstallations, setFilteredInstallations] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedInstInfo, setSelectedInstInfo] = useState(null);
 
+    // Charger les clients ET toutes les installations dès l'ouverture
     useEffect(() => {
-        loadAllInstallations();
+        Promise.all([loadClients(), loadAllInstallations()]);
     }, []);
+
+    // Quand le client change, filtrer les installations (ou afficher toutes si aucun client)
+    useEffect(() => {
+        if (formData.client_id) {
+            setFilteredInstallations(
+                allInstallations.filter(i => String(i.client_id) === String(formData.client_id))
+            );
+        } else {
+            setFilteredInstallations(allInstallations);
+        }
+    }, [formData.client_id, allInstallations]);
 
     useEffect(() => {
         if (abonnement && allInstallations.length > 0) {
@@ -34,11 +49,21 @@ const AbonnementForm = ({ abonnement, onSubmit, onCancel }) => {
         }
     }, [abonnement, allInstallations]);
 
+    const loadClients = async () => {
+        try {
+            const data = await prospectService.getAll();
+            setClients(data.filter(c => c.statut === 'actif'));
+        } catch (error) {
+            console.error('Erreur chargement clients:', error);
+        }
+    };
+
     const loadAllInstallations = async () => {
         try {
             setLoading(true);
             const data = await installationService.getAll();
             setAllInstallations(data || []);
+            setFilteredInstallations(data || []);
         } catch (error) {
             console.error('Erreur chargement installations:', error);
         } finally {
@@ -46,13 +71,21 @@ const AbonnementForm = ({ abonnement, onSubmit, onCancel }) => {
         }
     };
 
+    const handleClientChange = (clientId) => {
+        // Réinitialiser l'installation si on change de client
+        setFormData(prev => ({ ...prev, client_id: clientId, installation_id: '' }));
+        setSelectedInstInfo(null);
+    };
+
     const handleInstallationChange = (e) => {
         const instId = e.target.value;
         const inst = allInstallations.find(i => String(i.id) === String(instId));
+        // Auto-remplir le client si pas encore sélectionné
+        const clientId = inst?.client_id || inst?.client?.id || formData.client_id;
         setFormData(prev => ({
             ...prev,
             installation_id: instId,
-            client_id: inst?.client_id || inst?.client?.id || ''
+            client_id: clientId
         }));
         setSelectedInstInfo(inst || null);
     };
@@ -74,39 +107,48 @@ const AbonnementForm = ({ abonnement, onSubmit, onCancel }) => {
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Champ Installation cherchable par application ou par nom client */}
+                {/* 1. Sélection du Client */}
                 <div className="md:col-span-2">
                     <SearchableSelect
-                        label="🖥️ Application / Installation *"
+                        label="👤 Client *"
+                        value={formData.client_id}
+                        onChange={(e) => handleClientChange(e.target.value)}
+                        options={clients.map(client => ({
+                            value: client.id,
+                            label: client.raison_sociale,
+                            description: `${client.ville || ''} (${client.wilaya || ''}) — ${client.contact || ''}`
+                        }))}
+                        placeholder="Rechercher un client..."
+                        required
+                        disabled={!!abonnement}
+                    />
+                </div>
+
+                {/* 2. Sélection de l'Application (toutes les apps, filtrées par client si sélectionné) */}
+                <div className="md:col-span-2">
+                    <SearchableSelect
+                        label={`🖥️ Application / Installation * ${formData.client_id ? `(${filteredInstallations.length} app${filteredInstallations.length > 1 ? 's' : ''} pour ce client)` : `(${filteredInstallations.length} apps au total)`}`}
                         value={formData.installation_id}
                         onChange={handleInstallationChange}
-                        options={allInstallations.map(inst => ({
+                        options={filteredInstallations.map(inst => ({
                             value: inst.id,
                             label: inst.application_installee,
                             description: `${inst.client?.raison_sociale || 'Client inconnu'} — Installée le : ${new Date(inst.date_installation).toLocaleDateString('fr-FR')}`
                         }))}
-                        placeholder={loading ? "Chargement des applications..." : "Rechercher une application ou un client..."}
+                        placeholder={loading ? "Chargement des applications..." : "Rechercher une application..."}
                         required
                         disabled={loading || !!abonnement}
                     />
                 </div>
 
-                {/* Bandeau d'info sur le client auto-détecté */}
-                {selectedInstInfo && (
-                    <div className="md:col-span-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 flex items-center gap-3">
-                        <span className="text-2xl">👤</span>
-                        <div>
-                            <p className="text-xs text-blue-500 font-bold uppercase">Client sélectionné automatiquement</p>
-                            <p className="font-bold text-gray-800">
-                                {selectedInstInfo.client?.raison_sociale || 'Client inconnu'}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                                Montant abonnement :{' '}
-                                {selectedInstInfo.montant_abonnement
-                                    ? `${Number(selectedInstInfo.montant_abonnement).toLocaleString('fr-DZ')} DA`
-                                    : 'Non défini'}
-                            </p>
-                        </div>
+                {/* Info montant abonnement */}
+                {selectedInstInfo && selectedInstInfo.montant_abonnement > 0 && (
+                    <div className="md:col-span-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 flex items-center gap-3">
+                        <span className="text-blue-600 text-xl">💰</span>
+                        <p className="text-sm text-blue-800">
+                            Montant abonnement :{' '}
+                            <strong>{Number(selectedInstInfo.montant_abonnement).toLocaleString('fr-DZ')} DA</strong>
+                        </p>
                     </div>
                 )}
 
