@@ -81,7 +81,19 @@ export const installationService = {
         .single();
 
       if (error) throw error;
-      return data;
+      const installation = data;
+
+      // Convertir le prospect en client actif
+      await prospectService.convertToClient(installationData.client_id);
+
+      // Ajouter l'historique
+      await prospectService.addHistorique(
+        installationData.client_id,
+        'installation',
+        `Démarrage direct en abonnement: ${installationData.application_installee}`
+      );
+
+      return installation;
     } catch (error) {
       console.error('Erreur création installation simple:', error);
       throw error;
