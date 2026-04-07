@@ -25,7 +25,7 @@ const ProspectsList = () => {
   const [filteredProspects, setFilteredProspects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('prospect');
+  const [filterStatus, setFilterStatus] = useState('all');
   const [dateStart, setDateStart] = useState('');
   const [dateEnd, setDateEnd] = useState('');
   const [creatorId, setCreatorId] = useState('');
@@ -475,24 +475,24 @@ const ProspectsList = () => {
     <div className="space-y-6">
 
 
-      {/* Contenu: Gestion Prospects */}
+      {/* Contenu: Gestion Prospects & Clients */}
       <div className="mt-4">
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
           <div className="card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-            <p className="text-sm opacity-90 mb-1">Total Prospects</p>
+            <p className="text-sm opacity-90 mb-1">Total au CRM</p>
             <h3 className="text-3xl font-bold">{stats.total}</h3>
           </div>
           <div className="card bg-gradient-to-br from-green-500 to-green-600 text-white">
-            <p className="text-sm opacity-90 mb-1">Convertis</p>
+            <p className="text-sm opacity-90 mb-1">Clients Actifs</p>
             <h3 className="text-3xl font-bold">{stats.actifs}</h3>
           </div>
           <div className="card bg-gradient-to-br from-purple-500 to-purple-600 text-white">
-            <p className="text-sm opacity-90 mb-1">En attente</p>
+            <p className="text-sm opacity-90 mb-1">Prospects</p>
             <h3 className="text-3xl font-bold">{stats.prospects}</h3>
           </div>
           <div className="card bg-gradient-to-br from-orange-500 to-orange-600 text-white">
-            <p className="text-sm opacity-90 mb-1">Taux Conversion</p>
+            <p className="text-sm opacity-90 mb-1">Passage au Actif</p>
             <h3 className="text-3xl font-bold">{stats.tauxConversion}%</h3>
           </div>
           <div className="card space-y-2">

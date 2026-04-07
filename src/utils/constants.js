@@ -76,7 +76,6 @@ export const ROLE_PERMISSIONS = {
     defaultPages: [
       'dashboard',
       'prospects',
-      'clients',
       'installations',
       'abonnements',
       'paiements',
@@ -96,8 +95,7 @@ export const ROLE_PERMISSIONS = {
     defaultPages: [
       'dashboard',
       'support',
-      'missions',
-      'clients'
+      'missions'
     ]
   }
 };
@@ -168,7 +166,6 @@ export const TYPES_ACTION = {
 export const PAGES = {
   DASHBOARD: 'dashboard',
   PROSPECTS: 'prospects',
-  CLIENTS: 'clients',
   INSTALLATIONS: 'installations',
   ABONNEMENTS: 'abonnements',
   PAIEMENTS: 'paiements',
@@ -183,13 +180,8 @@ export const PAGES = {
 // Configuration des permissions par page
 export const PAGE_PERMISSIONS = {
   prospects: {
-    label: '📋 Prospects',
+    label: '📋 CRM Prospects & Clients',
     icon: '📋',
-    permissions: ['create', 'edit', 'delete']
-  },
-  clients: {
-    label: '👥 Clients',
-    icon: '👥',
     permissions: ['create', 'edit', 'delete']
   },
   installations: {

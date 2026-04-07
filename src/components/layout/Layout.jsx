@@ -5,7 +5,6 @@ import Header from './Header';
 import NotificationContainer from '../common/NotificationContainer';
 import Dashboard from '../dashboard/Dashboard';
 import ProspectsList from '../prospects/ProspectsList';
-import ClientsList from '../clients/ClientsList';
 import InstallationsList from '../installations/InstallationsList';
 import AbonnementsList from '../abonnements/AbonnementsList';
 import PaiementsList from '../paiements/PaiementsList';
@@ -69,14 +68,9 @@ const Layout = () => {
       component: Dashboard
     },
     [PAGES.PROSPECTS]: {
-      title: 'Gestion des Prospects',
-      subtitle: 'Suivi du pipeline commercial',
+      title: 'Prospects & Clients',
+      subtitle: 'Gestion centralisée du CRM',
       component: ProspectsList
-    },
-    [PAGES.CLIENTS]: {
-      title: 'Clients',
-      subtitle: 'Base de clients actifs',
-      component: ClientsList
     },
     [PAGES.INSTALLATIONS]: {
       title: 'Installations',

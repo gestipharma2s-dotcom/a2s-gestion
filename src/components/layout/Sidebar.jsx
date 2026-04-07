@@ -14,8 +14,7 @@ const Sidebar = ({ currentPage, onPageChange }) => {
 
   const allMenuItems = [
     { id: PAGES.DASHBOARD, label: 'Tableau de Bord', icon: LayoutDashboard },
-    { id: PAGES.PROSPECTS, label: 'Prospects', icon: Target },
-    { id: PAGES.CLIENTS, label: 'Clients', icon: Users },
+    { id: PAGES.PROSPECTS, label: 'Prospects & Clients', icon: Users },
     { id: PAGES.INSTALLATIONS, label: 'Installations', icon: Download },
     { id: PAGES.ABONNEMENTS, label: 'Abonnements', icon: Calendar },
     { id: PAGES.PAIEMENTS, label: 'Paiements', icon: CreditCard },
