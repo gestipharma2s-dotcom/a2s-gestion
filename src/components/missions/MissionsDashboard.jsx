@@ -601,190 +601,139 @@ const MissionsDashboard = () => {
     }
   };
 
-  const handleClosureAdmin = async (closureData) => {
-    try {
-      // Support both string (legacy) and object (new)
-      const closureType = typeof closureData === 'string' ? closureData : closureData?.type;
-      const totalExpenses = typeof closureData === 'object' ? closureData?.totalExpenses : 0;
+  const handleClosureAdmin = async (missionOrType, typeOnly, additionalData = {}) => {
+    // Supporter les appels depuis la modale (mission, type, data) et les boutons d'action (type)
+    let mission = null;
+    let closureType = '';
 
-      // Vérifier les permissions
+    if (typeof missionOrType === 'object' && missionOrType !== null && (missionOrType.id || missionOrType.titre)) {
+      mission = missionOrType;
+      closureType = typeOnly || 'admin';
+    } else {
+      mission = selectedMission;
+      closureType = typeof missionOrType === 'string' ? missionOrType : missionOrType?.type;
+    }
+
+    if (!mission) return;
+
+    try {
       const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
-      const isChefMission = selectedMission?.chefMissionId === user?.id || selectedMission?.chef_mission_id === user?.id;
+      const isChefMission = mission?.chefMissionId === user?.id || mission?.chef_mission_id === user?.id;
 
       if (closureType === 'start') {
-        // Démarrer la mission (Chef de Mission)
-        if (!isChefMission) {
-          addNotification({
-            type: 'error',
-            message: '🚫 Seul le Chef de Mission assigné peut démarrer la mission'
-          });
+        const canStart = isChefMission || isAdmin;
+        if (!canStart) {
+          addNotification({ type: 'error', message: '🚫 Seul le Chef de Mission ou un Admin peut démarrer la mission' });
           return;
         }
 
+        const today = new Date().toISOString();
+        const adjustedEndDate = additionalData.dateFin || mission.dateFin || mission.date_fin_prevue;
+
         const updatedMission = {
-          ...selectedMission,
+          ...mission,
           statut: 'en_cours',
-          dateDebut: new Date().toISOString()
+          dateDebut: today,
+          date_debut: today,
+          dateFin: adjustedEndDate,
+          date_fin_prevue: adjustedEndDate
         };
 
-        // Appeler le service pour mettre à jour
         try {
-          await missionService.updateStatus(selectedMission.id, 'en_cours');
-          setMissions(missions.map(m => m.id === selectedMission.id ? updatedMission : m));
-          setSelectedMission(updatedMission);
+          await missionService.update(mission.id, {
+            statut: 'en_cours',
+            date_debut: today,
+            date_fin_prevue: adjustedEndDate
+          });
+
+          setMissions(missions.map(m => m.id === mission.id ? updatedMission : m));
+          if (selectedMission?.id === mission.id) setSelectedMission(updatedMission);
+
           addNotification({
             type: 'success',
-            message: '▶️ Mission démarrée - Statut: En cours'
+            message: '▶️ Mission démarrée (Début fixé à aujourd\'hui)'
           });
         } catch (error) {
-          console.error('Erreur lors du démarrage de la mission:', error);
-          addNotification({
-            type: 'error',
-            message: '❌ Erreur lors du démarrage de la mission'
-          });
+          console.error('Erreur démarrage:', error);
+          addNotification({ type: 'error', message: '❌ Erreur lors du démarrage' });
         }
         return;
       }
 
+      // 2. CLÔTURE DÉFINITIVE (ADMIN)
       if (closureType === 'admin') {
-        // Vérifier si l'utilisateur est admin
         if (!isAdmin) {
-          addNotification({
-            type: 'error',
-            message: '🚫 Seul un administrateur peut effectuer une clôture définitive'
-          });
+          addNotification({ type: 'error', message: '🚫 Seul un administrateur peut effectuer une clôture définitive' });
           return;
         }
 
-        // Confirmation avant clôture définitive
         if (window.confirm('⚠️ Êtes-vous certain de vouloir clôturer définitivement cette mission? Cette action est irréversible.')) {
           const updatedMission = {
-            ...selectedMission,
-            statut: 'cloturee',
-            dateCloture: new Date().toISOString(),
-            budget_depense: totalExpenses,
-            clotureeParAdmin: user?.id
+            ...mission,
+            statut: 'validee', // Statut final
+            cloturee_definitive: true,
+            date_clot_definitive: new Date().toISOString(),
+            budget_depense: totalExpenses
           };
 
-          // Appeler le service pour mettre à jour
           try {
-            await missionService.validateClosureByAdmin(selectedMission.id, {
+            await missionService.validateClosureByAdmin(mission.id, {
               clotureeDefinitive: true,
-              commentaireAdmin: 'Clôture définitive',
+              commentaireAdmin: 'Clôture définitive par Admin',
               totalExpenses: totalExpenses
             });
 
-            // Mettre à jour la liste des missions
-            setMissions(missions.map(m => m.id === selectedMission.id ? updatedMission : m));
-            setSelectedMission(updatedMission);
+            setMissions(missions.map(m => m.id === mission.id ? updatedMission : m));
+            if (selectedMission?.id === mission.id) setSelectedMission(updatedMission);
 
-            addNotification({
-              type: 'success',
-              message: '✅ Mission clôturée définitivement par Admin'
-            });
-
+            addNotification({ type: 'success', message: '✅ Mission validée et clôturée définitivement' });
             setTimeout(() => setShowDetailsModal(false), 1000);
           } catch (error) {
-            console.error('Erreur lors de la clôture:', error);
-            addNotification({
-              type: 'error',
-              message: '❌ Erreur lors de la clôture définitive'
-            });
+            console.error('Erreur clôture admin:', error);
+            addNotification({ type: 'error', message: '❌ Erreur lors de la clôture définitive' });
           }
         }
-      } else if (closureType === 'chef') {
-        // Vérifier si l'utilisateur est admin
-        if (!isAdmin) {
-          addNotification({
-            type: 'error',
-            message: '🚫 Seul un administrateur peut effectuer une clôture définitive'
-          });
+        return;
+      }
+
+      // 3. CLÔTURE PAR LE CHEF (OU ADMIN)
+      if (closureType === 'chef') {
+        const canClose = isChefMission || isAdmin;
+        if (!canClose) {
+          addNotification({ type: 'error', message: '🚫 Permission insuffisante pour clôturer' });
           return;
         }
 
-        // Confirmation avant clôture définitive
-        if (window.confirm('⚠️ Êtes-vous certain de vouloir clôturer définitivement cette mission? Cette action est irréversible.')) {
+        if (window.confirm('Voulez-vous clôturer cette mission? Elle sera soumise à validation admin.')) {
           const updatedMission = {
-            ...selectedMission,
+            ...mission,
             statut: 'cloturee',
-            dateCloture: new Date().toISOString(),
-            budget_depense: totalExpenses,
-            clotureeParAdmin: user?.id
+            cloturee_par_chef: true,
+            date_clot_chef: new Date().toISOString(),
+            budget_depense: totalExpenses
           };
 
-          // Appeler le service pour mettre à jour
           try {
-            await missionService.closeMissionByChef(selectedMission.id, {
-              commentaireChef: 'Clôture par chef',
-              avancements: selectedMission.avancement || 100,
-              dateClotureReelle: new Date().toISOString(),
+            await missionService.closeMissionByChef(mission.id, {
+              commentaireChef: 'Clôture par chef de mission',
               totalExpenses: totalExpenses
             });
 
-            // Mettre à jour la liste des missions
-            setMissions(missions.map(m => m.id === selectedMission.id ? updatedMission : m));
-            setSelectedMission(updatedMission);
+            setMissions(missions.map(m => m.id === mission.id ? updatedMission : m));
+            if (selectedMission?.id === mission.id) setSelectedMission(updatedMission);
 
-            addNotification({
-              type: 'success',
-              message: '✅ Mission clôturée par Chef - En attente de validation Admin'
-            });
-
+            addNotification({ type: 'success', message: '✅ Mission clôturée (En attente de validation admin)' });
             setTimeout(() => setShowDetailsModal(false), 1000);
           } catch (error) {
-            console.error('Erreur lors de la clôture par chef:', error);
-            addNotification({
-              type: 'error',
-              message: '❌ Erreur lors de la clôture par le chef'
-            });
+            console.error('Erreur clôture chef:', error);
+            addNotification({ type: 'error', message: '❌ Erreur lors de la clôture' });
           }
         }
-      } else if (closureType === 'chef') {
-        // Vérifier si l'utilisateur est le chef de mission
-        if (!isChefMission) {
-          addNotification({
-            type: 'error',
-            message: '🚫 Seul le Chef de Mission assigné peut clôturer la mission'
-          });
-          return;
-        }
-
-        const updatedMission = {
-          ...selectedMission,
-          statut: 'cloturee',
-          dateCloture: new Date().toISOString(),
-          budget_depense: totalExpenses,
-          clotureeParChef: user?.id
-        };
-
-        try {
-          await missionService.closeMissionByChef(selectedMission.id, {
-            commentaireChef: 'Clôture par chef de mission',
-            avancements: selectedMission.avancement || 100,
-            dateClotureReelle: new Date().toISOString(),
-            totalExpenses: totalExpenses
-          });
-
-          setMissions(missions.map(m => m.id === selectedMission.id ? updatedMission : m));
-          setSelectedMission(updatedMission);
-          addNotification({
-            type: 'success',
-            message: '✅ Mission clôturée par le Chef de Mission'
-          });
-        } catch (error) {
-          console.error('Erreur lors de la clôture par chef:', error);
-          addNotification({
-            type: 'error',
-            message: '❌ Erreur lors de la clôture par le chef'
-          });
-        }
+        return;
       }
     } catch (error) {
-      console.error('Erreur clôture:', error);
-      addNotification({
-        type: 'error',
-        message: 'Erreur lors de la clôture'
-      });
+      console.error('Erreur handleClosureAdmin:', error);
+      addNotification({ type: 'error', message: 'Une erreur est survenue' });
     }
   };
 

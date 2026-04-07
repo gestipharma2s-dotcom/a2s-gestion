@@ -1,236 +1,212 @@
 /**
  * Service d'export pour les missions
- * Généère des rapports en PDF et Excel
+ * Génère des rapports en PDF et Excel
  */
-
-// Utilise jsPDF et ExcelJS (à installer)
-// npm install jspdf xlsx
 
 export const missionExportService = {
   /**
-   * Exporte une mission en PDF complet
+   * Imprime le rapport technique et financier complet de la mission
    */
-  exportMissionPDF: async (mission) => {
+  printMissionReport: async (mission) => {
+    const printWindow = window.open('', '_blank', 'width=900,height=900');
+    if (!printWindow) {
+      alert("Le navigateur a bloqué l'ouverture de la fenêtre d'impression.");
+      return;
+    }
+    printWindow.document.write('<h2>Génération du rapport complet...</h2>');
+
     try {
-      // Pour une implémentation réelle, vous devez installer jsPDF
-      // npm install jspdf html2canvas
+      const { userService } = await import('./userService');
+      let users = [];
+      try { users = await userService.getAll(); } catch (e) { }
 
-      // Création du contenu PDF simulé
-      const pdfContent = `
-        ╔════════════════════════════════════════════════════════════════╗
-        ║                    RAPPORT MISSION COMPLET                     ║
-        ╚════════════════════════════════════════════════════════════════╝
+      const formatDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : 'N/A';
+      const formatCurrency = (n) => (n || 0).toLocaleString('fr-DZ') + ' DA';
 
-        📋 INFORMATIONS GÉNÉRALES
-        ─────────────────────────────────────────────────────────────────
-        Titre:           ${mission.titre}
-        Type:            ${mission.type}
-        Priorité:        ${mission.priorite}
-        Statut:          ${mission.statut}
-        Client:          ${mission.client?.raison_sociale || 'N/A'}
-        Lieu:            ${mission.lieu}
-        
-        📅 DATES
-        ─────────────────────────────────────────────────────────────────
-        Début:           ${new Date(mission.dateDebut).toLocaleDateString('fr-FR')}
-        Fin:             ${new Date(mission.dateFin).toLocaleDateString('fr-FR')}
-        Avancement:      ${mission.avancement}%
-        
-        💰 INFORMATIONS FINANCIÈRES
-        ─────────────────────────────────────────────────────────────────
-        Budget Initial:  ${mission.budgetInitial.toLocaleString('fr-FR')} €
-        Dépenses:        ${mission.depenses?.toLocaleString('fr-FR') || '0'} €
-        Reste:           ${(mission.budgetInitial - (mission.depenses || 0)).toLocaleString('fr-FR')} €
-        
-        🔧 DESCRIPTION TECHNIQUE
-        ─────────────────────────────────────────────────────────────────
-        ${mission.description || 'N/A'}
-        
-        👥 PARTICIPANTS
-        ─────────────────────────────────────────────────────────────────
-        ${mission.participants?.map(p => `• ${p.nom} (${p.role})`).join('\n') || 'Aucun'}
-        
-        ✅ ACTIONS RÉALISÉES
-        ─────────────────────────────────────────────────────────────────
-        ${mission.actionsRealisees?.map(a => `• ${a.description}`).join('\n') || 'Aucune'}
-        
-        💻 LOGICIELS & MATÉRIELS
-        ─────────────────────────────────────────────────────────────────
-        ${mission.logicielsMateriels?.map(l => `• ${l.nom} (${l.type}) - v${l.version}`).join('\n') || 'Aucun'}
-        
-        ⚠️ PROBLÈMES & SOLUTIONS
-        ─────────────────────────────────────────────────────────────────
-        ${mission.problemesResolutions?.map(p => `
-        Problème: ${p.probleme}
-        Solution: ${p.solution}
-        `).join('\n') || 'Aucun'}
-        
-        Généré le: ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}
+      // Calculs financiers robustes
+      const budget = parseFloat(mission.budgetInitial || mission.budget_initial || mission.budget_alloue || 0);
+
+      // Calculer les dépenses à partir des détails si le total n'est pas clair
+      let expenses = parseFloat(mission.budget_depense || mission.depenses_reelles || mission.total_expenses || 0);
+      const expenseList = Array.isArray(mission.expenses_details) ? mission.expenses_details :
+        (Array.isArray(mission.depenses) ? mission.depenses : []);
+
+      if (expenses === 0 && expenseList.length > 0) {
+        expenses = expenseList.reduce((sum, e) => sum + (parseFloat(e.montant) || 0), 0);
+      }
+
+      const remaining = budget - expenses;
+      const calcPercent = budget > 0 ? Math.round((expenses / budget) * 100) : 0;
+
+      console.log('Données Rapport:', { budget, expenses, remaining, count: expenseList.length });
+
+      // Récupération des participants
+      const chef = users.find(u => u.id === (mission.chef_mission_id || mission.chefMissionId))?.nom || mission.chef_name || 'Chef de Mission';
+
+      const techComments = Array.isArray(mission.commentaires_techniques) ? mission.commentaires_techniques : [];
+      const finComments = Array.isArray(mission.commentaires_financiers) ? mission.commentaires_financiers : [];
+
+      const printContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Rapport de Mission - ${mission.titre}</title>
+          <style>
+            body { font-family: 'Segoe UI', Arial, sans-serif; color: #333; line-height: 1.5; margin: 0; padding: 40px; }
+            .header { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 30px; }
+            .logo-text { font-weight: bold; font-size: 20px; color: #e02a27; }
+            .report-title { text-align: center; margin-bottom: 40px; text-transform: uppercase; }
+            .report-title h1 { margin: 0; font-size: 24px; border: 2px solid #000; display: inline-block; padding: 10px 40px; }
+            
+            .section { margin-bottom: 30px; }
+            .section-title { background: #f0f0f0; padding: 8px 15px; font-weight: bold; border-left: 5px solid #00763b; margin-bottom: 15px; text-transform: uppercase; font-size: 14px; }
+            
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+            .info-item { display: flex; margin-bottom: 5px; font-size: 14px; }
+            .info-label { font-weight: bold; width: 180px; }
+            
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+            table th, table td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+            table th { background: #f9f9f9; }
+            
+            .comment-box { border-left: 3px solid #ddd; padding-left: 15px; margin-bottom: 15px; font-style: italic; font-size: 13px; }
+            .comment-meta { color: #666; font-size: 11px; margin-top: 4px; }
+            
+            .financial-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 10px; }
+            .stat-card { padding: 15px; border: 1px solid #eee; border-radius: 5px; text-align: center; }
+            .stat-value { font-size: 18px; font-weight: bold; margin-top: 5px; }
+
+            .footer-sig { margin-top: 80px; display: grid; grid-template-columns: 1fr 1fr; gap: 100px; text-align: center; }
+            .sig-box { min-height: 120px; border-top: 1px solid #000; padding-top: 10px; font-weight: bold; }
+
+            @media print {
+              @page { margin: 1cm; }
+              body { padding: 0.5cm; }
+              button { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <div class="logo-text">A2S - ADVANCED SOFTWARE SOLUTION</div>
+              <div style="font-size: 11px;">Rapport de Restitution Mission</div>
+            </div>
+            <div style="text-align: right; font-size: 12px;">
+              Date: ${new Date().toLocaleDateString('fr-FR')}<br/>
+              Mission ID: #${mission.id.toString().padStart(4, '0')}
+            </div>
+          </div>
+
+          <div class="report-title">
+            <h1>RAPPORT DE MISSION</h1>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Informations Générales</div>
+            <div class="grid">
+              <div>
+                <div class="info-item"><span class="info-label">Titre :</span><span class="info-value">${mission.titre}</span></div>
+                <div class="info-item"><span class="info-label">Type :</span><span class="info-value">${mission.type}</span></div>
+                <div class="info-item"><span class="info-label">Client :</span><span class="info-value">${mission.client?.raison_sociale || 'N/A'}</span></div>
+                <div class="info-item"><span class="info-label">Lieu :</span><span class="info-value">${mission.lieu || 'Alger'}</span></div>
+              </div>
+              <div>
+                <div class="info-item"><span class="info-label">Chef de Mission :</span><span class="info-value">${chef}</span></div>
+                <div class="info-item"><span class="info-label">Début réelle :</span><span class="info-value">${formatDate(mission.date_debut || mission.dateDebut)}</span></div>
+                <div class="info-item"><span class="info-label">Clôture :</span><span class="info-value">${formatDate(mission.date_cloture_reelle || mission.dateCloture)}</span></div>
+                <div class="info-item"><span class="info-label">Statut Final :</span><span class="info-value">${mission.statut === 'validee' ? '✅ VALIDÉE' : '✔️ CLÔTURÉE'}</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Volet Technique & Restitution</div>
+            ${techComments.length > 0 ? techComments.map(c => `
+              <div class="comment-box">
+                <div>${c.texte}</div>
+                <div class="comment-meta">Ajouté par ${c.auteur} le ${c.date_affichage}</div>
+              </div>
+            `).join('') : '<p style="font-size: 13px; color: #666;">Aucun commentaire technique enregistré.</p>'}
+          </div>
+
+          <div class="section">
+            <div class="section-title">Volet Financier & Dépenses</div>
+            <div class="financial-summary">
+              <div class="stat-card">
+                <div style="font-size: 11px; color: #666;">BUDGET INITIAL</div>
+                <div class="stat-value">${formatCurrency(budget)}</div>
+              </div>
+              <div class="stat-card">
+                <div style="font-size: 11px; color: #666;">DÉPENSES TOTALES (${calcPercent}%)</div>
+                <div class="stat-value" style="color: ${calcPercent > 90 ? '#e02a27' : '#000'}">${formatCurrency(expenses)}</div>
+              </div>
+              <div class="stat-card">
+                <div style="font-size: 11px; color: #666;">SOLDE RESTANT</div>
+                <div class="stat-value" style="color: ${remaining < 0 ? '#e02a27' : '#00763b'}">${formatCurrency(remaining)}</div>
+              </div>
+            </div>
+
+            ${expenseList.length > 0 ? `
+              <table>
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Description</th>
+                    <th>Montant</th>
+                    <th>Auteur</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${expenseList.map(e => `
+                    <tr>
+                      <td>${e.type}</td>
+                      <td>${e.description}</td>
+                      <td style="font-weight: bold;">${formatCurrency(e.montant)}</td>
+                      <td>${e.auteur}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            ` : ''}
+
+            ${finComments.length > 0 ? `
+              <div style="margin-top: 20px;">
+                <div style="font-weight: bold; font-size: 13px; margin-bottom: 10px;">Commentaires Financiers:</div>
+                ${finComments.map(c => `
+                  <div class="comment-box" style="border-left-color: #00763b;">
+                    <div>${c.texte}</div>
+                    <div class="comment-meta">Par ${c.auteur} le ${c.date_affichage}</div>
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
+          </div>
+
+          <div class="footer-sig">
+            <div class="sig-box">Visa Chef de Mission</div>
+            <div class="sig-box">Validation Direction / Admin</div>
+          </div>
+
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+              }, 500);
+            };
+          </script>
+        </body>
+        </html>
       `;
 
-      // Copier dans le presse-papiers
-      await navigator.clipboard.writeText(pdfContent);
-
-      console.warn('⚠️ NOTE: Pour une véritable export PDF, vous devez:');
-      console.warn('1. Installer: npm install jspdf html2canvas');
-      console.warn('2. Importer et utiliser jsPDF dans ce fichier');
-      console.warn('\nPour l\'instant, le contenu a été copié dans le presse-papiers.');
-
-      return {
-        success: true,
-        message: 'Contenu copié dans le presse-papiers. Pour PDF réel, installer jsPDF.',
-        content: pdfContent
-      };
-    } catch (error) {
-      console.error('Erreur export PDF:', error);
-      throw new Error('Impossible d\'exporter le rapport PDF');
+      printWindow.document.open();
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+    } catch (e) {
+      console.error(e);
+      printWindow.document.body.innerHTML = '<h3 style="color:red">Erreur lors de la génération du rapport détaillé.</h3>';
     }
-  },
-
-  /**
-   * Exporte une mission en Excel
-   */
-  exportMissionExcel: async (mission) => {
-    try {
-      // Pour une implémentation réelle, vous devez installer xlsx
-      // npm install xlsx
-
-      const excelContent = {
-        'Général': [
-          ['Titre', mission.titre],
-          ['Type', mission.type],
-          ['Priorité', mission.priorite],
-          ['Statut', mission.statut],
-          ['Client', mission.client?.raison_sociale || 'N/A'],
-          ['Lieu', mission.lieu],
-          ['Avancement', `${mission.avancement}%`],
-          ['', ''],
-          ['Dates', ''],
-          ['Début', new Date(mission.dateDebut).toLocaleDateString('fr-FR')],
-          ['Fin', new Date(mission.dateFin).toLocaleDateString('fr-FR')],
-          ['', ''],
-          ['Budget', ''],
-          ['Budget Initial', `${mission.budgetInitial} €`],
-          ['Dépenses', `${mission.depenses || 0} €`],
-          ['Reste', `${mission.budgetInitial - (mission.depenses || 0)} €`],
-        ],
-        'Actions': [
-          ['Description', 'Date d\'ajout'],
-          ...mission.actionsRealisees?.map(a => [
-            a.description,
-            new Date(a.dateAjout).toLocaleDateString('fr-FR')
-          ]) || []
-        ],
-        'Logiciels & Matériels': [
-          ['Type', 'Nom', 'Version', 'Date Installation'],
-          ...mission.logicielsMateriels?.map(l => [
-            l.type,
-            l.nom,
-            l.version || '-',
-            new Date(l.dateInstallation).toLocaleDateString('fr-FR')
-          ]) || []
-        ],
-        'Problèmes & Solutions': [
-          ['Problème', 'Solution', 'Date', 'Statut'],
-          ...mission.problemesResolutions?.map(p => [
-            p.probleme,
-            p.solution,
-            new Date(p.dateSignalement).toLocaleDateString('fr-FR'),
-            p.statut
-          ]) || []
-        ]
-      };
-
-      console.warn('⚠️ NOTE: Pour une véritable export Excel, vous devez:');
-      console.warn('1. Installer: npm install xlsx');
-      console.warn('2. Importer et utiliser xlsx dans ce fichier');
-      console.warn('\nStructure Excel prête:\n', JSON.stringify(excelContent, null, 2));
-
-      return {
-        success: true,
-        message: 'Données Excel préparées. Pour export réel, installer xlsx.',
-        data: excelContent
-      };
-    } catch (error) {
-      console.error('Erreur export Excel:', error);
-      throw new Error('Impossible d\'exporter vers Excel');
-    }
-  },
-
-  /**
-   * Exporte statistiques mission
-   */
-  exportMissionStatistics: (missions) => {
-    const stats = {
-      totalMissions: missions.length,
-      parStatut: {},
-      parType: {},
-      budgetTotal: 0,
-      depensesTotal: 0,
-      moyenneAvancement: 0,
-      missionsAuRisque: 0
-    };
-
-    let totalAvancement = 0;
-
-    missions.forEach(m => {
-      // Compter par statut
-      stats.parStatut[m.statut] = (stats.parStatut[m.statut] || 0) + 1;
-
-      // Compter par type
-      stats.parType[m.type] = (stats.parType[m.type] || 0) + 1;
-
-      // Budgets
-      stats.budgetTotal += m.budgetInitial || 0;
-      stats.depensesTotal += m.depenses || 0;
-
-      // Avancement
-      totalAvancement += m.avancement || 0;
-
-      // Risques (délai - date fin < aujourd'hui)
-      if (new Date(m.dateFin) < new Date() && m.statut !== 'cloturee' && m.statut !== 'validee') {
-        stats.missionsAuRisque++;
-      }
-    });
-
-    stats.moyenneAvancement = Math.round(totalAvancement / missions.length);
-
-    return stats;
-  },
-
-  /**
-   * Génère un rapport texte simple
-   */
-  generateTextReport: (mission) => {
-    return `
-═══════════════════════════════════════════════════════════════
-                    RAPPORT MISSION
-═══════════════════════════════════════════════════════════════
-
-MISSION: ${mission.titre}
-TYPE: ${mission.type}
-CLIENT: ${mission.client?.raison_sociale || 'N/A'}
-
-STATUT: ${mission.statut}
-AVANCEMENT: ${mission.avancement}%
-PRIORITÉ: ${mission.priorite}
-
-DATES:
-  • Début: ${new Date(mission.dateDebut).toLocaleDateString('fr-FR')}
-  • Fin: ${new Date(mission.dateFin).toLocaleDateString('fr-FR')}
-
-BUDGET:
-  • Alloué: ${mission.budgetInitial} €
-  • Dépensé: ${mission.depenses || 0} €
-  • Reste: ${mission.budgetInitial - (mission.depenses || 0)} €
-
-DESCRIPTION:
-${mission.description || 'N/A'}
-
-═══════════════════════════════════════════════════════════════
-Généré le: ${new Date().toLocaleString('fr-FR')}
-═══════════════════════════════════════════════════════════════
-    `;
   },
 
   /**
@@ -262,15 +238,12 @@ Généré le: ${new Date().toLocaleString('fr-FR')}
         return date.toLocaleDateString('fr-FR');
       };
 
-      const motifTexte = mission.description ? `<br/>${mission.description}` : '';
       const dDebut = mission.date_debut || mission.dateDebut;
       const dFin = mission.date_fin_prevue || mission.dateFin;
 
       // Build participants
-      let participantsHtml = '';
       let pList = [];
       if (mission.participants && mission.participants.length > 0) {
-        participantsHtml = mission.participants.map(p => `<li>${p.nom} - ${p.role}</li>`).join('');
         pList = mission.participants;
       } else {
         const chefId = mission.chef_mission_id || mission.chefMissionId;
@@ -288,12 +261,6 @@ Généré le: ${new Date().toLocaleString('fr-FR')}
             const user = users.find(u => u.id === id);
             if (user) pList.push({ nom: user.nom || user.email, role: 'Accompagnateur' });
           });
-        }
-
-        if (pList.length > 0) {
-          participantsHtml = pList.map(p => `<li>${p.nom} - ${p.role}</li>`).join('');
-        } else {
-          participantsHtml = '<li>Aucun participant spécifié.</li>';
         }
       }
 

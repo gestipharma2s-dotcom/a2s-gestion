@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Edit, ChevronDown, ChevronUp, Plus, Trash2, DollarSign, MapPin, Calendar, Users, AlertCircle, CheckCircle, Lock, Shield } from 'lucide-react';
+import { Download, Edit, ChevronDown, ChevronUp, Plus, Trash2, DollarSign, MapPin, Calendar, Users, AlertCircle, CheckCircle, Lock, Shield, Printer, FileText } from 'lucide-react';
 import Button from '../common/Button';
 import Input from '../common/Input';
 import { missionService } from '../../services/missionService';
+import missionExportService from '../../services/missionExportService';
 import { useApp } from '../../context/AppContext';
 import { formatWilaya } from '../../constants/wilayas';
 
@@ -19,6 +20,8 @@ const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin
     montant: '',
     description: ''
   });
+  const [actualEndDate, setActualEndDate] = useState('');
+  const [showStartConfirmation, setShowStartConfirmation] = useState(false);
   const [expandedSections, setExpandedSections] = useState({
     general: true,
     technique: tab === 'technique',
@@ -29,6 +32,17 @@ const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin
   // Charger les commentaires et dépenses depuis la mission
   useEffect(() => {
     if (mission) {
+      // Initialiser la date de fin
+      const endDate = mission.dateFin || mission.date_fin_prevue;
+      if (endDate) {
+        setActualEndDate(new Date(endDate).toISOString().split('T')[0]);
+      } else {
+        // Fallback: Aujourd'hui + 7 jours par défaut
+        const nextWeek = new Date();
+        nextWeek.setDate(nextWeek.getDate() + 7);
+        setActualEndDate(nextWeek.toISOString().split('T')[0]);
+      }
+
       // Charger commentaires techniques
       try {
         const techComments = mission.commentaires_techniques;
@@ -229,37 +243,39 @@ const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin
   };
 
   const handleStartMission = async () => {
-    if (window.confirm('⏱️ Êtes-vous certain de vouloir démarrer cette mission?\nLe statut passera à "En cours".')) {
-      try {
-        const result = await missionService.startMission(mission.id);
+    if (!actualEndDate) {
+      alert('Veuillez spécifier une date de fin prévue.');
+      return;
+    }
 
-        // Succès - mettre à jour l'état local
-        if (result) {
-          addNotification({
-            type: 'success',
-            message: '✅ Mission démarrée avec succès'
-          });
+    try {
+      if (onClosureAdmin) {
+        // Propager le démarrage avec la nouvelle date de fin
+        await onClosureAdmin(mission, 'start', { dateFin: actualEndDate });
+        return;
+      }
 
-          // Mettre à jour le statut de la mission localement
-          const updatedMission = { ...mission, statut: 'en_cours' };
-
-          // Fermer la modal après un court délai (sans recharger)
-          setTimeout(() => {
-            onClose();
-          }, 800);
-        }
-      } catch (error) {
-        console.error('Erreur handleStartMission:', error);
-        // Afficher quand même un succès (optimistic update)
+      // Fallback service direct
+      const result = await missionService.startMission(mission.id);
+      if (result) {
         addNotification({
           type: 'success',
-          message: '✅ Mission démarrée'
+          message: '✅ Mission démarrée avec succès'
         });
-        setTimeout(() => {
-          onClose();
-        }, 800);
+        setTimeout(() => onClose(), 800);
       }
+    } catch (error) {
+      console.error('Erreur handleStartMission:', error);
+      addNotification({ type: 'error', message: '❌ Erreur lors du démarrage' });
     }
+  };
+
+  const handlePrintOrder = () => {
+    missionExportService.printMission(mission);
+  };
+
+  const handlePrintReport = () => {
+    missionExportService.printMissionReport(mission);
   };
 
   // Vérifications des permissions
@@ -276,13 +292,16 @@ const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin
 
   // Avant clôture: uniquement chef de mission
   // Après clôture: uniquement admin OU (chef de mission qui est aussi admin/super_admin)
-  const isMissionClosed = mission?.cloturee_par_chef || mission?.cloturee_definitive;
-  const canEditMission = !isMissionClosed ? isChefMission : (isAdminUser || isChefAndAdmin);
+  // Mission est considérée clôturée uniquement si son statut est clôturé ou validé
+  const isMissionClosed = ['cloturee', 'validee'].includes(mission?.statut);
+
+  // Édition: Toujours autorisée pour Admin, autorisée pour Chef si non clôturée
+  const canEditMission = isAdminUser || (isChefMission && !isMissionClosed);
 
   // Actions spécifiques
   const canCloseMission = isChefMission || isAdminUser;
   const canCloseAdmin = isAdminUser; // Seulement admin/super_admin (ou chef qui est admin)
-  const canStartMission = isChefMission && (mission?.statut === 'creee' || mission?.statut === 'planifiee') && !isMissionClosed;
+  const canStartMission = (isChefMission || isAdminUser) && (mission?.statut === 'creee' || mission?.statut === 'planifiee') && !isMissionClosed;
 
   // Calculs budgétaires avec vérifications - support database et form field names
   const totalExpenses = expenses.reduce((sum, e) => sum + (parseFloat(e.montant) || 0), 0);
@@ -351,9 +370,9 @@ const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin
               <div className="flex items-center gap-2">
                 <Lock size={20} />
                 <div>
-                  <p className="font-bold">🔒 Mission Clôturée</p>
+                  <p className="font-bold">🔒 Mission Terminée</p>
                   <p className="text-sm">
-                    {isChefAndAdmin ? '✅ Vous êtes Chef de Mission avec rôle Admin - Édition complète autorisée' : isAdminUser ? '⚠️ Seul un administrateur peut modifier cette mission.' : 'Cette mission est clôturée et ne peut plus être modifiée.'}
+                    {isAdminUser ? '✅ Accès Administrateur - Vous pouvez modifier les détails techniques et financiers même après clôture.' : 'Cette mission est clôturée et ne peut plus être modifiée.'}
                   </p>
                 </div>
               </div>
@@ -361,63 +380,92 @@ const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin
           )}
 
           {/* ENTÊTE BLEU - Style ClientDetails */}
-          <div className="bg-gradient-to-r from-primary to-primary-dark text-white rounded-lg p-6 shadow-lg">
-            <h3 className="text-2xl font-bold mb-2">{mission.titre}</h3>
-            <p className="text-primary-light mb-4 text-sm">{mission.description}</p>
+          <div className="bg-gradient-to-r from-primary to-primary-dark text-white rounded-lg p-6 shadow-lg relative overflow-hidden">
+            <div className="relative z-10">
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <h3 className="text-2xl font-bold mb-1">{mission.titre}</h3>
+                  <p className="text-primary-light mb-4 text-sm max-w-2xl">{mission.description}</p>
+                </div>
 
-            {/* Infos rapides */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-4 border-t border-white border-opacity-30">
-              {/* Client */}
-              <div className="flex items-center gap-2">
-                <Users size={18} />
-                <div>
-                  <p className="text-xs opacity-80">Client</p>
-                  <p className="font-semibold">{mission.client?.raison_sociale || 'N/A'}</p>
+                {/* BOUTONS IMPRESSION RAPIDE */}
+                <div className="flex gap-2 shrink-0 ml-4">
+                  <button
+                    onClick={handlePrintOrder}
+                    className="flex items-center gap-2 bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all border border-white border-opacity-30"
+                    title="Imprimer l'Ordre de Mission"
+                  >
+                    <Printer size={16} />
+                    <span className="hidden sm:inline">Ordre</span>
+                  </button>
+
+                  {(isMissionClosed || isAdminUser) && (
+                    <button
+                      onClick={handlePrintReport}
+                      className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-md hover:shadow-lg animate-in zoom-in duration-300"
+                      title="Imprimer le Rapport de Mission Complet (Technique & Financier)"
+                    >
+                      <FileText size={18} />
+                      <span>Rapport de Mission</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
-              {/* Wilaya/Lieu */}
-              <div className="flex items-center gap-2">
-                <MapPin size={18} />
-                <div>
-                  <p className="text-xs opacity-80">Wilaya</p>
-                  <p className="font-semibold">{formatWilaya(mission.client?.wilaya || mission.wilaya || mission.lieu) || 'N/A'}</p>
+              {/* Infos rapides */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-4 border-t border-white border-opacity-30">
+                {/* Client */}
+                <div className="flex items-center gap-2">
+                  <Users size={18} />
+                  <div>
+                    <p className="text-xs opacity-80">Client</p>
+                    <p className="font-semibold">{mission.client?.raison_sociale || 'N/A'}</p>
+                  </div>
                 </div>
-              </div>
 
-              {/* Statut */}
-              <div className="flex items-center gap-2">
-                <CheckCircle size={18} />
-                <div>
-                  <p className="text-xs opacity-80">Statut</p>
-                  <p className="font-semibold">{getStatusLabel(mission.statut)}</p>
+                {/* Wilaya/Lieu */}
+                <div className="flex items-center gap-2">
+                  <MapPin size={18} />
+                  <div>
+                    <p className="text-xs opacity-80">Wilaya</p>
+                    <p className="font-semibold">{formatWilaya(mission.client?.wilaya || mission.wilaya || mission.lieu) || 'N/A'}</p>
+                  </div>
                 </div>
-              </div>
 
-              {/* Type */}
-              <div className="flex items-center gap-2">
-                <div className="w-5 h-5 bg-white bg-opacity-30 rounded flex items-center justify-center text-xs">🎯</div>
-                <div>
-                  <p className="text-xs opacity-80">Type</p>
-                  <p className="font-semibold">{mission.type}</p>
+                {/* Statut */}
+                <div className="flex items-center gap-2">
+                  <CheckCircle size={18} />
+                  <div>
+                    <p className="text-xs opacity-80">Statut</p>
+                    <p className="font-semibold">{getStatusLabel(mission.statut)}</p>
+                  </div>
                 </div>
-              </div>
 
-              {/* Budget */}
-              <div className="flex items-center gap-2">
-                <DollarSign size={18} />
-                <div>
-                  <p className="text-xs opacity-80">Budget</p>
-                  <p className="font-semibold">{(mission.budgetInitial || mission.budget_alloue || 0).toLocaleString('fr-DZ')} DA</p>
+                {/* Type */}
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 bg-white bg-opacity-30 rounded flex items-center justify-center text-xs">🎯</div>
+                  <div>
+                    <p className="text-xs opacity-80">Type</p>
+                    <p className="font-semibold">{mission.type}</p>
+                  </div>
                 </div>
-              </div>
 
-              {/* Avancement */}
-              <div className="flex items-center gap-2">
-                <div className="w-5 h-5 bg-white bg-opacity-30 rounded flex items-center justify-center text-xs">📊</div>
-                <div>
-                  <p className="text-xs opacity-80">Avancement</p>
-                  <p className="font-semibold">{mission.avancement || 0}%</p>
+                {/* Budget */}
+                <div className="flex items-center gap-2">
+                  <DollarSign size={18} />
+                  <div>
+                    <p className="text-xs opacity-80">Budget</p>
+                    <p className="font-semibold">{(mission.budgetInitial || mission.budget_alloue || 0).toLocaleString('fr-DZ')} DA</p>
+                  </div>
+                </div>
+
+                {/* Avancement */}
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 bg-white bg-opacity-30 rounded flex items-center justify-center text-xs">📊</div>
+                  <div>
+                    <p className="text-xs opacity-80">Avancement</p>
+                    <p className="font-semibold">{mission.avancement || 0}%</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -534,16 +582,34 @@ const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin
                     <p className="text-sm text-gray-900 mt-1">{mission.chef_name || 'Non assigné'}</p>
                   </div>
 
-                  {/* BOUTON DÉMARRER MISSION */}
+                  {/* BOUTON DÉMARRER MISSION AVEC CONTRÔLE DATE */}
                   {canStartMission && (
-                    <div className="pt-2">
+                    <div className="pt-2 bg-green-50 p-4 rounded-lg border border-green-200 space-y-3 mt-4 shadow-sm animate-in fade-in slide-in-from-top-2 duration-500">
+                      <div>
+                        <p className="text-xs font-bold text-green-800 uppercase mb-2 flex items-center gap-1">
+                          <Calendar size={14} /> Confirmer la date de fin prévue
+                        </p>
+                        <Input
+                          type="date"
+                          value={actualEndDate}
+                          onChange={(e) => setActualEndDate(e.target.value)}
+                          className="w-full bg-white border-green-300 focus:ring-green-500"
+                        />
+                        <p className="text-[10px] text-green-700 mt-1 italic">
+                          La date de début sera fixée à aujourd'hui (${new Date().toLocaleDateString('fr-FR')})
+                        </p>
+                      </div>
+
                       <Button
                         onClick={handleStartMission}
-                        className="w-full bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2 py-3 font-semibold"
+                        className="w-full bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2 py-3 font-bold border-b-4 border-green-800 active:border-b-0 active:translate-y-1 transition-all"
                       >
-                        ▶️ Démarrer la Mission
+                        <CheckCircle size={20} />
+                        Démarrer la Mission Maintenant
                       </Button>
-                      <p className="text-xs text-gray-600 mt-2">Le statut passera à "En cours"</p>
+                      <p className="text-[11px] text-center text-green-800 opacity-80">
+                        Cette action est réservée au Chef de Mission
+                      </p>
                     </div>
                   )}
 
@@ -566,6 +632,16 @@ const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin
                   <div>
                     <p className="text-xs text-gray-600 uppercase font-semibold mb-2">Rapport Technique</p>
                     <p className="text-sm text-gray-900 bg-white p-3 rounded">{mission.rapportTechnique || 'Pas encore documenté'}</p>
+
+                    {(isMissionClosed || isAdminUser) && (
+                      <Button
+                        onClick={handlePrintReport}
+                        className="mt-4 bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2 w-full sm:w-auto px-6 py-2 shadow-lg"
+                      >
+                        <FileText size={20} />
+                        Imprimer le Rapport de Mission
+                      </Button>
+                    )}
                   </div>
 
                   {mission.actionsRealisees && mission.actionsRealisees.length > 0 && (
@@ -906,6 +982,13 @@ const MissionDetailsModal = ({ mission, tab = 'general', onClose, onClosureAdmin
                   <div>
                     <p className="font-semibold text-green-900">✅ Mission Clôturée</p>
                     <p className="text-sm text-green-800 mt-1">Cette mission a été clôturée et validée.</p>
+                    <Button
+                      onClick={handlePrintReport}
+                      className="mt-4 bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
+                    >
+                      <FileText size={18} />
+                      Imprimer le Rapport de Mission
+                    </Button>
                   </div>
                 </div>
               )}
