@@ -4,26 +4,26 @@
  */
 
 export const conventionExportService = {
-    /**
-     * Imprime la convention LOGIPHARM pour une installation
-     * @param {Object} installation - L'objet installation avec client et montants
-     */
-    printConvention: (installation) => {
-        const printWindow = window.open('', '_blank', 'width=900,height=900');
-        if (!printWindow) {
-            alert("Le navigateur a bloqué l'ouverture de la fenêtre d'impression.");
-            return;
-        }
+  /**
+   * Imprime la convention LOGIPHARM pour une installation
+   * @param {Object} installation - L'objet installation avec client et montants
+   */
+  printConvention: (installation) => {
+    const printWindow = window.open('', '_blank', 'width=900,height=900');
+    if (!printWindow) {
+      alert("Le navigateur a bloqué l'ouverture de la fenêtre d'impression.");
+      return;
+    }
 
-        const client = installation.client || {};
-        const dateInstallation = installation.date_installation ? new Date(installation.date_installation) : new Date();
-        const dateStr = dateInstallation.toLocaleDateString('fr-FR');
-        const montantTotal = installation.montant || 16000000;
-        const representantClient = client.contact || "...........................";
+    const client = installation.client || {};
+    const dateInstallation = installation.date_installation ? new Date(installation.date_installation) : new Date();
+    const dateStr = dateInstallation.toLocaleDateString('fr-FR');
+    const montantTotal = installation.montant || 16000000;
+    const representantClient = client.contact || "...........................";
 
-        const formatCurrency = (n) => (n || 0).toLocaleString('fr-DZ') + ' DA';
+    const formatCurrency = (n) => (n || 0).toLocaleString('fr-DZ') + ' DA';
 
-        const htmlContent = `
+    const htmlContent = `
       <!DOCTYPE html>
       <html lang="fr">
       <head>
@@ -356,16 +356,6 @@ export const conventionExportService = {
           <div class="article-title">ARTICLE 5 : MONTANT & CONDITIONS DE PAIEMENT</div>
           <div class="clause-text">Le montant de la présente convention se présente comme suit :</div>
           <div class="clause-text"><strong>Licences ERP :</strong></div>
-          <div class="site-prices">
-            <div>✓ Site Principal (Alger) : 8 000 000,00 DA HT</div>
-            <div>✓ Site Régional de Sétif : 4 000 000,00 DA HT</div>
-            <div>✓ Site régional d'Oran : 4 000 000,00 DA HT</div>
-          </div>
-          
-          <div class="clause-text" style="margin-top: 15px;"><strong>Déploiement du projet :</strong></div>
-          <div class="site-prices">
-            <div>✓ Tous les sites : 00,00 DA HT</div>
-          </div>
           
           <div class="total-box">
             <strong>MONTANT TOTAL : ${formatCurrency(montantTotal)} HT</strong>
@@ -456,10 +446,10 @@ export const conventionExportService = {
       </html>
     `;
 
-        printWindow.document.open();
-        printWindow.document.write(htmlContent);
-        printWindow.document.close();
-    }
+    printWindow.document.open();
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  }
 };
 
 export default conventionExportService;
