@@ -18,6 +18,7 @@ export const conventionExportService = {
     const client = installation.client || {};
     const dateInstallation = installation.date_installation ? new Date(installation.date_installation) : new Date();
     const dateStr = dateInstallation.toLocaleDateString('fr-FR');
+    const monthYearStr = dateInstallation.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }).toUpperCase();
     const montantTotal = installation.montant || 16000000;
     const representantClient = client.contact || "...........................";
 
@@ -243,7 +244,7 @@ export const conventionExportService = {
               </h1>
             </div>
             <div class="date-bottom">
-              Novembre 2025
+              ${monthYearStr}
             </div>
           </div>
         </div>
