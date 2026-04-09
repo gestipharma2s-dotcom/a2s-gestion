@@ -61,6 +61,10 @@ export const prospectService = {
         ville: prospectData.ville || '',
         adresse: prospectData.adresse || '',
         forme_juridique: prospectData.forme_juridique || '',
+        rc: prospectData.rc || '',
+        nif: prospectData.nif || '',
+        ai: prospectData.ai || '',
+        nis: prospectData.nis || '',
         temperature: prospectData.temperature || 'froid',
         solde_initial: parseFloat(prospectData.solde_initial) || 0,
         statut: 'prospect',
@@ -118,7 +122,7 @@ export const prospectService = {
       // ✅ Permettre les mises à jour partielles (ne pas écraser les champs non fournis)
       const cleanData = {};
 
-      const textFields = ['raison_sociale', 'contact', 'telephone', 'email', 'wilaya', 'ville', 'adresse', 'forme_juridique'];
+      const textFields = ['raison_sociale', 'contact', 'telephone', 'email', 'wilaya', 'ville', 'adresse', 'forme_juridique', 'rc', 'nif', 'ai', 'nis'];
       textFields.forEach(field => {
         if (prospectData[field] !== undefined) {
           cleanData[field] = prospectData[field] || '';

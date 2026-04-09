@@ -22,7 +22,7 @@ export const installationService = {
           if (inst.client_id) {
             const { data: prospectData } = await supabase
               .from(TABLES.PROSPECTS)
-              .select('raison_sociale, contact, telephone, email, wilaya')
+              .select('raison_sociale, contact, telephone, email, wilaya, adresse, forme_juridique, rc, nif, ai, nis')
               .eq('id', inst.client_id)
               .single();
             prospect = prospectData || {};

@@ -16,6 +16,10 @@ const ProspectForm = ({ prospect, onSubmit, onCancel }) => {
     ville: '',
     adresse: '',
     forme_juridique: '',
+    rc: '',
+    nif: '',
+    ai: '',
+    nis: '',
     solde_initial: 0,
     commercial_assigned: '',
     temperature: 'froid'
@@ -36,6 +40,10 @@ const ProspectForm = ({ prospect, onSubmit, onCancel }) => {
         ville: prospect.ville || '',
         adresse: prospect.adresse || '',
         forme_juridique: prospect.forme_juridique || '',
+        rc: prospect.rc || '',
+        nif: prospect.nif || '',
+        ai: prospect.ai || '',
+        nis: prospect.nis || '',
         solde_initial: prospect.solde_initial || 0,
         commercial_assigned: prospect.commercial_assigned || (user?.nom || user?.email || ''),
         temperature: prospect.temperature || 'froid'
@@ -53,6 +61,10 @@ const ProspectForm = ({ prospect, onSubmit, onCancel }) => {
         ville: '',
         adresse: '',
         forme_juridique: '',
+        rc: '',
+        nif: '',
+        ai: '',
+        nis: '',
         solde_initial: 0,
         commercial_assigned: user?.nom || user?.email || '',
         temperature: 'froid'
@@ -220,7 +232,7 @@ const ProspectForm = ({ prospect, onSubmit, onCancel }) => {
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Input
           label="Ville"
           type="text"
@@ -235,6 +247,41 @@ const ProspectForm = ({ prospect, onSubmit, onCancel }) => {
           value={formData.adresse}
           onChange={(e) => handleChange('adresse', e.target.value)}
           placeholder="Adresse complète"
+          disabled={isSubmitting}
+        />
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 bg-gray-50 p-3 rounded-lg border border-gray-200">
+        <Input
+          label="RC"
+          type="text"
+          value={formData.rc}
+          onChange={(e) => handleChange('rc', e.target.value)}
+          placeholder="Registre Commerce"
+          disabled={isSubmitting}
+        />
+        <Input
+          label="NIF"
+          type="text"
+          value={formData.nif}
+          onChange={(e) => handleChange('nif', e.target.value)}
+          placeholder="ID Fiscal"
+          disabled={isSubmitting}
+        />
+        <Input
+          label="AI"
+          type="text"
+          value={formData.ai}
+          onChange={(e) => handleChange('ai', e.target.value)}
+          placeholder="Article Imposition"
+          disabled={isSubmitting}
+        />
+        <Input
+          label="NIS"
+          type="text"
+          value={formData.nis}
+          onChange={(e) => handleChange('nis', e.target.value)}
+          placeholder="ID Statistique"
           disabled={isSubmitting}
         />
       </div>

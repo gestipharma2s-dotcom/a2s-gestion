@@ -259,7 +259,8 @@ export const conventionExportService = {
           
           <div class="clause-text"><strong>Entre :</strong></div>
           <div class="clause-text" style="background: #f9f9f9; padding: 15px; border-radius: 4px; border: 1px solid #eee;">
-            <strong>${(client.raison_sociale || '...................................................').toUpperCase()}</strong>, Sis à : ${(client.adresse || '...................................................')}, ${(client.wilaya || '....................')}, Algérie.<br>
+            <strong>${(client.forme_juridique || '')} ${(client.raison_sociale || '...................................................').toUpperCase()}</strong>, Sis à : ${(client.adresse || '...................................................')}, ${(client.wilaya || '....................')}, Algérie.<br>
+            ${client.nif ? `NIF : ${client.nif} | ` : ''} ${client.rc ? `RC : ${client.rc} | ` : ''} ${client.ai ? `AI : ${client.ai}` : ''}<br>
             Ci-après désigné par <strong>« le Client »</strong> Représentée par <strong>${representantClient}</strong>, Directeur Général.
           </div>
           
