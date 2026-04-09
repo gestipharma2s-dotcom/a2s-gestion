@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Edit2, Trash2, Building, Calendar, CreditCard, Lock } from 'lucide-react';
+import { Edit2, Trash2, Building, Calendar, CreditCard, Lock, FileText } from 'lucide-react';
+import conventionExportService from '../../services/conventionExportService';
 import { formatDate, formatMontant, getStatutClass, getStatutLabel, getStatutPaiement, formatPriceDisplay } from '../../utils/helpers';
 import { paiementService } from '../../services/paiementService';
 import { useAuth } from '../../context/AuthContext';
@@ -106,8 +107,8 @@ const InstallationCard = ({ installation, onEdit, onDelete, onPayment, refreshTr
             onClick={() => onEdit(installation)}
             disabled={!hasEditPermission && !(profile?.role === 'admin' || profile?.role === 'super_admin')}
             className={`p-2 rounded-lg transition-colors ${!hasEditPermission && !(profile?.role === 'admin' || profile?.role === 'super_admin')
-                ? 'text-gray-400 cursor-not-allowed'
-                : 'text-blue-600 hover:bg-blue-50'
+              ? 'text-gray-400 cursor-not-allowed'
+              : 'text-blue-600 hover:bg-blue-50'
               }`}
             title={!hasEditPermission && !(profile?.role === 'admin' || profile?.role === 'super_admin') ? 'Permission refusée' : 'Modifier'}
           >
@@ -121,8 +122,8 @@ const InstallationCard = ({ installation, onEdit, onDelete, onPayment, refreshTr
             onClick={() => onDelete(installation)}
             disabled={!hasDeletePermission && !(profile?.role === 'admin' || profile?.role === 'super_admin')}
             className={`p-2 rounded-lg transition-colors ${!hasDeletePermission && !(profile?.role === 'admin' || profile?.role === 'super_admin')
-                ? 'text-gray-400 cursor-not-allowed'
-                : 'text-red-600 hover:bg-red-50'
+              ? 'text-gray-400 cursor-not-allowed'
+              : 'text-red-600 hover:bg-red-50'
               }`}
             title={!hasDeletePermission && !(profile?.role === 'admin' || profile?.role === 'super_admin') ? 'Permission refusée' : 'Supprimer'}
           >
@@ -219,6 +220,17 @@ const InstallationCard = ({ installation, onEdit, onDelete, onPayment, refreshTr
           <div className="text-xs text-gray-500">
             <p>Créé par: <span className="font-semibold text-gray-700">{createdByUser.nom || createdByUser.email}</span></p>
           </div>
+        )}
+
+        {/* Bouton Convention - Seulement pour LOGIPHARM */}
+        {installation.application_installee?.toUpperCase().includes('LOGIPHARM') && (
+          <button
+            onClick={() => conventionExportService.printConvention(installation)}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 mb-2 shadow-md"
+          >
+            <FileText size={18} />
+            Imprimer Convention (6 Pages)
+          </button>
         )}
 
         {/* Bouton Payer - Seulement pour les admins */}

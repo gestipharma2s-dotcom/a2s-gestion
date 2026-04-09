@@ -18,6 +18,8 @@ import { prospectService } from '../../services/prospectService';
 import PaymentQuickForm from './PaymentQuickForm';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
+import { FileText } from 'lucide-react';
+import conventionExportService from '../../services/conventionExportService';
 
 const InstallationsList = () => {
   const [installations, setInstallations] = useState([]);
@@ -582,6 +584,14 @@ Cette action est IRRÉVERSIBLE !
             }
           ]}
           actions={[
+            {
+              key: 'convention',
+              label: 'Convention',
+              icon: <FileText size={18} />,
+              onClick: (row) => conventionExportService.printConvention(row),
+              show: (row) => row.application_installee?.toUpperCase().includes('LOGIPHARM'),
+              className: 'bg-green-600 hover:bg-green-700 text-white px-3 py-1'
+            },
             {
               key: 'details',
               label: 'Détails',
