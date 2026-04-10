@@ -120,7 +120,7 @@ const PaiementForm = ({ paiement, onSubmit, onCancel, isAbonnement = false, isSu
             // Charger les deux: Abonnement ET Acquisition pour permettre de permuter via le SELECT "Type"
 
             // 1. Calcul Abonnement
-            const amtAbo = inst.montant_abonnement || 0;
+            const amtAbo = (inst.montant_abonnement || 0) + (inst.applications_annexes || []).reduce((acc, a) => acc + (parseFloat(a.montant_abonnement) || 0), 0);
             const totalPayeAbo = paiements
               .filter(p => p.type === 'abonnement')
               .reduce((sum, p) => sum + (p.montant || 0), 0);
@@ -133,20 +133,23 @@ const PaiementForm = ({ paiement, onSubmit, onCancel, isAbonnement = false, isSu
               .filter(p => typeof p.type === 'string' && p.type === 'acquisition')
               .reduce((sum, p) => sum + (p.montant || 0), 0);
 
+            const amtAcq = (inst.montant || 0) + (inst.applications_annexes || []).reduce((acc, a) => acc + (parseFloat(a.montant) || 0), 0);
             setPaiementsExistants(totalPayeAcq);
-            setMontantInstallation(inst.montant || 0);
-            const reste = Math.max(0, (inst.montant || 0) - totalPayeAcq);
+            setMontantInstallation(amtAcq);
+            const reste = Math.max(0, amtAcq - totalPayeAcq);
             setRestAPayer(reste);
             setMontantInstallationCalcule(true);
 
-            console.log(`✅ Calculs croisés: Abo(${amtAbo}) / Acq(${inst.montant})`);
+            console.log(`✅ Calculs croisés: Abo(${amtAbo}) / Acq(${amtAcq})`);
           } catch (error) {
             console.error('Erreur calcul reste à payer:', error);
             // Fallbacks
-            setAbonnementMontant(inst.montant_abonnement || 0);
-            setAbonnementResteAPayer(inst.montant_abonnement || 0);
-            setMontantInstallation(inst.montant || 0);
-            setRestAPayer(inst.montant || 0);
+            const errAmtAbo = (inst.montant_abonnement || 0) + (inst.applications_annexes || []).reduce((acc, a) => acc + (parseFloat(a.montant_abonnement) || 0), 0);
+            const errAmtAcq = (inst.montant || 0) + (inst.applications_annexes || []).reduce((acc, a) => acc + (parseFloat(a.montant) || 0), 0);
+            setAbonnementMontant(errAmtAbo);
+            setAbonnementResteAPayer(errAmtAbo);
+            setMontantInstallation(errAmtAcq);
+            setRestAPayer(errAmtAcq);
             setMontantInstallationCalcule(true);
           }
         };

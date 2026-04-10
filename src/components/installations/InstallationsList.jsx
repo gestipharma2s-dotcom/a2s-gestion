@@ -298,6 +298,7 @@ Cette action est IRRÉVERSIBLE !
           date_installation: formData.date_installation,
           type: formData.type,
           statut: formData.statut,
+          applications_annexes: formData.applications_annexes || [],
           created_by: user?.id || null
         };
         const newInstallation = await installationService.create(installationData);
@@ -350,7 +351,8 @@ Cette action est IRRÉVERSIBLE !
           montant_abonnement: formData.montant_abonnement,
           date_installation: formData.date_installation,
           type: formData.type,
-          statut: formData.statut
+          statut: formData.statut,
+          applications_annexes: formData.applications_annexes || []
         };
         await installationService.update(selectedInstallation.id, installationData);
         addNotification({

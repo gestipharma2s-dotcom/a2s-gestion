@@ -72,8 +72,12 @@ const InstallationCard = ({ installation, onEdit, onDelete, onPayment, refreshTr
       const totalPaye = paiementsInst.reduce((sum, p) => sum + (p.montant || 0), 0);
       setMontantPaye(totalPaye);
 
+      // Calculer le montant total (Installation de base + Annexes)
+      const annexes = installation.applications_annexes || [];
+      const montantTotalInstallation = (installation.montant || 0) + annexes.reduce((acc, a) => acc + (a.montant || 0), 0);
+
       // Calculer le reste pour CETTE installation uniquement
-      const reste = Math.max(0, installation.montant - totalPaye);
+      const reste = Math.max(0, montantTotalInstallation - totalPaye);
       setResteAPayer(reste);
     } catch (error) {
       console.error('Erreur calcul reste à payer:', error);
@@ -149,16 +153,40 @@ const InstallationCard = ({ installation, onEdit, onDelete, onPayment, refreshTr
         </div>
 
         {/* ✅ Afficher Montant Installation réel pour admins, codes pour autres */}
-        <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
-          <p className="text-xs text-blue-600 font-semibold">MONTANT</p>
-          <p className="text-2xl font-bold text-blue-700">
-            {profile?.role === 'admin' || profile?.role === 'super_admin' ? (
-              formatMontant(installation.montant || 0)
-            ) : (
-              '🔐'
-            )}
-          </p>
-        </div>
+        {(() => {
+          const annexes = installation.applications_annexes || [];
+          const montantBase = installation.montant || 0;
+          const montantTotal = montantBase + annexes.reduce((acc, a) => acc + (a.montant || 0), 0);
+
+          return (
+            <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+              <div className="flex justify-between items-center mb-1">
+                <p className="text-xs text-blue-600 font-semibold">MONTANT TOTAL (ACQUISITION)</p>
+              </div>
+              <p className="text-2xl font-bold text-blue-700">
+                {profile?.role === 'admin' || profile?.role === 'super_admin' ? (
+                  formatMontant(montantTotal)
+                ) : (
+                  '🔐'
+                )}
+              </p>
+              {annexes.length > 0 && (profile?.role === 'admin' || profile?.role === 'super_admin') && (
+                <div className="mt-2 space-y-1 border-t border-blue-200 pt-2">
+                  <div className="flex justify-between text-xs text-blue-800">
+                    <span>Base ({installation.application_installee})</span>
+                    <span className="font-medium">{formatMontant(montantBase)}</span>
+                  </div>
+                  {annexes.map((annexe, idx) => (
+                    <div key={idx} className="flex justify-between text-xs text-blue-800">
+                      <span>+ {annexe.nom}</span>
+                      <span className="font-medium">{formatMontant(annexe.montant || 0)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ✅ Montant Payé et Reste à Payer - Vrai montant au lieu de codes */}
         {!loading && (

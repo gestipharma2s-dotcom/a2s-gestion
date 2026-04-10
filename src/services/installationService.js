@@ -22,7 +22,7 @@ export const installationService = {
           if (inst.client_id) {
             const { data: prospectData } = await supabase
               .from(TABLES.PROSPECTS)
-              .select('raison_sociale, contact, telephone, email, wilaya, adresse, forme_juridique, rc, nif, ai, nis')
+              .select('*')
               .eq('id', inst.client_id)
               .single();
             prospect = prospectData || {};
@@ -73,6 +73,7 @@ export const installationService = {
         date_installation: installationData.date_installation,
         type: installationData.type || 'abonnement',
         statut: 'en_cours',
+        applications_annexes: installationData.applications_annexes || [],
         created_by: installationData.created_by || null
       };
       console.log('DEBUG [createSimple]: Insertion installation avec statut:', insertData.statut);
@@ -88,11 +89,18 @@ export const installationService = {
       // Convertir le prospect en client actif
       await prospectService.convertToClient(installationData.client_id);
 
+      // Construire le message d'historique avec les annexes
+      let messageHistorique = `Démarrage direct en abonnement: ${installationData.application_installee}`;
+      if (installationData.applications_annexes && installationData.applications_annexes.length > 0) {
+        const annexesNoms = installationData.applications_annexes.map(a => a.nom).join(', ');
+        messageHistorique += ` (avec ${annexesNoms})`;
+      }
+
       // Ajouter l'historique
       await prospectService.addHistorique(
         installationData.client_id,
         'installation',
-        `Démarrage direct en abonnement: ${installationData.application_installee}`
+        messageHistorique
       );
 
       return installation;
@@ -129,6 +137,7 @@ export const installationService = {
         date_installation: installationData.date_installation,
         type: installationData.type || 'acquisition',
         statut: 'en_cours',
+        applications_annexes: installationData.applications_annexes || [],
         created_by: installationData.created_by || null
       };
       console.log('DEBUG [create]: Insertion installation avec statut:', insertData.statut);
@@ -149,11 +158,18 @@ export const installationService = {
       // Convertir le prospect en client actif
       await prospectService.convertToClient(installationData.client_id);
 
+      // Construire le message d'historique avec les annexes
+      let messageHistorique = `Installation créée: ${installationData.application_installee}`;
+      if (installationData.applications_annexes && installationData.applications_annexes.length > 0) {
+        const annexesNoms = installationData.applications_annexes.map(a => a.nom).join(', ');
+        messageHistorique += ` (avec ${annexesNoms})`;
+      }
+
       // ✅ CORRIGÉ: addHistorique() prend 3 paramètres (prospectId, action, détails)
       await prospectService.addHistorique(
         installationData.client_id,
         'installation',
-        `Installation créée: ${installationData.application_installee}`
+        messageHistorique
       );
 
       return installation;
@@ -183,6 +199,9 @@ export const installationService = {
       }
       if (installationData.date_installation !== undefined) {
         updateData.date_installation = installationData.date_installation;
+      }
+      if (installationData.applications_annexes !== undefined) {
+        updateData.applications_annexes = installationData.applications_annexes;
       }
       // NOUVEAU: Lien Mission
       if (installationData.mission_id !== undefined) {

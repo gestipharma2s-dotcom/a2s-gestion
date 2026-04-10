@@ -90,7 +90,7 @@ const PaiementsList = ({ refreshTrigger, onRefreshTrigger }) => {
           .filter(p => p.installation_id === inst.id)
           .reduce((sum, p) => sum + (typeof p.montant === 'number' ? p.montant : 0), 0);
 
-        const reste = Math.max(0, (inst.montant || 0) - montantPaye);
+        const reste = (inst.montant || 0) - montantPaye;
 
         if (reste === inst.montant || inst.montant === 0) {
           stats.noPaid++;
@@ -368,20 +368,26 @@ Cette action est IRRÉVERSIBLE et affectera:
     const totalSoldeInitial = (prospects || []).reduce((sum, p) => sum + (parseFloat(p.solde_initial) || 0), 0);
 
     // 2. Total des nouvelles installations (Acquisitions)
-    const totalInstallations = (installations || []).reduce((sum, i) => sum + (parseFloat(i.montant) || 0), 0);
+    const totalInstallations = (installations || []).reduce((sum, i) => {
+      const base = parseFloat(i.montant) || 0;
+      const annexes = (i.applications_annexes || []).reduce((acc, a) => acc + (parseFloat(a.montant) || 0), 0);
+      return sum + base + annexes;
+    }, 0);
 
     // 3. Total des abonnements (Périodes facturées)
-    // Pour chaque abonnement, on ajoute le montant_abonnement de l'installation liée
+    // Pour chaque abonnement, on ajoute le montant_abonnement lié (base + annexes)
     const totalAbonnements = (abonnements || []).reduce((sum, a) => {
       const inst = installations.find(i => i.id === a.installation_id);
-      return sum + (parseFloat(inst?.montant_abonnement) || 0);
+      const baseAbo = parseFloat(inst?.montant_abonnement) || 0;
+      const annexesAbo = (inst?.applications_annexes || []).reduce((acc, ann) => acc + (parseFloat(ann.montant_abonnement) || 0), 0);
+      return sum + baseAbo + annexesAbo;
     }, 0);
 
     // 4. Total des paiements effectués
     const totalPaye = (paiements || []).reduce((sum, p) => sum + (parseFloat(p.montant) || 0), 0);
 
     // Reste Global = (Dette Initiale + Acquisitions + Abonnements) - Remboursements
-    return Math.max(0, (totalSoldeInitial + totalInstallations + totalAbonnements) - totalPaye);
+    return (totalSoldeInitial + totalInstallations + totalAbonnements) - totalPaye;
   };
 
   const stats = {
@@ -615,8 +621,10 @@ Cette action est IRRÉVERSIBLE et affectera:
                     {profile?.role === 'admin' || profile?.role === 'super_admin' ? (
                       (() => {
                         const isAbo = paiement.type === 'abonnement' || paiement.installation?.type === 'abonnement';
-                        const totalDu = isAbo ? (paiement.installation?.montant_abonnement || 0) : (paiement.installation?.montant || 0);
-                        const reste = Math.max(0, totalDu - (paiement.montant || 0));
+                        const baseVal = isAbo ? (paiement.installation?.montant_abonnement || 0) : (paiement.installation?.montant || 0);
+                        const annexesVal = (paiement.installation?.applications_annexes || []).reduce((acc, a) => acc + (parseFloat(isAbo ? a.montant_abonnement : a.montant) || 0), 0);
+                        const totalDu = baseVal + annexesVal;
+                        const reste = totalDu - (paiement.montant || 0);
                         return <span>{formatMontant(reste)}</span>;
                       })()
                     ) : (
@@ -637,7 +645,9 @@ Cette action est IRRÉVERSIBLE et affectera:
                     {/* ✅ Afficher le code (0, 1, 2) */}
                     {(() => {
                       const isAbo = paiement.type === 'abonnement' || paiement.installation?.type === 'abonnement';
-                      const totalDu = isAbo ? (paiement.installation?.montant_abonnement || 0) : (paiement.installation?.montant || 0);
+                      const baseVal = isAbo ? (paiement.installation?.montant_abonnement || 0) : (paiement.installation?.montant || 0);
+                      const annexesVal = (paiement.installation?.applications_annexes || []).reduce((acc, a) => acc + (parseFloat(isAbo ? a.montant_abonnement : a.montant) || 0), 0);
+                      const totalDu = baseVal + annexesVal;
                       const status = getStatutPaiement(totalDu, paiement.montant || 0);
                       return (
                         <span className={`px-2 py-1 rounded-full text-xs font-bold ${status.couleur}`}>

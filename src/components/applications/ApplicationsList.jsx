@@ -5,17 +5,21 @@ import Button from '../common/Button';
 import SearchBar from '../common/SearchBar';
 import ApplicationForm from './ApplicationForm';
 import ApplicationCard from './ApplicationCard';
+import ModuleForm from './ModuleForm';
 import { applicationService } from '../../services/applicationService';
+import { applicationModuleService } from '../../services/applicationModuleService';
 import { userService } from '../../services/userService';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 
 const ApplicationsList = () => {
   const [applications, setApplications] = useState([]);
+  const [modules, setModules] = useState({});
   const [filteredApplications, setFilteredApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [showModuleModal, setShowModuleModal] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState(null);
   const [modalMode, setModalMode] = useState('create');
   const [hasCreatePermission, setHasCreatePermission] = useState(false);
@@ -42,6 +46,17 @@ const ApplicationsList = () => {
       setLoading(true);
       const data = await applicationService.getAll();
       setApplications(data);
+
+      // Charger tous les modules en une seule requête
+      const allModules = await applicationModuleService.getAll();
+      const modulesMap = {};
+      allModules.forEach(mod => {
+        if (!modulesMap[mod.application_id]) {
+          modulesMap[mod.application_id] = [];
+        }
+        modulesMap[mod.application_id].push(mod);
+      });
+      setModules(modulesMap);
     } catch (error) {
       addNotification({
         type: 'error',
@@ -56,13 +71,13 @@ const ApplicationsList = () => {
     try {
       setLoadingPermissions(true);
       if (user?.id && profile) {
-        const canCreate = profile?.role === 'admin' || profile?.role === 'super_admin' || 
-                         await userService.hasCreatePermission(user.id, 'applications');
-        const canEdit = profile?.role === 'admin' || profile?.role === 'super_admin' || 
-                       await userService.hasEditPermission(user.id, 'applications');
-        const canDelete = profile?.role === 'admin' || profile?.role === 'super_admin' || 
-                         await userService.hasDeletePermission(user.id, 'applications');
-        
+        const canCreate = profile?.role === 'admin' || profile?.role === 'super_admin' ||
+          await userService.hasCreatePermission(user.id, 'applications');
+        const canEdit = profile?.role === 'admin' || profile?.role === 'super_admin' ||
+          await userService.hasEditPermission(user.id, 'applications');
+        const canDelete = profile?.role === 'admin' || profile?.role === 'super_admin' ||
+          await userService.hasDeletePermission(user.id, 'applications');
+
         setHasCreatePermission(canCreate);
         setHasEditPermission(canEdit);
         setHasDeletePermission(canDelete);
@@ -88,35 +103,24 @@ const ApplicationsList = () => {
   };
 
   const handleCreate = () => {
-    // ✅ Vérifier la permission AVANT d'ouvrir le modal (silencieusement, sans message)
-    if (!hasCreatePermission) {
-      return;
-    }
+    if (!hasCreatePermission) return;
     setSelectedApplication(null);
     setModalMode('create');
     setShowModal(true);
   };
 
   const handleEdit = (application) => {
-    // ✅ Vérifier la permission AVANT d'ouvrir le modal (silencieusement, sans message)
-    if (!hasEditPermission) {
-      return;
-    }
+    if (!hasEditPermission) return;
     setSelectedApplication(application);
     setModalMode('edit');
     setShowModal(true);
   };
 
   const handleDelete = async (application) => {
-    // ✅ Extraire l'ID si c'est un objet (du DataTable)
     const applicationId = application?.id || application;
-    
-    // ✅ Vérifier la permission AVANT de supprimer (silencieusement, sans message)
-    if (!hasDeletePermission) {
-      return;
-    }
-    
-    if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette application ?')) {
+    if (!hasDeletePermission) return;
+
+    if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette application et tous ses modules ?')) {
       return;
     }
 
@@ -128,10 +132,7 @@ const ApplicationsList = () => {
       });
       loadApplications();
     } catch (error) {
-      // ✅ Gérer les erreurs spécifiques
       console.error('Erreur suppression application:', error);
-      
-      // 409 Conflict = contrainte de clé étrangère
       if (error.status === 409 || error.message?.includes('foreign key')) {
         addNotification({
           type: 'error',
@@ -171,6 +172,47 @@ const ApplicationsList = () => {
     }
   };
 
+  // =========== MODULES ===========
+
+  const handleAddModule = (application) => {
+    setSelectedApplication(application);
+    setShowModuleModal(true);
+  };
+
+  const handleModuleSubmit = async (moduleData) => {
+    try {
+      await applicationModuleService.create(moduleData);
+      addNotification({
+        type: 'success',
+        message: 'Module ajouté avec succès'
+      });
+      setShowModuleModal(false);
+      loadApplications();
+    } catch (error) {
+      addNotification({
+        type: 'error',
+        message: 'Erreur lors de l\'ajout du module'
+      });
+    }
+  };
+
+  const handleDeleteModule = async (moduleId) => {
+    if (!window.confirm('Supprimer ce module ?')) return;
+    try {
+      await applicationModuleService.delete(moduleId);
+      addNotification({
+        type: 'success',
+        message: 'Module supprimé'
+      });
+      loadApplications();
+    } catch (error) {
+      addNotification({
+        type: 'error',
+        message: 'Erreur lors de la suppression du module'
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -204,12 +246,12 @@ const ApplicationsList = () => {
               placeholder="Rechercher une application..."
             />
           </div>
-          <Button 
-            variant="primary" 
-            icon={Plus} 
+          <Button
+            variant="primary"
+            icon={Plus}
             onClick={handleCreate}
             disabled={!hasCreatePermission}
-            title={!hasCreatePermission ? 'Permission refusée: Créer une application' : 'Ajouter une nouvelle application'}
+            title={!hasCreatePermission ? 'Permission refusée' : 'Ajouter une nouvelle application'}
           >
             Ajouter Application
           </Button>
@@ -227,8 +269,11 @@ const ApplicationsList = () => {
             <ApplicationCard
               key={application.id}
               application={application}
+              modules={modules[application.id] || []}
               onEdit={handleEdit}
               onDelete={handleDelete}
+              onAddModule={handleAddModule}
+              onDeleteModule={handleDeleteModule}
               hasEditPermission={hasEditPermission}
               hasDeletePermission={hasDeletePermission}
             />
@@ -236,7 +281,7 @@ const ApplicationsList = () => {
         </div>
       )}
 
-      {/* Modal Formulaire */}
+      {/* Modal Application */}
       <Modal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
@@ -246,6 +291,19 @@ const ApplicationsList = () => {
           application={selectedApplication}
           onSubmit={handleFormSubmit}
           onCancel={() => setShowModal(false)}
+        />
+      </Modal>
+
+      {/* Modal Module */}
+      <Modal
+        isOpen={showModuleModal}
+        onClose={() => setShowModuleModal(false)}
+        title={`Ajouter un module à ${selectedApplication?.nom || ''}`}
+      >
+        <ModuleForm
+          applicationId={selectedApplication?.id}
+          onSubmit={handleModuleSubmit}
+          onCancel={() => setShowModuleModal(false)}
         />
       </Modal>
     </div>

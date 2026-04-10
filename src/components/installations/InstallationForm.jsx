@@ -23,6 +23,7 @@ const InstallationForm = ({ installation, onSubmit, onCancel }) => {
     chef_mission_id: '',
     accompagnateurs_ids: [],
     anciens_logiciels: [],
+    applications_annexes: [], // NOUVEAU
     conversion_bdd: 'non',
     resume_action: '',
     details_action: '',
@@ -36,8 +37,14 @@ const InstallationForm = ({ installation, onSubmit, onCancel }) => {
   const [applications, setApplications] = useState([]);
   const [users, setUsers] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
   // Pour "Anciens Logiciels" saisie libre
   const [logicielInput, setLogicielInput] = useState('');
+
+  // Pour "Applications Annexes"
+  const [selectedAnnexeId, setSelectedAnnexeId] = useState('');
+  const [annexeMontant, setAnnexeMontant] = useState('');
+  const [annexeMontantAbo, setAnnexeMontantAbo] = useState('');
 
   useEffect(() => {
     loadData();
@@ -57,6 +64,7 @@ const InstallationForm = ({ installation, onSubmit, onCancel }) => {
         chef_mission_id: installation.chef_mission_id || '',
         accompagnateurs_ids: installation.accompagnateurs_ids || [],
         anciens_logiciels: installation.anciens_logiciels || [],
+        applications_annexes: installation.applications_annexes || [],
         conversion_bdd: installation.conversion_bdd || 'non',
         resume_action: installation.resume_action || '',
         details_action: installation.details_action || '',
@@ -144,12 +152,56 @@ const InstallationForm = ({ installation, onSubmit, onCancel }) => {
     }));
   };
 
+  const handleAnnexeSelect = (appId) => {
+    setSelectedAnnexeId(appId);
+    const app = applications.find(a => a.id === appId);
+    if (app) {
+      setAnnexeMontant(app.prix_acquisition || app.prix || 0);
+      setAnnexeMontantAbo(app.prix_abonnement || app.prix || 0);
+    } else {
+      setAnnexeMontant('');
+      setAnnexeMontantAbo('');
+    }
+  };
+
+  const addApplicationAnnexe = () => {
+    if (!selectedAnnexeId) return;
+    const app = applications.find(a => a.id === selectedAnnexeId);
+    if (!app) return;
+
+    // Verifier si dejà ajoutée
+    if (formData.applications_annexes.some(a => a.app_id === app.id)) return;
+
+    const newAnnexe = {
+      app_id: app.id,
+      nom: app.nom,
+      montant: parseFloat(annexeMontant) || 0,
+      montant_abonnement: parseFloat(annexeMontantAbo) || 0
+    };
+
+    setFormData(prev => ({
+      ...prev,
+      applications_annexes: [...prev.applications_annexes, newAnnexe]
+    }));
+
+    setSelectedAnnexeId('');
+    setAnnexeMontant('');
+    setAnnexeMontantAbo('');
+  };
+
+  const removeApplicationAnnexe = (appId) => {
+    setFormData(prev => ({
+      ...prev,
+      applications_annexes: prev.applications_annexes.filter(a => a.app_id !== appId)
+    }));
+  };
+
   const validate = () => {
     const newErrors = {};
     if (!formData.client_id) newErrors.client_id = 'Client requis';
     if (!formData.application_installee) newErrors.application_installee = 'Application requise';
-    if (!formData.montant) newErrors.montant = 'Montant requis';
-    if (!formData.montant_abonnement) newErrors.montant_abonnement = "Montant d'abonnement requis";
+    if (formData.montant === '' || formData.montant === null) newErrors.montant = 'Montant requis';
+    if (formData.montant_abonnement === '' || formData.montant_abonnement === null) newErrors.montant_abonnement = "Montant d'abonnement requis";
     if (!formData.date_installation) newErrors.date_installation = 'Date de début requise';
     if (!formData.type) newErrors.type = 'Type requis';
     if (formData.creer_mission) {
@@ -187,6 +239,7 @@ const InstallationForm = ({ installation, onSubmit, onCancel }) => {
         accompagnateurs_ids: formData.accompagnateurs_ids,
         date_fin_installation: formData.date_fin_installation,
         anciens_logiciels: formData.anciens_logiciels,
+        applications_annexes: formData.applications_annexes,
         conversion_bdd: formData.conversion_bdd,
         resume_action: formData.resume_action,
         details_action: formData.details_action,
@@ -208,20 +261,31 @@ const InstallationForm = ({ installation, onSubmit, onCancel }) => {
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
         <h3 className="text-sm font-bold text-blue-700 uppercase tracking-wider mb-3">📦 Informations Installation</h3>
         <div className="space-y-3">
-          <SearchableSelect
-            label="Client"
-            value={formData.client_id}
-            onChange={(e) => handleChange('client_id', e.target.value)}
-            options={clients.map(c => ({
-              value: c.id,
-              label: c.raison_sociale,
-              description: `${c.ville || ''} ${c.wilaya ? `(${c.wilaya})` : ''} - ${c.contact || ''}`.trim().replace(/^ - /, '')
-            }))}
-            placeholder="Rechercher un client..."
-            error={errors.client_id}
-            required
-            disabled={isSubmitting}
-          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <SearchableSelect
+              label="Client"
+              value={formData.client_id}
+              onChange={(e) => handleChange('client_id', e.target.value)}
+              options={clients.map(c => ({
+                value: c.id,
+                label: c.raison_sociale,
+                description: `${c.ville || ''} ${c.wilaya ? `(${c.wilaya})` : ''} - ${c.contact || ''}`.trim().replace(/^ - /, '')
+              }))}
+              placeholder="Rechercher un client..."
+              error={errors.client_id}
+              required
+              disabled={isSubmitting}
+            />
+            <Input
+              label="Date d'Installation"
+              type="date"
+              value={formData.date_installation}
+              onChange={(e) => handleChange('date_installation', e.target.value)}
+              error={errors.date_installation}
+              required
+              disabled={isSubmitting}
+            />
+          </div>
 
           <Select
             label="Application"
@@ -276,6 +340,65 @@ const InstallationForm = ({ installation, onSubmit, onCancel }) => {
             />
           </div>
 
+          {/* SECTION : Applications Annexes */}
+          <div className="border border-blue-100 rounded-lg p-3 bg-white">
+            <label className="block text-sm font-medium text-blue-700 mb-2">Applications Annexes (Modules Supplémentaires)</label>
+            <div className="flex gap-2 items-end mb-2 flex-wrap sm:flex-nowrap">
+              <div className="flex-1 min-w-[200px]">
+                <Select
+                  label=""
+                  value={selectedAnnexeId}
+                  onChange={(e) => handleAnnexeSelect(e.target.value)}
+                  options={[
+                    { value: '', label: 'Sélectionner une application (ex: COMPTA)' },
+                    ...applications.map(a => ({ value: a.id, label: a.nom }))
+                  ]}
+                  disabled={isSubmitting}
+                />
+              </div>
+              <div className="w-24">
+                <Input
+                  label="ACQ (DA)"
+                  type="number"
+                  value={annexeMontant}
+                  onChange={(e) => setAnnexeMontant(e.target.value)}
+                  placeholder="0"
+                  disabled={isSubmitting || !selectedAnnexeId}
+                />
+              </div>
+              <div className="w-24">
+                <Input
+                  label="ABO (DA)"
+                  type="number"
+                  value={annexeMontantAbo}
+                  onChange={(e) => setAnnexeMontantAbo(e.target.value)}
+                  placeholder="0"
+                  disabled={isSubmitting || !selectedAnnexeId}
+                />
+              </div>
+              <Button type="button" variant="primary" onClick={addApplicationAnnexe} disabled={!selectedAnnexeId || isSubmitting}>
+                <Plus size={18} />
+              </Button>
+            </div>
+            {formData.applications_annexes.length > 0 && (
+              <div className="flex flex-col gap-2 mt-2">
+                {formData.applications_annexes.map((annexe, index) => (
+                  <div key={index} className="flex items-center justify-between bg-blue-50 px-3 py-2 rounded-lg border border-blue-100">
+                    <div>
+                      <span className="font-semibold text-blue-900 text-sm">{annexe.nom}</span>
+                      <span className="text-xs text-blue-700 ml-2">
+                        (Acq: {annexe.montant} DA / Abo: {annexe.montant_abonnement} DA)
+                      </span>
+                    </div>
+                    <button type="button" onClick={() => removeApplicationAnnexe(annexe.app_id)} className="text-red-500 hover:text-red-700 p-1">
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <Select
               label="Type"
@@ -323,16 +446,7 @@ const InstallationForm = ({ installation, onSubmit, onCancel }) => {
 
         {(formData.creer_mission || isEditMode) && (
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <Input
-                label="Date de Début (= Date d'Installation)"
-                type="date"
-                value={formData.date_installation}
-                onChange={(e) => handleChange('date_installation', e.target.value)}
-                error={errors.date_installation}
-                required
-                disabled={isSubmitting}
-              />
+            <div className="grid grid-cols-1 gap-3">
               <Input
                 label="Date de Fin d'Installation"
                 type="date"

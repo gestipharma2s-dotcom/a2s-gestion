@@ -11,7 +11,7 @@ export const paiementService = {
           *,
           created_by,
           client:prospects!client_id(raison_sociale, contact),
-          installation:installations(application_installee, montant, montant_abonnement, type, created_by)
+          installation:installations(application_installee, montant, montant_abonnement, type, created_by, applications_annexes)
         `)
         .order('date_paiement', { ascending: false });
 
@@ -19,13 +19,26 @@ export const paiementService = {
 
       // Calculer le reste à payer pour chaque paiement
       const dataWithReste = data.map(paiement => {
-        // Le montant à payer dépend si c'est une acquisition ou un abonnement
+        const getTotalAbo = (inst) => {
+          if (!inst) return 0;
+          const base = inst.montant_abonnement || 0;
+          const annexes = (inst.applications_annexes || []).reduce((acc, a) => acc + (parseFloat(a.montant_abonnement) || 0), 0);
+          return base + annexes;
+        };
+
+        const getTotalAcq = (inst) => {
+          if (!inst) return 0;
+          const base = inst.montant || 0;
+          const annexes = (inst.applications_annexes || []).reduce((acc, a) => acc + (parseFloat(a.montant) || 0), 0);
+          return base + annexes;
+        };
+
         const montantDu = paiement.type === 'abonnement'
-          ? (paiement.installation?.montant_abonnement || 0)
-          : (paiement.installation?.montant || 0);
+          ? getTotalAbo(paiement.installation)
+          : getTotalAcq(paiement.installation);
 
         const montantPaye = paiement.montant || 0;
-        const resteAPayer = Math.max(0, montantDu - montantPaye);
+        const resteAPayer = montantDu - montantPaye;
 
         // Si created_by est NULL, utiliser le created_by de l'installation (fallback)
         const creator = paiement.created_by || paiement.installation?.created_by || null;
@@ -59,7 +72,7 @@ export const paiementService = {
           type,
           date_paiement,
           created_by,
-          installation:installations(montant, montant_abonnement, type, created_by, application_installee)
+          installation:installations(montant, montant_abonnement, type, created_by, application_installee, applications_annexes)
         `)
         .eq('client_id', clientId)
         .order('date_paiement', { ascending: false });
@@ -68,12 +81,26 @@ export const paiementService = {
 
       // Calculer le reste à payer pour chaque paiement
       const dataWithReste = data.map(paiement => {
+        const getTotalAbo = (inst) => {
+          if (!inst) return 0;
+          const base = inst.montant_abonnement || 0;
+          const annexes = (inst.applications_annexes || []).reduce((acc, a) => acc + (parseFloat(a.montant_abonnement) || 0), 0);
+          return base + annexes;
+        };
+
+        const getTotalAcq = (inst) => {
+          if (!inst) return 0;
+          const base = inst.montant || 0;
+          const annexes = (inst.applications_annexes || []).reduce((acc, a) => acc + (parseFloat(a.montant) || 0), 0);
+          return base + annexes;
+        };
+
         const montantDu = paiement.type === 'abonnement'
-          ? (paiement.installation?.montant_abonnement || 0)
-          : (paiement.installation?.montant || 0);
+          ? getTotalAbo(paiement.installation)
+          : getTotalAcq(paiement.installation);
 
         const montantPaye = paiement.montant || 0;
-        const resteAPayer = Math.max(0, montantDu - montantPaye);
+        const resteAPayer = montantDu - montantPaye;
 
         // Si created_by est NULL, utiliser le created_by de l'installation (fallback)
         const creator = paiement.created_by || paiement.installation?.created_by || null;
@@ -126,7 +153,7 @@ export const paiementService = {
       // 2. Récupérer les installations du client avec leur nom d'application
       const { data: installations, error: instError } = await supabase
         .from(TABLES.INSTALLATIONS)
-        .select('id, montant, montant_abonnement, application_installee, date_installation, type')
+        .select('id, montant, montant_abonnement, application_installee, applications_annexes, date_installation, type')
         .eq('client_id', clientId)
         .order('date_installation', { ascending: true });
 
@@ -174,33 +201,39 @@ export const paiementService = {
 
         const abos = abonnementsByInstallation[inst.id] || [];
         const nbAbonnements = abos.length;
-        // Montant total dû pour les abonnements = montant_abonnement * nombre de périodes facturées
-        const montantAboDu = (inst.montant_abonnement || 0) * nbAbonnements;
+        // Montant total dû pour les abonnements = (montant_abonnement_base + montant_abonnement_annexes) * nombre de périodes facturées
+        const totalAboMensuel = (inst.montant_abonnement || 0) + (inst.applications_annexes || []).reduce((acc, a) => acc + (parseFloat(a.montant_abonnement) || 0), 0);
+        const montantAboDu = totalAboMensuel * nbAbonnements;
 
         return {
           id: inst.id,
           application: inst.application_installee,
+          applications_annexes: inst.applications_annexes || [],
           date: inst.date_installation,
-          montantAcquisition: inst.montant || 0,
-          montantAbonnement: inst.montant_abonnement || 0,
+          date: inst.date_installation,
+          montantAcquisition: (inst.montant || 0) + (inst.applications_annexes || []).reduce((acc, a) => acc + (parseFloat(a.montant) || 0), 0),
+          montantAbonnement: (inst.montant_abonnement || 0) + (inst.applications_annexes || []).reduce((acc, a) => acc + (parseFloat(a.montant_abonnement) || 0), 0),
           nbAbonnements: nbAbonnements,
           montantAboDu: montantAboDu,
-          totalPayeAcq: totalPayeAcq,
           totalPayeAbo: totalPayeAbo,
-          resteAcq: Math.max(0, (inst.montant || 0) - totalPayeAcq),
-          resteAbo: Math.max(0, montantAboDu - totalPayeAbo),
+          resteAcq: ((inst.montant || 0) + (inst.applications_annexes || []).reduce((acc, a) => acc + (parseFloat(a.montant) || 0), 0)) - totalPayeAcq,
+          resteAbo: montantAboDu - totalPayeAbo,
           abonnements: abos
         };
       });
 
       // 6. Totaux globaux
-      const totalMontantInstallations = installations.reduce((s, i) => s + (i.montant || 0), 0);
+      const totalMontantInstallations = installations.reduce((s, i) => {
+        const base = i.montant || 0;
+        const annexes = (i.applications_annexes || []).reduce((acc, a) => acc + (parseFloat(a.montant) || 0), 0);
+        return s + base + annexes;
+      }, 0);
       const totalAbonnementsDu = installationsDetail.reduce((s, i) => s + i.montantAboDu, 0);
       const totalPaye = (allPaiements || []).reduce((s, p) => s + (p.montant || 0), 0);
       const totalPayeAcqGlobal = (allPaiements || []).filter(p => p.type === 'acquisition').reduce((s, p) => s + (p.montant || 0), 0);
       const totalPayeAboGlobal = (allPaiements || []).filter(p => p.type === 'abonnement').reduce((s, p) => s + (p.montant || 0), 0);
       const totalDu = totalMontantInstallations + soldeInitial + totalAbonnementsDu;
-      const resteTotal = Math.max(0, totalDu - totalPaye);
+      const resteTotal = totalDu - totalPaye;
 
       return {
         soldeInitial,

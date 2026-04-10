@@ -1,3 +1,5 @@
+import { getWilayaName } from '../constants/wilayas';
+
 /**
  * Service d'export pour les conventions LOGIPHARM
  * Génère une convention complète de 6 pages en HTML pour impression
@@ -19,10 +21,30 @@ export const conventionExportService = {
     const dateInstallation = installation.date_installation ? new Date(installation.date_installation) : new Date();
     const dateStr = dateInstallation.toLocaleDateString('fr-FR');
     const monthYearStr = dateInstallation.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }).toUpperCase();
-    const montantTotal = installation.montant || 16000000;
+    const annexesList = installation.applications_annexes || [];
+    const montantBase = installation.montant || 0;
+    const montantAnnexes = annexesList.reduce((acc, a) => acc + (parseFloat(a.montant) || 0), 0);
+    const montantTotal = montantBase + montantAnnexes;
     const representantClient = client.contact || "...........................";
 
+    const rawWilaya = client.wilaya ? String(client.wilaya).trim() : '';
+    let wilayaDisplay = '................';
+    if (rawWilaya) {
+      if (/^\d{1,2}$/.test(rawWilaya)) {
+        wilayaDisplay = getWilayaName(rawWilaya) || rawWilaya;
+      } else if (rawWilaya.includes('-')) {
+        wilayaDisplay = rawWilaya.split('-').pop().trim();
+      } else {
+        wilayaDisplay = rawWilaya;
+      }
+    }
+
     const formatCurrency = (n) => (n || 0).toLocaleString('fr-DZ') + ' DA';
+
+    // Générer la liste HTML des applications annexes
+    const annexesHtml = (installation.applications_annexes && installation.applications_annexes.length > 0)
+      ? installation.applications_annexes.map(annexe => `<li><strong>${annexe.nom.toUpperCase()}</strong></li>`).join('\n            ')
+      : `<li><strong>Aucune application annexe supplémentaire (Version Standard)</strong></li>`;
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -205,7 +227,7 @@ export const conventionExportService = {
           .sig-company {
             font-weight: bold;
             text-transform: uppercase;
-            font-size: 9pt;
+            font-size: 12pt;
           }
           .sig-address {
             font-size: 8pt;
@@ -259,8 +281,8 @@ export const conventionExportService = {
           
           <div class="clause-text"><strong>Entre :</strong></div>
           <div class="clause-text" style="background: #f9f9f9; padding: 15px; border-radius: 4px; border: 1px solid #eee;">
-            <strong>${(client.forme_juridique || '')} ${(client.raison_sociale || '...................................................').toUpperCase()}</strong>, Sis à : ${(client.adresse || '...................................................')}, ${(client.wilaya || '....................')}, Algérie.<br>
-            ${client.nif ? `NIF : ${client.nif} | ` : ''} ${client.rc ? `RC : ${client.rc} | ` : ''} ${client.ai ? `AI : ${client.ai}` : ''}<br>
+            <strong>${(client.forme_juridique || '')} ${(client.raison_sociale || '...................................................').toUpperCase()}</strong>, Sis à : ${(client.adresse || '...................................................')}, ${wilayaDisplay}, Algérie.<br>
+            ${client.nif ? `NIF : ${client.nif} | ` : ''} ${client.rc ? `RC : ${client.rc} | ` : ''} ${client.ai ? `AI : ${client.ai} | ` : ''} ${client.nis ? `NIS : ${client.nis}` : ''}<br>
             Ci-après désigné par <strong>« le Client »</strong> Représentée par <strong>${representantClient}</strong>, Directeur Général.
           </div>
           
@@ -282,10 +304,10 @@ export const conventionExportService = {
             La présente convention a pour objet la fourniture et la mise en place en licences illimitées de l'ERP <strong>« LOGIPHARM »</strong> dédié à la Gestion complète d'une distribution pharmaceutique et parapharmaceutique, contenant les modules suivants :
           </div>
           <ul class="module-list">
-            <li><strong>GESTION COMMERCIALE, STOCK, WMS, TRESORERIE, EXPEDITIONS.</strong></li>
+            <li><strong>GESTION COMMERCIALE, STOCK, TRESORERIE, EXPEDITIONS.</strong></li>
             <li><strong>GESTION DES ACHATS ET IMPORTATION.</strong></li>
             <li><strong>GESTION MULTI-DOSSIERS ET MULTI-DEPOTS.</strong></li>
-            <li><strong>GESTION DES SITES DISTANTS (Centralisés, Décentralisés, Centrale d'Achat, etc...). Le logiciel s'adapte à toutes les configurations.</strong></li>
+            <li><strong>GESTION DES MGX.</strong></li>
           </ul>
         </div>
 
@@ -298,12 +320,9 @@ export const conventionExportService = {
           </div>
           
           <ul class="module-list">
-            <li><strong>APPLICATIONS MOBILES : CRM, LIVRAISON, PREPARATION, INVENTAIRE, COMMANDE EN LIGNE.</strong></li>
-            <li><strong>COMPTABILITE GENERALE AUX NORMES SCF</strong></li>
-            <li><strong>GESTION DES IMMOBILISATIONS</strong></li>
-            <li><strong>GESTION DE LA PAIE ET DES RESSOURCES HUMAINES</strong></li>
-            <li><strong>PORTAIL RH</strong></li>
+            ${annexesHtml}
           </ul>
+
 
           <div class="clause-text" style="font-size: 10pt; background: #fffde7; padding: 10px; border: 1px dashed #ffd54f;">
             💡 <em>Le détail des coûts du logiciel et prestations de formation et d'assistance sont repris dans l'Annexe de la présente convention.</em>
@@ -419,13 +438,13 @@ export const conventionExportService = {
 
           <div class="signature-section">
             <div class="sig-box">
-              <div class="sig-label">PAR LE FOURNISSEUR AU CLIENT</div>
+              <div class="sig-label">PAR LE CLIENT</div>
               <div class="sig-placeholder"></div>
-              <div class="sig-company">${(client.raison_sociale || 'EURL WATSON DISTRIBUTION').toUpperCase()}</div>
-              <div class="sig-address">Wilaya : ${(client.wilaya || '................')}</div>
+              <div class="sig-company">${(client.raison_sociale || '.......................................').toUpperCase()}</div>
+              <div class="sig-address">${wilayaDisplay.toUpperCase()}</div>
             </div>
             <div class="sig-box">
-              <div class="sig-label">PAR LE CLIENT AU FOURNISSEUR</div>
+              <div class="sig-label">PAR LE FOURNISSEUR</div>
               <div class="sig-placeholder"></div>
               <div class="sig-company">SARL ADVANCED SOFTWARE SOLUTION</div>
               <div class="sig-address">MOHAMMADIA MALL, BORDJ EL KIFFAN, ALGER</div>

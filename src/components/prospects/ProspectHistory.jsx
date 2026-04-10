@@ -6,13 +6,14 @@ import { userService } from '../../services/userService';
 import { paiementService } from '../../services/paiementService';
 import { formatDateTime, formatDate, formatMontant } from '../../utils/helpers';
 import { useAuth } from '../../context/AuthContext';
-import { Phone, Mail, Calendar, FileText, CheckCircle, Edit2, Gift, Zap, RefreshCw, Trash2, X, Save, Thermometer, Briefcase, FileCheck } from 'lucide-react';
+import { Phone, Mail, Calendar, FileText, CheckCircle, Edit2, Gift, Zap, RefreshCw, Trash2, X, Save, Thermometer, Briefcase, FileCheck, CreditCard } from 'lucide-react';
 
 const ProspectHistory = ({ prospectId, prospect }) => {
   const { profile } = useAuth();
   const [history, setHistory] = useState([]);
   const [firstInstallation, setFirstInstallation] = useState(null);
   const [balance, setBalance] = useState(null);
+  const [paiements, setPaiements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingBalance, setLoadingBalance] = useState(false);
   const [users, setUsers] = useState([]);
@@ -72,13 +73,17 @@ const ProspectHistory = ({ prospectId, prospect }) => {
       console.log('📋 Historique affiché:', filteredHistory);
       setHistory(filteredHistory);
 
-      // Récupérer le solde financier
+      // Récupérer le solde financier et l'historique des paiements
       try {
         setLoadingBalance(true);
-        const balanceData = await paiementService.getResteTotalClient(prospectId);
+        const [balanceData, paiementsData] = await Promise.all([
+          paiementService.getResteTotalClient(prospectId),
+          paiementService.getByClient(prospectId)
+        ]);
         setBalance(balanceData);
+        setPaiements(paiementsData || []);
       } catch (balErr) {
-        console.error('Erreur balance:', balErr);
+        console.error('Erreur balance ou paiements:', balErr);
       } finally {
         setLoadingBalance(false);
       }
@@ -192,7 +197,14 @@ const ProspectHistory = ({ prospectId, prospect }) => {
     <div className="space-y-6">
       {/* Onglet Historique uniquement */}
       <div className="border-b border-gray-200 pb-2">
-        <h3 className="text-lg font-bold text-gray-800">📋 Historique Actions</h3>
+        <h3 className="text-lg font-bold text-gray-800">
+          📋 Historique Actions {prospect ? `- ${prospect.raison_sociale}` : ''}
+        </h3>
+        {prospect && prospect.contact && (
+          <p className="text-sm text-gray-500 mt-1">
+            👤 {prospect.contact} {prospect.wilaya ? `(${prospect.wilaya})` : ''}
+          </p>
+        )}
       </div>
 
       {/* ✅ SITUATION FINANCIÈRE DÉTAILLÉE */}
@@ -219,8 +231,25 @@ const ProspectHistory = ({ prospectId, prospect }) => {
                     <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                       <p className="text-xs font-bold text-gray-500 uppercase mb-2">📦 Acquisition</p>
                       <div className="space-y-1 text-sm">
+                        {/* Liste des modules */}
+                        {inst.applications_annexes && inst.applications_annexes.length > 0 && (
+                          <div className="mb-2 pb-2 border-b border-gray-200">
+                            <span className="text-xs text-blue-600 font-semibold mb-1 block">Modules supplémentaires :</span>
+                            <ul className="text-xs text-gray-600 flex flex-col gap-1 pl-1">
+                              {inst.applications_annexes.map((annexe, i) => (
+                                <li key={i} className="flex justify-between">
+                                  <span>+ {annexe.nom}</span>
+                                  <span className="font-medium">
+                                    {(profile?.role === 'admin' || profile?.role === 'super_admin') ? formatMontant(annexe.montant || 0) : '🔐'}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Montant dû</span>
+                          <span className="text-gray-600">Montant dû {inst.applications_annexes?.length > 0 ? '(Total)' : ''}</span>
                           <span className="font-bold text-gray-800">
                             {profile?.role === 'admin' || profile?.role === 'super_admin'
                               ? formatMontant(inst.montantAcquisition) : '🔐'}
@@ -314,6 +343,54 @@ const ProspectHistory = ({ prospectId, prospect }) => {
               </div>
             </div>
           </div>
+
+          {/* TABLEAU HISTORIQUE DES PAIEMENTS */}
+          {paiements && paiements.length > 0 && (
+            <div className="mt-8">
+              <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
+                <CreditCard size={20} className="text-green-600" />
+                Historique des Paiements
+              </h3>
+              <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-gray-50 text-gray-500 font-semibold border-b">
+                      <tr>
+                        <th className="px-4 py-3">Date</th>
+                        <th className="px-4 py-3">Type</th>
+                        <th className="px-4 py-3">Installation</th>
+                        <th className="px-4 py-3">Montant</th>
+                        <th className="px-4 py-3">Mode</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {paiements.map((p) => (
+                        <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-4 py-3 text-gray-800 font-medium">{formatDate(p.date_paiement)}</td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
+                                p.type === 'acquisition' ? 'bg-blue-100 text-blue-700' : 'bg-indigo-100 text-indigo-700'
+                            }`}>
+                              {p.type === 'acquisition' ? 'Acquisition' : 'Abonnement'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-gray-600 font-medium">
+                            {p.installation?.application_installee || '-'}
+                          </td>
+                          <td className="px-4 py-3 font-bold text-green-600">
+                            {profile?.role === 'admin' || profile?.role === 'super_admin' ? formatMontant(p.montant) : '🔐'}
+                          </td>
+                          <td className="px-4 py-3 text-gray-600 capitalize">
+                            {p.mode_paiement}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -502,7 +579,7 @@ const ProspectHistory = ({ prospectId, prospect }) => {
                   <p>
                     <strong>Montant:</strong> <span className="font-bold text-green-600">
                       {profile?.role === 'admin' || profile?.role === 'super_admin' ? (
-                        formatMontant(firstInstallation.montant || 0)
+                        formatMontant((firstInstallation.montant || 0) + (firstInstallation.applications_annexes || []).reduce((acc, a) => acc + (parseFloat(a.montant) || 0), 0))
                       ) : (
                         '🔐'
                       )}
