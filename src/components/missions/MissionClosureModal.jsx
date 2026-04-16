@@ -6,7 +6,7 @@ import Input from '../common/Input';
 const MissionClosureModal = ({ mission, isChef, isAdmin, onCloseChef, onValidateAdmin, onCancel }) => {
   const [closureData, setClosureData] = useState({
     commentaireChef: '',
-    dateClotureReeelle: mission?.dateFin || new Date().toISOString().split('T')[0],
+    dateClotureReeelle: null,
     avancements: mission?.avancement || 100
   });
 
@@ -23,7 +23,10 @@ const MissionClosureModal = ({ mission, isChef, isAdmin, onCloseChef, onValidate
       return;
     }
     if (onCloseChef) {
-      onCloseChef(closureData);
+      const timestamp = new Date().toISOString();
+      const dataWithTimestamp = { ...closureData, dateClotureReeelle: timestamp };
+      setClosureData(dataWithTimestamp);
+      onCloseChef(dataWithTimestamp);
       setStep('admin');
     }
   };
@@ -95,10 +98,13 @@ const MissionClosureModal = ({ mission, isChef, isAdmin, onCloseChef, onValidate
           </div>
           <div className="bg-orange-50 border border-orange-200 p-4 rounded">
             <label className="block text-sm font-semibold text-orange-900 mb-2">
-              📅 Date Clôture Réelle
+              📅 Date & Heure Clôture
             </label>
             <div className="text-lg font-medium text-orange-700">
-              {new Date(closureData.dateClotureReeelle).toLocaleDateString('fr-FR')}
+              {closureData.dateClotureReeelle
+                ? new Date(closureData.dateClotureReeelle).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                : new Date().toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+              }
             </div>
           </div>
         </div>
@@ -186,17 +192,17 @@ const MissionClosureModal = ({ mission, isChef, isAdmin, onCloseChef, onValidate
         </div>
       </div>
 
-      {/* Date clôture réelle */}
+      {/* Date clôture réelle (timestamp automatique) */}
       <div>
         <label className="block text-sm font-semibold text-gray-700 mb-2">
-          📅 Date de Clôture Réelle
+          📅 Date & Heure de Clôture
         </label>
-        <Input
-          type="date"
-          value={closureData.dateClotureReeelle}
-          onChange={(e) => setClosureData(prev => ({ ...prev, dateClotureReeelle: e.target.value }))}
-          className="w-full"
-        />
+        <div className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg text-gray-700 font-medium">
+          🕐 Le timestamp sera capturé automatiquement au moment de la clôture :
+          <span className="ml-2 text-blue-700 font-bold">
+            {new Date().toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+          </span>
+        </div>
       </div>
 
       {/* Avancement final */}

@@ -471,16 +471,25 @@ const InterventionsList = () => {
                   label: 'Fin',
                   width: '160px',
                   render: (row) => {
-                    const dateFin = row.date_fin?.endsWith('Z')
-                      ? row.date_fin
-                      : row.date_fin ? row.date_fin + 'Z' : null;
+                    if (!row.date_fin) return (<div><p className="font-medium text-gray-500">-</p></div>);
+                    // Normaliser le format Supabase: remplacer espace par T, gérer +00 offset
+                    let rawDate = String(row.date_fin).trim();
+                    // Remplacer l'espace entre date et heure par T
+                    rawDate = rawDate.replace(' ', 'T');
+                    // Si le format a +00 mais pas de Z, c'est déjà un offset valide
+                    // Si pas de timezone indicator du tout, ajouter Z
+                    if (!rawDate.includes('+') && !rawDate.includes('Z')) {
+                      rawDate += 'Z';
+                    }
+                    const parsed = new Date(rawDate);
+                    if (isNaN(parsed.getTime())) return (<div><p className="font-medium text-gray-500">-</p></div>);
                     return (
                       <div>
                         <p className="font-medium text-gray-900">
-                          {dateFin ? new Date(dateFin).toLocaleDateString('fr-FR') : '-'}
+                          {parsed.toLocaleDateString('fr-FR')}
                         </p>
                         <p className="text-xs text-gray-500">
-                          {dateFin ? new Date(dateFin).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                          {parsed.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
                     )
@@ -644,6 +653,17 @@ const InterventionsList = () => {
         title="Clôturer l'Intervention"
       >
         <form onSubmit={handleCloturerSubmit} className="space-y-4">
+          {/* Timestamp automatique de clôture */}
+          <div className="bg-orange-50 border border-orange-200 p-4 rounded-lg">
+            <label className="block text-sm font-semibold text-orange-900 mb-2">
+              📅 Date & Heure de Clôture
+            </label>
+            <div className="text-lg font-bold text-orange-700">
+              🕐 {new Date().toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </div>
+            <p className="text-xs text-orange-600 mt-1">Le timestamp exact sera capturé automatiquement au moment de la clôture</p>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Action Entreprise <span className="text-red-500">*</span>
